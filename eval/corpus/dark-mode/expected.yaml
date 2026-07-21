@@ -1,0 +1,19 @@
+# Hand-authored ground truth for the dark-mode fixture (§10).
+# Stresses "largest-area dark → background", not mislabelling the whole page.
+name: dark-mode
+bucket: dark-mode
+palette:
+  background: "#0d1117"
+  surface: "#161b22"
+  text: "#e6edf3"
+  primary: "#58a6ff"
+  border: "#30363d"
+  muted: "#8b949e"
+typography:
+  bodyFamily: "IBM Plex Sans"
+  scale:
+    h1: 44
+    h2: 30
+    h3: 22
+    body: 16
+    small: 13

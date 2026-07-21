@@ -1,0 +1,39 @@
+{
+  "name": "distill",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Point it at a URL or drop in an image → a Markdown design system.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "eval": "tsx eval/run.ts",
+    "eval:ai": "tsx eval/stability.ts",
+    "eval:capture": "tsx eval/capture.ts",
+    "postinstall": "playwright install chromium"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.112.4",
+    "culori": "^4.0.2",
+    "js-yaml": "^5.2.1",
+    "next": "^15.1.6",
+    "playwright": "^1.50.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "sharp": "^0.35.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.0",
+    "@types/culori": "^4.0.1",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.23.1",
+    "typescript": "^5.7.0"
+  }
+}

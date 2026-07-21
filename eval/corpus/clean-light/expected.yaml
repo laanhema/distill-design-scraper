@@ -1,0 +1,19 @@
+# Hand-authored ground truth for the clean-light fixture (§10).
+# Palette is matched by ΔE tolerance, never exact hex; roles must land correctly.
+name: clean-light
+bucket: clean-design-system
+palette:
+  background: "#ffffff"
+  surface: "#f4f6f8"
+  text: "#1a2233"
+  primary: "#1a73e8"
+  border: "#e2e8f0"
+  muted: "#64748b"
+typography:
+  bodyFamily: "Inter"
+  scale:
+    h1: 48
+    h2: 32
+    h3: 24
+    body: 16
+    small: 13
