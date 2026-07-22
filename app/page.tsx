@@ -10,6 +10,8 @@ interface Meta {
   bannerDismissed: boolean;
   capturedAt: string;
   viewportShot: string;
+  /** Every source image, in submitted order (image mode only, §P6-1). */
+  viewportShots?: string[];
   aiApplied: boolean;
 }
 
@@ -32,11 +34,13 @@ interface AnalyzeResponse {
 type Status = "idle" | "loading" | "done" | "error";
 type InputMode = "url" | "image";
 
+const MAX_IMAGES = 6;
+
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [url, setUrl] = useState("");
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<Report | null>(null);
@@ -47,19 +51,29 @@ export default function Home() {
   const [tab, setTab] = useState<"preview" | "tokens" | "structure">("preview");
   const [copied, setCopied] = useState(false);
 
-  function handleFileSelect(file: File) {
-    setSelectedFile(file);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagePreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+  function handleFilesSelect(files: File[]) {
+    const room = MAX_IMAGES - selectedFiles.length;
+    if (room <= 0) return;
+    const accepted = files.slice(0, room);
+    setSelectedFiles((prev) => [...prev, ...accepted]);
+    for (const file of accepted) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreviews((prev) => [...prev, e.target?.result as string]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function removeImage(index: number) {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function analyze(e: React.FormEvent) {
     e.preventDefault();
     if (inputMode === "url" && !url.trim()) return;
-    if (inputMode === "image" && !selectedFile && !imagePreview) return;
+    if (inputMode === "image" && imagePreviews.length === 0) return;
 
     setStatus("loading");
     setError(null);
@@ -74,8 +88,14 @@ export default function Home() {
       if (inputMode === "url") {
         bodyData.url = url;
       } else {
-        bodyData.image = imagePreview;
-        bodyData.imageName = selectedFile?.name || "uploaded-image";
+        // Image mode only ever yields a Palette & Mood report (§P6-2) — there
+        // is no structure/DOM to extract from a static image, so `mode` isn't
+        // meaningful here and is simply omitted.
+        delete bodyData.mode;
+        bodyData.images = imagePreviews.map((data, i) => ({
+          data,
+          name: selectedFiles[i]?.name || `uploaded-image-${i + 1}`,
+        }));
       }
 
       const res = await fetch("/api/analyze", {
@@ -116,8 +136,8 @@ export default function Home() {
     try {
       host = new URL(meta?.finalUrl ?? url).hostname.replace(/^www\./, "");
     } catch {
-      if (inputMode === "image" && selectedFile) {
-        host = selectedFile.name.replace(/\.[^/.]+$/, "");
+      if (inputMode === "image" && selectedFiles[0]) {
+        host = selectedFiles[0].name.replace(/\.[^/.]+$/, "");
       }
     }
     a.href = href;
@@ -131,9 +151,10 @@ export default function Home() {
       <header className="mb-10">
         <h1 className="text-4xl font-semibold tracking-tight">Distill</h1>
         <p className="mt-2 text-neutral-600 dark:text-neutral-400">
-          Point it at a URL or drop an Image → Markdown Format Design System &amp; Layout Structure.{" "}
+          Point it at a URL for a Design System &amp; Layout Structure report, or drop in image(s)
+          for a Palette &amp; Mood report.{" "}
           <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-medium dark:bg-neutral-800">
-            Track A (Design System) + Track B (Layout Structure)
+            {inputMode === "url" ? "Track A (Design System) + Track B (Layout Structure)" : "Palette & Mood only"}
           </span>
         </p>
       </header>
@@ -189,8 +210,8 @@ export default function Home() {
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
-                if (e.dataTransfer.files?.[0]) {
-                  handleFileSelect(e.dataTransfer.files[0]);
+                if (e.dataTransfer.files?.length) {
+                  handleFilesSelect(Array.from(e.dataTransfer.files));
                 }
               }}
               className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 p-8 text-center transition hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-600"
@@ -198,8 +219,10 @@ export default function Home() {
               <input
                 type="file"
                 accept="image/*"
+                multiple
                 onChange={(e) => {
-                  if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                  if (e.target.files?.length) handleFilesSelect(Array.from(e.target.files));
+                  e.target.value = "";
                 }}
                 className="hidden"
                 id="image-input"
@@ -208,19 +231,44 @@ export default function Home() {
                 htmlFor="image-input"
                 className="cursor-pointer text-sm font-medium text-neutral-700 dark:text-neutral-300"
               >
-                {selectedFile ? (
-                  <span>Selected: <strong>{selectedFile.name}</strong></span>
+                {selectedFiles.length > 0 ? (
+                  <span>
+                    {selectedFiles.length} image{selectedFiles.length > 1 ? "s" : ""} selected —{" "}
+                    <span className="underline">add more</span>
+                  </span>
                 ) : (
-                  <span>Drag &amp; drop an image here, or <span className="underline">browse</span></span>
+                  <span>Drag &amp; drop image(s) here, or <span className="underline">browse</span></span>
                 )}
               </label>
             </div>
+            {imagePreviews.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {imagePreviews.map((src, i) => (
+                  <div key={i} className="group relative h-16 w-16 overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={src} alt={selectedFiles[i]?.name ?? `image ${i + 1}`} className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                      aria-label={`Remove image ${i + 1}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-neutral-500">
+              Multiple images of the same site/design merge into one palette (up to {MAX_IMAGES}).
+              Image input yields a Palette &amp; Mood report only — no layout structure.
+            </p>
             <button
               type="submit"
-              disabled={status === "loading" || (!selectedFile && !imagePreview)}
+              disabled={status === "loading" || imagePreviews.length === 0}
               className="self-end rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
-              {status === "loading" ? "Analyzing…" : "Analyze Image"}
+              {status === "loading" ? "Analyzing…" : `Analyze Image${imagePreviews.length > 1 ? "s" : ""}`}
             </button>
           </div>
         )}
@@ -504,12 +552,26 @@ function Preview({
         </section>
       )}
 
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={meta.viewportShot}
-        alt={`Screenshot of ${meta.finalUrl}`}
-        className="w-full rounded-lg border border-neutral-200 shadow-sm dark:border-neutral-800"
-      />
+      {meta.viewportShots && meta.viewportShots.length > 1 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {meta.viewportShots.map((src, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={i}
+              src={src}
+              alt={`Source image ${i + 1} of ${meta.finalUrl}`}
+              className="w-full rounded-lg border border-neutral-200 shadow-sm dark:border-neutral-800"
+            />
+          ))}
+        </div>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={meta.viewportShot}
+          alt={`Screenshot of ${meta.finalUrl}`}
+          className="w-full rounded-lg border border-neutral-200 shadow-sm dark:border-neutral-800"
+        />
+      )}
     </div>
   );
 }

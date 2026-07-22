@@ -219,6 +219,9 @@ export const reportSchema = z.object({
   source: z.object({
     type: z.enum(["url", "image"]),
     ref: z.string(),
+    /** Every source name, only present for a multi-image analysis (§P6-1) —
+     *  `ref` stays a single human-readable summary for existing consumers. */
+    refs: z.array(z.string()).optional(),
     capturedAt: z.string(),
   }),
   palette: paletteSchema,

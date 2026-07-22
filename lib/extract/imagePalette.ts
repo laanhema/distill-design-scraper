@@ -30,15 +30,21 @@ interface ImageColorCluster {
   areaWeight: number;
 }
 
-export async function extractImagePalette(
-  imageInput: Buffer | string,
-): Promise<Palette> {
-  const buffer =
-    typeof imageInput === "string"
-      ? Buffer.from(imageInput, "base64")
-      : imageInput;
+/** Merge a color observation into a cluster list, by perceptual ΔE (§5 Stage B). */
+function mergeInto(clusters: ImageColorCluster[], color: Color, hexStr: string, count: number) {
+  for (const cluster of clusters) {
+    if (deltaE(cluster.color, color) <= MERGE_DELTA_E) {
+      cluster.count += count;
+      return;
+    }
+  }
+  clusters.push({ color, hex: hexStr, count, areaWeight: 0 });
+}
 
-  // Downscale image for fast, reliable pixel quantization
+/** Quantize one image's pixels into perceptual color clusters (raw counts, not yet area-weighted). */
+async function quantizeImage(
+  buffer: Buffer,
+): Promise<{ clusters: ImageColorCluster[]; pixelCount: number }> {
   const { data, info } = await sharp(buffer)
     .resize(SAMPLE_SIZE, SAMPLE_SIZE, { fit: "inside" })
     .ensureAlpha()
@@ -48,7 +54,6 @@ export async function extractImagePalette(
   const pixelCount = info.width * info.height;
   const clusters: ImageColorCluster[] = [];
 
-  // Step 1: Quantize pixels into perceptual clusters
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
     const g = data[i + 1];
@@ -61,27 +66,33 @@ export async function extractImagePalette(
     const parsed = parseColor(`rgb(${r}, ${g}, ${b})`);
     if (!parsed) continue;
 
-    let merged = false;
-    for (const cluster of clusters) {
-      if (deltaE(cluster.color, parsed) <= MERGE_DELTA_E) {
-        cluster.count++;
-        merged = true;
-        break;
-      }
-    }
+    mergeInto(clusters, parsed, hex(parsed), 1);
+  }
 
-    if (!merged) {
-      clusters.push({
-        color: parsed,
-        hex: hex(parsed),
-        count: 1,
-        areaWeight: 0,
-      });
+  return { clusters, pixelCount };
+}
+
+export async function extractImagePalette(
+  imageInput: Buffer | string | (Buffer | string)[],
+): Promise<Palette> {
+  const inputs = Array.isArray(imageInput) ? imageInput : [imageInput];
+  const buffers = inputs.map((img) =>
+    typeof img === "string" ? Buffer.from(img, "base64") : img,
+  );
+
+  // Quantize each image independently, then merge across images by ΔE so a
+  // color that recurs across screenshots is counted once, not once per image.
+  const perImage = await Promise.all(buffers.map(quantizeImage));
+  const clusters: ImageColorCluster[] = [];
+  for (const { clusters: imageClusters } of perImage) {
+    for (const c of imageClusters) {
+      mergeInto(clusters, c.color, c.hex, c.count);
     }
   }
 
-  // Calculate area weights
-  const validPixels = clusters.reduce((acc, c) => acc + c.count, 0) || pixelCount;
+  // Calculate area weights across the combined pixel pool
+  const totalPixelCount = perImage.reduce((acc, p) => acc + p.pixelCount, 0);
+  const validPixels = clusters.reduce((acc, c) => acc + c.count, 0) || totalPixelCount;
   for (const c of clusters) {
     c.areaWeight = c.count / validPixels;
   }

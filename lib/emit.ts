@@ -21,7 +21,7 @@ import {
  */
 
 export interface BuildReportInput {
-  source: { type: "url" | "image"; ref: string; capturedAt: string };
+  source: { type: "url" | "image"; ref: string; refs?: string[]; capturedAt: string };
   reportKind: Report["reportKind"];
   palette: Palette;
   paletteDark?: Palette;

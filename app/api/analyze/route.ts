@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { analyzeImage, analyzeUrl, extractStructureFromCapture } from "@/lib/analyze";
+import { analyzeImages, analyzeUrl, extractStructureFromCapture } from "@/lib/analyze";
 import { createCacheKey, getCache, setCache } from "@/lib/cache";
 
 // Playwright needs the full Node runtime + a real Chromium binary — never Edge.
@@ -8,12 +8,26 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// Keep vision-lane cost/latency bounded; matches MAX_INTERPRET_IMAGES in lib/interpret.ts.
+const MAX_IMAGES = 6;
+
+interface ImageEntry {
+  data: string;
+  name?: string;
+}
+
 interface AnalyzeBody {
   url?: string;
+  /** @deprecated single-image alias — mapped onto `images` below. */
   image?: string;
   imageName?: string;
+  images?: ImageEntry[];
   mode?: "tokens" | "structure" | "both";
   forceRefresh?: boolean;
+}
+
+function stripDataUrlPrefix(image: string): string {
+  return image.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
 }
 
 export async function POST(request: Request) {
@@ -28,17 +42,23 @@ export async function POST(request: Request) {
   }
 
   const url = body.url?.trim();
-  const image = body.image?.trim();
+  // `image` is a deprecated single-image alias for `images`; both may be
+  // present in old clients/bookmarked requests, so merge rather than choose.
+  const images: ImageEntry[] = [
+    ...(body.image?.trim() ? [{ data: body.image.trim(), name: body.imageName }] : []),
+    ...(body.images ?? []),
+  ].slice(0, MAX_IMAGES);
   const mode = body.mode || "both";
 
-  if (!url && !image) {
+  if (!url && images.length === 0) {
     return NextResponse.json(
-      { error: "Missing 'url' or 'image' in request body." },
+      { error: "Missing 'url' or 'images' in request body." },
       { status: 400 },
     );
   }
 
-  const cacheKey = createCacheKey(`${url || ""}:${image ? image.slice(0, 100) : ""}:${mode}`);
+  const imagesKeyPart = images.map((img) => img.data.slice(0, 100)).join("|");
+  const cacheKey = createCacheKey(`${url || ""}:${imagesKeyPart}:${mode}`);
   if (!body.forceRefresh) {
     const cached = getCache<unknown>(cacheKey);
     if (cached) {
@@ -47,13 +67,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    if (image) {
-      // Strip data URL prefix if present e.g. "data:image/png;base64,..."
-      const cleanBase64 = image.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
-      const imageName = body.imageName || "uploaded-image";
-      const { report, markdown, meta, refinements } = await analyzeImage(
-        cleanBase64,
-        imageName,
+    if (images.length > 0) {
+      const cleaned = images.map((img, i) => ({
+        raw: img.data,
+        clean: stripDataUrlPrefix(img.data),
+        name: img.name || `uploaded-image-${i + 1}`,
+      }));
+
+      const { report, markdown, meta, refinements } = await analyzeImages(
+        cleaned.map((img) => ({ data: img.clean, name: img.name })),
       );
 
       const responsePayload = {
@@ -64,7 +86,13 @@ export async function POST(request: Request) {
         meta: {
           ...meta,
           capturedAt: report.source.capturedAt,
-          viewportShot: image.startsWith("data:") ? image : `data:image/png;base64,${cleanBase64}`,
+          // Preview strip: every source image, in submitted order.
+          viewportShots: cleaned.map((img) =>
+            img.raw.startsWith("data:") ? img.raw : `data:image/png;base64,${img.clean}`,
+          ),
+          viewportShot: cleaned[0].raw.startsWith("data:")
+            ? cleaned[0].raw
+            : `data:image/png;base64,${cleaned[0].clean}`,
         },
       };
 

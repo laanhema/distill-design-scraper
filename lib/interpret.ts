@@ -13,8 +13,10 @@ import { ROLE_USAGE } from "@/lib/extract/palette";
 /**
  * Interpretation engine (§6, the AI lane). Only `identity`, `imageMood`, and
  * color-role *refinements* (Stage E, §5) go through the model. It receives the
- * screenshot **and** a compact JSON summary of the already-measured tokens, so
- * its read of "the feel" is grounded in the real palette/type, not just pixels.
+ * screenshot(s) **and** a compact JSON summary of the already-measured tokens,
+ * so its read of "the feel" is grounded in the real palette/type, not just
+ * pixels. Multi-image uploads (§P6-1) pass every screenshot (capped) so the
+ * model reads the whole set as one subject rather than just the first image.
  *
  * The model never invents a hex it could have measured and never emits prose:
  * output is strict JSON constrained by structured outputs, then re-validated
@@ -90,9 +92,13 @@ const OUTPUT_SCHEMA = {
   required: ["identity", "imageMood", "roleRefinements"],
 } as const;
 
+/** Vision calls stay cheap and grounded — more images add cost without adding read. */
+const MAX_INTERPRET_IMAGES = 4;
+
 export interface InterpretInput {
-  /** Base64 PNG (viewport screenshot for URLs, normalized image for images). */
-  screenshotPngBase64: string;
+  /** Base64 PNG(s) — viewport screenshot(s) for URLs, uploaded image(s) for image mode.
+   *  Capped to `MAX_INTERPRET_IMAGES`; extras are ignored (§P6-1). */
+  screenshotsPngBase64: string[];
   palette: Palette;
   typography?: Typography;
 }
@@ -142,9 +148,18 @@ export function aiLaneAvailable(): boolean {
 /** One model round-trip → parsed, Zod-validated JSON (or null on failure). */
 async function requestOnce(
   client: Anthropic,
-  screenshotPngBase64: string,
+  screenshotsPngBase64: string[],
   summary: string,
 ): Promise<AiResponse | null> {
+  const imageBlocks = screenshotsPngBase64.map((data) => ({
+    type: "image" as const,
+    source: { type: "base64" as const, media_type: "image/png" as const, data },
+  }));
+  const promptNote =
+    screenshotsPngBase64.length > 1
+      ? `Measured tokens for this design (derived from ${screenshotsPngBase64.length} images of the same subject):`
+      : "Measured tokens for this design:";
+
   const response = await client.messages.create({
     model: MODEL,
     max_tokens: MAX_TOKENS,
@@ -160,17 +175,10 @@ async function requestOnce(
       {
         role: "user",
         content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: "image/png",
-              data: screenshotPngBase64,
-            },
-          },
+          ...imageBlocks,
           {
             type: "text",
-            text: `Measured tokens for this design:\n\n${summary}\n\nInterpret its identity and imageMood, and refine any mislabelled color roles.`,
+            text: `${promptNote}\n\n${summary}\n\nInterpret its identity and imageMood, and refine any mislabelled color roles.`,
           },
         ],
       },
@@ -203,18 +211,16 @@ export async function interpret(
   input: InterpretInput,
 ): Promise<Interpretation | null> {
   if (!aiLaneAvailable()) return null;
+  if (input.screenshotsPngBase64.length === 0) return null;
 
   const client = new Anthropic();
   const summary = groundingSummary(input.palette, input.typography);
+  const screenshots = input.screenshotsPngBase64.slice(0, MAX_INTERPRET_IMAGES);
 
   // One repair retry (§6), then graceful fallback.
-  let ai = await requestOnce(client, input.screenshotPngBase64, summary).catch(
-    () => null,
-  );
+  let ai = await requestOnce(client, screenshots, summary).catch(() => null);
   if (!ai) {
-    ai = await requestOnce(client, input.screenshotPngBase64, summary).catch(
-      () => null,
-    );
+    ai = await requestOnce(client, screenshots, summary).catch(() => null);
   }
   if (!ai) return null;
 

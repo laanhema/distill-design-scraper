@@ -116,12 +116,12 @@ export async function extractStructureFromCapture(
  */
 export async function enrichWithAI(
   measured: AnalyzeResult,
-  screenshotPngBase64: string,
+  screenshotsPngBase64: string[],
 ): Promise<AnalyzeResult & { refinements: RefinementChange[] }> {
   if (!aiLaneAvailable()) return { ...measured, refinements: [] };
 
   const interpretation = await interpret({
-    screenshotPngBase64,
+    screenshotsPngBase64,
     palette: measured.report.palette,
     typography: measured.report.typography,
   });
@@ -150,10 +150,20 @@ export async function enrichWithAI(
   return { report, markdown: renderMarkdown(report), refinements: changes };
 }
 
-/** Phase 3: Full image processing path ("Palette & Mood" report, §3, §8). */
-export async function analyzeImage(
-  imageInput: Buffer | string,
-  refName = "uploaded-image",
+export interface ImageInput {
+  data: Buffer | string;
+  name?: string;
+}
+
+/**
+ * Phase 3 / §P6-1: Full image processing path ("Palette & Mood" report).
+ * Accepts one or more images of the same subject — palettes are merged at the
+ * pixel-cluster level (§P6-1, `extractImagePalette`) rather than averaged
+ * after role-assignment, so the result is still one coherent, unique-per-role
+ * palette instead of N colliding ones.
+ */
+export async function analyzeImages(
+  images: ImageInput[],
 ): Promise<
   AnalyzeResult & {
     refinements: RefinementChange[];
@@ -166,13 +176,25 @@ export async function analyzeImage(
     };
   }
 > {
+  if (images.length === 0) {
+    throw new Error("analyzeImages requires at least one image.");
+  }
+
   const startedAt = Date.now();
   const capturedAt = new Date().toISOString();
-  const palette = await extractImagePalette(imageInput);
+  const names = images.map((img, i) => img.name || `uploaded-image-${i + 1}`);
+  const ref = names.length === 1 ? names[0] : `${names[0]} +${names.length - 1} more`;
+
+  const palette = await extractImagePalette(images.map((img) => img.data));
 
   const baseReport = buildReport({
     reportKind: "palette-mood",
-    source: { type: "image", ref: refName, capturedAt },
+    source: {
+      type: "image",
+      ref,
+      ...(names.length > 1 ? { refs: names } : {}),
+      capturedAt,
+    },
     palette,
   });
 
@@ -181,20 +203,19 @@ export async function analyzeImage(
     markdown: renderMarkdown(baseReport),
   };
 
-  const imageBase64 =
-    typeof imageInput === "string"
-      ? imageInput
-      : imageInput.toString("base64");
+  const screenshotsBase64 = images.map((img) =>
+    typeof img.data === "string" ? img.data : img.data.toString("base64"),
+  );
 
-  const enriched = await enrichWithAI(measuredResult, imageBase64);
+  const enriched = await enrichWithAI(measuredResult, screenshotsBase64);
 
   return {
     report: enriched.report,
     markdown: enriched.markdown,
     refinements: enriched.refinements,
     meta: {
-      finalUrl: refName,
-      title: refName,
+      finalUrl: ref,
+      title: ref,
       elapsedMs: Date.now() - startedAt,
       bannerDismissed: false,
       aiApplied: Boolean(enriched.report.identity),
@@ -236,7 +257,7 @@ export async function analyzeUrl(url: string): Promise<AnalyzeResult & {
   const render = await renderUrl(url);
   const capture = captureFromRender(render, url, capturedAt);
   const measured = await extractFromCapture(capture);
-  const enriched = await enrichWithAI(measured, capture.viewportShot);
+  const enriched = await enrichWithAI(measured, [capture.viewportShot]);
   return {
     report: enriched.report,
     markdown: enriched.markdown,

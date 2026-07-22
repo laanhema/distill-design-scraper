@@ -25,17 +25,17 @@ Distill operates via two parallel extraction tracks:
 ## Input Modes & Reports
 
 - **URL Input**: Executes a headless Chromium browser instance via Playwright to capture computed styles, screenshot, and raw DOM node trees. Supports mode selection: `tokens`, `structure`, or `both`.
-- **Image Input**: Generates a lighter `palette-mood` report based on image palette extraction and AI vision interpretation (bypassing synthetic or faked typography/spacing tokens).
+- **Image Input**: Generates a lighter `palette-mood` report based on image palette extraction and AI vision interpretation (bypassing synthetic or faked typography/spacing tokens). **Palette & Mood only** — an uploaded image has no DOM to harvest, so there is no layout-structure report for image input, regardless of mode. Accepts one or more images of the same site/design (up to 6); their pixel clusters are merged into a single deduplicated palette rather than producing one report per image.
 
 ---
 
 ## Interactive UI & API
 
 Distill includes a modern Next.js web application featuring:
-- **Interactive Workbench**: URL submission, drag-and-drop image upload, mode toggles (`tokens`, `structure`, `both`), and forced cache refresh controls.
+- **Interactive Workbench**: URL submission, mode toggles (`tokens`, `structure`, `both`) for URL input, and drag-and-drop multi-image upload (Palette & Mood only) with a thumbnail strip, plus forced cache refresh controls.
 - **Visual Swatches & Previews**: Live viewport rendering alongside visual color swatches and OKLCH/APCA contrast indicators.
 - **Tabbed Markdown Output**: Quick tabs for Preview, Design System Tokens, and Structural Architecture, with 1-click Markdown copying and file downloading.
-- **REST Endpoint**: `POST /api/analyze` accepts JSON payloads containing `{ url, image, mode, forceRefresh }` and returns fully formatted reports and metadata.
+- **REST Endpoint**: `POST /api/analyze` accepts JSON payloads containing `{ url, images, mode, forceRefresh }` (`images` is `{ data, name? }[]`; the legacy single-image `image`/`imageName` fields still work as a one-element alias) and returns fully formatted reports and metadata.
 
 ---
 

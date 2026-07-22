@@ -66,7 +66,7 @@ async function scoreSite(slug: string): Promise<{
   const archetypeSets: string[][] = [];
   for (let i = 0; i < RUNS; i++) {
     const interpretation = await interpret({
-      screenshotPngBase64: capture.viewportShot,
+      screenshotsPngBase64: [capture.viewportShot],
       palette: report.palette,
       typography: report.typography,
     });
