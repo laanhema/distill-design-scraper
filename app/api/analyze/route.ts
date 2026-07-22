@@ -8,7 +8,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Keep vision-lane cost/latency bounded; matches MAX_INTERPRET_IMAGES in lib/interpret.ts.
+// Bound the measured-lane palette merge; the AI lane applies its own, tighter
+// cap (MAX_INTERPRET_IMAGES in lib/interpret.ts) on top of whatever's accepted here.
 const MAX_IMAGES = 6;
 
 interface ImageEntry {
