@@ -68,7 +68,10 @@ function renderBody(report: Report): string {
   if (report.typography) parts.push(renderTypography(report.typography));
   if (report.spacing) parts.push(renderSpacing(report.spacing));
   if (report.radius) parts.push(renderRadius(report.radius));
-  if (report.elevation) parts.push(renderElevation(report.elevation));
+  if (report.elevation) {
+    const elevationSection = renderElevation(report.elevation);
+    if (elevationSection) parts.push(elevationSection);
+  }
   if (report.identity) parts.push(renderIdentity(report.identity));
   if (report.imageMood) parts.push(renderImageMood(report.imageMood));
 
@@ -107,7 +110,12 @@ function renderTypography(typography: Typography): string {
   lines.push("**Families**", "");
   for (const f of typography.families) {
     const weights = f.weightsObserved.join(", ");
-    lines.push(`- **${f.name}** — ${f.role}, ${f.classification} · weights ${weights}`);
+    const fallbacks = f.stack.filter((name) => name !== f.name);
+    const fallbackSuffix =
+      fallbacks.length > 0 ? ` · fallback: ${fallbacks.join(", ")}` : "";
+    lines.push(
+      `- **${f.name}** — ${f.role}, ${f.classification} · weights ${weights}${fallbackSuffix}`,
+    );
   }
 
   lines.push("", "**Type scale**", "");
@@ -124,7 +132,7 @@ function renderTypography(typography: Typography): string {
 function renderSpacing(spacing: Spacing): string {
   const lines: string[] = [`## Spacing${provenanceSuffix(spacing.provenance)}`, ""];
   lines.push(`Base unit: \`${spacing.baseUnitPx}px\``, "");
-  lines.push(`Scale: \`[${spacing.scale.join(", ")}]\``);
+  lines.push(`Scale (px): \`[${spacing.scale.join(", ")}]\``);
   return lines.join("\n");
 }
 
@@ -134,11 +142,12 @@ function renderRadius(radius: Radius): string {
   return lines.join("\n");
 }
 
-function renderElevation(elevation: Elevation): string {
+function renderElevation(elevation: Elevation): string | null {
+  if (elevation.shadows.length === 0) return null;
   const lines: string[] = [`## Elevation${provenanceSuffix(elevation.provenance)}`, ""];
   lines.push("Shadows:", "");
   for (const s of elevation.shadows) {
-    lines.push(`- \`${s}\``);
+    lines.push(`- **${s.name}** \`${s.value}\``);
   }
   return lines.join("\n");
 }

@@ -31,11 +31,19 @@ const GENERIC_FAMILIES = new Set([
   "blinkmacsystemfont",
 ]);
 
+/** Split a raw `font-family` value into its ordered, unquoted stack entries. */
+function parseStack(stack: string): string[] {
+  return stack
+    .split(",")
+    .map((p) => p.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean);
+}
+
 /** Resolve a `font-family` stack to its first concrete family name. */
 function firstFamily(stack: string): string {
-  const parts = stack.split(",").map((p) => p.trim().replace(/^["']|["']$/g, ""));
+  const parts = parseStack(stack);
   for (const p of parts) {
-    if (p && !GENERIC_FAMILIES.has(p.toLowerCase())) return p;
+    if (!GENERIC_FAMILIES.has(p.toLowerCase())) return p;
   }
   return parts[0] ?? "unknown";
 }
@@ -86,6 +94,10 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
   const bySize = new Map<number, SizeSample[]>();
   const familyWeights = new Map<string, Set<number>>();
   const familyCount = new Map<string, number>();
+  // First-observed raw stack per resolved family name, so the fallback chain
+  // (e.g. "system-ui, sans-serif" behind a proprietary "sohne-var") survives
+  // even though `family` itself collapses to just the primary name.
+  const familyStacks = new Map<string, string>();
 
   for (const node of dump.nodes) {
     if (!node.type) continue;
@@ -93,6 +105,7 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
     const size = Math.round(t.fontSizePx);
     if (size < 6 || size > 200) continue; // ignore degenerate values
     const family = firstFamily(t.fontFamily);
+    if (!familyStacks.has(family)) familyStacks.set(family, t.fontFamily);
 
     const bucket = bySize.get(size) ?? [];
     bucket.push({
@@ -149,7 +162,7 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
   // Sort by size descending for a natural top-down reading order.
   scale.sort((a, b) => b.sizePx - a.sizePx);
 
-  const families = resolveFamilies(familyWeights, familyCount, bySize, bodySize);
+  const families = resolveFamilies(familyWeights, familyCount, bySize, bodySize, familyStacks);
 
   return { provenance: "measured", families, scale };
 }
@@ -199,6 +212,7 @@ function resolveFamilies(
   familyCount: Map<string, number>,
   bySize: Map<number, SizeSample[]>,
   bodySize: number,
+  familyStacks: Map<string, string>,
 ): FontFamily[] {
   // Body family = most-used family at the body size (fall back to overall).
   const bodySamples = bySize.get(bodySize) ?? [];
@@ -226,6 +240,7 @@ function resolveFamilies(
       role,
       classification: classify(name),
       weightsObserved: [...(familyWeights.get(name) ?? [])].sort((a, b) => a - b),
+      stack: parseStack(familyStacks.get(name) ?? name),
     });
   };
 

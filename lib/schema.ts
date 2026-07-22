@@ -59,6 +59,9 @@ export const fontFamilySchema = z.object({
   role: z.enum(TYPE_ROLES),
   classification: z.string(),
   weightsObserved: z.array(z.number()),
+  /** Full measured `font-family` stack (name first), so a rebuild that can't
+   *  load a proprietary/custom font still has the site's real fallback. */
+  stack: z.array(z.string()),
 });
 export type FontFamily = z.infer<typeof fontFamilySchema>;
 
@@ -91,6 +94,7 @@ export const spacingSchema = z.object({
   provenance: provenanceSchema,
   baseUnitPx: z.number(),
   scale: z.array(z.number()),
+  unit: z.literal("px"),
 });
 export type Spacing = z.infer<typeof spacingSchema>;
 
@@ -100,9 +104,17 @@ export const radiusSchema = z.object({
 });
 export type Radius = z.infer<typeof radiusSchema>;
 
+export const ELEVATION_LEVELS = ["sm", "md", "lg", "xl"] as const;
+export type ElevationLevel = (typeof ELEVATION_LEVELS)[number];
+export const elevationShadowSchema = z.object({
+  name: z.enum(ELEVATION_LEVELS),
+  value: z.string(),
+});
+export type ElevationShadow = z.infer<typeof elevationShadowSchema>;
+
 export const elevationSchema = z.object({
   provenance: provenanceSchema,
-  shadows: z.array(z.string()),
+  shadows: z.array(elevationShadowSchema),
 });
 export type Elevation = z.infer<typeof elevationSchema>;
 

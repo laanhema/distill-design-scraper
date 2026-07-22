@@ -9,6 +9,7 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
 
   let provisionalType: OntologyType = "container";
   let name = formatDefaultName(node);
+  let layoutAnnotation = node.layoutAnnotation;
 
   // 1. Landmarks -> region
   if (depth <= 1 && (node.landmark || ["header", "nav", "main", "footer"].includes(node.tagName))) {
@@ -17,6 +18,11 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
     else if (node.tagName === "footer" || node.landmark === "contentinfo") name = "SiteFooter";
     else if (node.tagName === "nav" || node.landmark === "navigation") name = "Navbar";
     else if (node.tagName === "main" || node.landmark === "main") name = "MainContent";
+
+    // Region heights give a rebuild vertical rhythm (header/footer bands,
+    // hero height, etc.) that the flex/grid annotation alone doesn't convey.
+    const heightTag = `h ${Math.round(node.bounds.height)}px`;
+    layoutAnnotation = layoutAnnotation ? `${layoutAnnotation} · ${heightTag}` : heightTag;
   }
   // 2. Interactive / leaf elements -> atom
   else if (
@@ -36,6 +42,10 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
     provisionalType = "content-block";
     name = `${formatDefaultName(node)}Card`;
   }
+  // 3b. Text-bearing leaves (e.g. span/small labels) -> atom, never container
+  else if (node.hasText && childrenTyped.length === 0) {
+    provisionalType = "atom";
+  }
   // 4. Containers with children -> container or composite
   else if (childrenTyped.length > 0) {
     if (childrenTyped.every((c) => c.provisionalType === "atom")) {
@@ -49,6 +59,7 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
     ...node,
     provisionalType,
     componentName: name,
+    layoutAnnotation,
     children: childrenTyped,
   };
 }

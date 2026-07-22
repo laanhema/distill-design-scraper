@@ -79,7 +79,13 @@ export async function POST(request: Request) {
     let structureReport = null;
     if (mode === "structure" || mode === "both") {
       try {
-        structureReport = await extractStructureFromCapture(capture);
+        // `both` mode passes the already-built design report so the structure
+        // lane can cross-link components to tokens (§P3-1); `structure`-only
+        // mode has no design report to link against.
+        structureReport = await extractStructureFromCapture(
+          capture,
+          mode === "both" ? report : undefined,
+        );
       } catch (err) {
         console.warn("Structure extraction error:", err);
       }

@@ -22,6 +22,9 @@ export const componentDefSchema = z.object({
   variants: z.array(z.string()).optional(),
   role: z.string().optional(),
   instances: z.number().optional(),
+  /** Design-token hint joined from the style dump by bounds overlap, e.g.
+   *  "bg=surface · radius=8px · gap=24px" (§P3-1, `both` mode only). */
+  tokens: z.string().optional(),
 });
 export type ComponentDef = z.infer<typeof componentDefSchema>;
 
@@ -58,6 +61,9 @@ export const structureMachineBlockSchema = z.object({
   viewport: z.tuple([z.number(), z.number()]),
   captured: z.string(),
   fidelity: z.enum(["measured", "inferred"]),
+  /** Widest common width among MainContent's children that's narrower than
+   *  the viewport — the page's centered-content constraint, if any. */
+  contentMaxWidth: z.number().optional(),
   tree: z.array(structureTreeNodeSchema),
   components: z.record(z.string(), componentDefSchema),
 });
@@ -72,6 +78,7 @@ export interface StructureReport {
     viewport: string;
     captured: string;
     fidelity: "measured" | "inferred";
+    contentMaxWidth?: number;
   };
   skeletonAscii: string;
   componentMapText: string;
@@ -89,6 +96,8 @@ export interface RawHarvestNode {
   landmark: string | null;
   bounds: { x: number; y: number; width: number; height: number };
   computedDisplay: string;
+  /** Computed `position` — only captured for landmark nodes (§P2-2). */
+  cssPosition?: string;
   flexGridInfo?: {
     isFlex: boolean;
     isGrid: boolean;

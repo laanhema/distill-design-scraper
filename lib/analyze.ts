@@ -61,9 +61,14 @@ export async function extractFromCapture(
   return { report, markdown: renderMarkdown(report) };
 }
 
-/** Run the structure lane over an already-captured page. */
+/**
+ * Run the structure lane over an already-captured page. Pass `report` (the
+ * already-built design-tokens report) in `both` mode to enable the P3-1
+ * component → token cross-link; omitted, the structure report has no hints.
+ */
 export async function extractStructureFromCapture(
   capture: Capture,
+  report?: Report,
 ): Promise<StructureReport> {
   if (!capture.rawHarvestNode) {
     throw new Error("Capture does not contain rawHarvestNode for structure extraction.");
@@ -72,6 +77,8 @@ export async function extractStructureFromCapture(
     sourceUrl: capture.source.ref,
     capturedAt: capture.source.capturedAt,
     rawHarvestNode: capture.rawHarvestNode,
+    dump: report ? capture.styleDump : undefined,
+    report,
   });
 }
 

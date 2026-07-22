@@ -1,9 +1,10 @@
-import type {
-  PrunedNode,
-  ComponentDef,
-  StructureMachineBlock,
-  StructureTreeNode,
-  StructureReport,
+import {
+  structureMachineBlockSchema,
+  type PrunedNode,
+  type ComponentDef,
+  type StructureMachineBlock,
+  type StructureTreeNode,
+  type StructureReport,
 } from "../structureSchema";
 
 export interface StructureEmitInput {
@@ -13,6 +14,8 @@ export interface StructureEmitInput {
   fidelity: "measured" | "inferred";
   root: PrunedNode;
   components: Record<string, ComponentDef>;
+  /** Per-component design-token hints (§P3-1), only present in `both` mode. */
+  tokenHints?: Map<string, string>;
 }
 
 /**
@@ -20,14 +23,24 @@ export interface StructureEmitInput {
  * Formats the ASCII skeleton, component map, and machine JSON block into the target report.
  */
 export function emitStructureReport(input: StructureEmitInput): StructureReport {
-  const { sourceUrl, viewport, capturedAt, fidelity, root, components } = input;
+  const { sourceUrl, viewport, capturedAt, fidelity, root, components, tokenHints } = input;
   const viewportStr = `${viewport.width}×${viewport.height}`;
+  const contentMaxWidth = computeContentMaxWidth(root, viewport.width);
+
+  const mergedComponents: Record<string, ComponentDef> = tokenHints
+    ? Object.fromEntries(
+        Object.entries(components).map(([name, def]) => {
+          const tokens = tokenHints.get(name);
+          return [name, tokens ? { ...def, tokens } : def];
+        }),
+      )
+    : components;
 
   // 1. Build ASCII Skeleton
   const skeletonAscii = buildAsciiSkeleton(root);
 
   // 2. Build Component Map Text
-  const componentMapText = buildComponentMapText(components);
+  const componentMapText = buildComponentMapText(mergedComponents);
 
   // 3. Build Machine Block JSON
   const treeNodes = buildMachineTreeNodes([root]);
@@ -37,9 +50,12 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
     viewport: [viewport.width, viewport.height],
     captured: capturedAt.split("T")[0],
     fidelity,
+    ...(contentMaxWidth !== undefined ? { contentMaxWidth } : {}),
     tree: treeNodes,
-    components,
+    components: mergedComponents,
   };
+  // Track B validates its own contract too, same as the design-tokens report.
+  structureMachineBlockSchema.parse(machineBlock);
 
   // 4. Assemble Full Markdown Document
   let hostname = sourceUrl;
@@ -47,13 +63,16 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
     hostname = new URL(sourceUrl).hostname;
   } catch {}
 
+  const contentMaxWidthLine =
+    contentMaxWidth !== undefined ? `\ncontent-max-width: ${contentMaxWidth}px` : "";
+
   const markdown = `# Layout Structure — ${hostname}
 
 \`\`\`
 source:    ${sourceUrl}
 viewport:  ${viewportStr}
 captured:  ${capturedAt.split("T")[0]}
-fidelity:  ${fidelity}
+fidelity:  ${fidelity}${contentMaxWidthLine}
 \`\`\`
 
 ## Skeleton
@@ -71,7 +90,7 @@ ${componentMapText}
 ## Machine block
 
 \`\`\`json
-${JSON.stringify(machineBlock, null, 2)}
+${serializeMachineBlockCompact(machineBlock)}
 \`\`\`
 `;
 
@@ -81,6 +100,7 @@ ${JSON.stringify(machineBlock, null, 2)}
       viewport: viewportStr,
       captured: capturedAt.split("T")[0],
       fidelity,
+      ...(contentMaxWidth !== undefined ? { contentMaxWidth } : {}),
     },
     skeletonAscii,
     componentMapText,
@@ -89,10 +109,67 @@ ${JSON.stringify(machineBlock, null, 2)}
   };
 }
 
+/**
+ * Serialize the machine block with one line per top-level key, but each
+ * value compact (no pretty-printing) — the `tree` is the machine contract and
+ * has to stay, but restating it pretty-printed doubled the report size for no
+ * reason (P3-2).
+ */
+function serializeMachineBlockCompact(block: StructureMachineBlock): string {
+  const entries = Object.entries(block).map(
+    ([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)}`,
+  );
+  return `{\n${entries.join(",\n")}\n}`;
+}
+
+/**
+ * Content max-width (P2-2): the widest common width among MainContent's
+ * children that's narrower than the viewport — i.e. the centered-content
+ * constraint a typical `max-width` wrapper imposes, recovered from measured
+ * bounds rather than CSS (which may set it on an ancestor we've collapsed).
+ */
+function computeContentMaxWidth(root: PrunedNode, viewportWidth: number): number | undefined {
+  const widths: number[] = [];
+
+  function walk(node: PrunedNode) {
+    if (node.componentName === "MainContent" || node.tagName === "section") {
+      for (const child of node.children) {
+        const w = Math.round(child.bounds.width);
+        if (w > 0 && w < viewportWidth - 8) widths.push(w);
+      }
+    }
+    node.children.forEach(walk);
+  }
+  walk(root);
+
+  if (widths.length === 0) return undefined;
+
+  // Bucket close widths together (scrollbar jitter, sub-pixel layout) so e.g.
+  // 1266 and 1264 count as the same content-width rhythm, not two rivals.
+  const BUCKET = 8;
+  const counts = new Map<number, { count: number; sum: number }>();
+  for (const w of widths) {
+    const bucket = Math.round(w / BUCKET) * BUCKET;
+    const entry = counts.get(bucket) ?? { count: 0, sum: 0 };
+    entry.count++;
+    entry.sum += w;
+    counts.set(bucket, entry);
+  }
+  let best = widths[0];
+  let bestN = 0;
+  for (const { count, sum } of counts.values()) {
+    if (count > bestN) {
+      bestN = count;
+      best = Math.round(sum / count);
+    }
+  }
+  return best;
+}
+
 function buildAsciiSkeleton(node: PrunedNode, prefix = "", isLast = true): string {
   let line = node.componentName;
   if (node.layoutAnnotation) {
-    line += `                  [${node.layoutAnnotation}]`;
+    line += ` [${node.layoutAnnotation}]`;
   }
   if (node.instanceCount && node.instanceCount > 1) {
     line += ` ×${node.instanceCount}`;
@@ -108,7 +185,7 @@ function buildAsciiSkeleton(node: PrunedNode, prefix = "", isLast = true): strin
     const child = children[i];
     const childIsLast = i === children.length - 1;
     const connector = childIsLast ? "└─ " : "├─ ";
-    const childPrefix = prefix + (isLast ? "   " : "│  ");
+    const childPrefix = prefix + (childIsLast ? "   " : "│  ");
     result += "\n" + prefix + connector + buildAsciiSkeleton(child, childPrefix, childIsLast);
   }
 
@@ -122,12 +199,17 @@ function buildComponentMapText(components: Record<string, ComponentDef>): string
     if (def.role) {
       lines.push(`- role: ${def.role}`);
     }
-    lines.push(`- composition: \`${def.composition.join(" + ")}\``);
+    lines.push(
+      `- composition: ${def.composition.length > 0 ? `\`${def.composition.join(" + ")}\`` : "—"}`,
+    );
     if (def.variants && def.variants.length > 0) {
       lines.push(`- variants: ${def.variants.join(", ")}`);
     }
     if (def.instances) {
       lines.push(`- instances: ${def.instances}`);
+    }
+    if (def.tokens) {
+      lines.push(`- tokens: ${def.tokens}`);
     }
     lines.push("");
   }

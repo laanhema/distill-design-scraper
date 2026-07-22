@@ -5,13 +5,19 @@ import { detectRepetition } from "./repetition";
 import { assignOntologyTypes } from "./ontology";
 import { runStructureAILabeller, buildFallbackComponentMap } from "./structureAI";
 import { emitStructureReport } from "./structureEmit";
+import { linkComponentsToTokens } from "./tokenLink";
 import type { StructureReport, RawHarvestNode } from "../structureSchema";
+import type { StyleDump } from "../styleDump";
+import type { Report } from "@/lib/schema";
 
 export interface ExtractStructureOptions {
   sourceUrl: string;
   capturedAt?: string;
   viewport?: { width: number; height: number };
   rawHarvestNode?: RawHarvestNode; // For offline replay in eval harness
+  /** Present only in `both` mode — enables the P3-1 token cross-link. */
+  dump?: StyleDump;
+  report?: Report;
 }
 
 /**
@@ -26,6 +32,8 @@ export async function extractStructure(
   let sourceUrl = "http://localhost";
   let viewport = { width: 1440, height: 900 };
   let capturedAt = new Date().toISOString();
+  let dump: StyleDump | undefined;
+  let report: Report | undefined;
 
   if ("evaluate" in pageOrOptions && typeof pageOrOptions.evaluate === "function") {
     const page = pageOrOptions as Page;
@@ -34,6 +42,8 @@ export async function extractStructure(
       sourceUrl = options.sourceUrl || sourceUrl;
       viewport = options.viewport || viewport;
       capturedAt = options.capturedAt || capturedAt;
+      dump = options.dump;
+      report = options.report;
     }
   } else {
     const opts = pageOrOptions as ExtractStructureOptions;
@@ -44,6 +54,8 @@ export async function extractStructure(
     sourceUrl = opts.sourceUrl || sourceUrl;
     viewport = opts.viewport || viewport;
     capturedAt = opts.capturedAt || capturedAt;
+    dump = opts.dump;
+    report = opts.report;
   }
 
   // Stage 3 & 4: Prune & Collapse Wrappers
@@ -61,6 +73,10 @@ export async function extractStructure(
   // Stage 7: AI Labelling pass
   const { root: labeledRoot, components } = await runStructureAILabeller(typedRoot);
 
+  // Stage 8b: Token Link — only when the design-tokens lane ran alongside us.
+  const tokenHints =
+    dump && report ? linkComponentsToTokens(labeledRoot, dump, report) : undefined;
+
   // Stage 8: Structure Emit
   return emitStructureReport({
     sourceUrl,
@@ -69,5 +85,6 @@ export async function extractStructure(
     fidelity: "measured",
     root: labeledRoot,
     components,
+    tokenHints,
   });
 }

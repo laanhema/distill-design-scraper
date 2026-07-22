@@ -43,6 +43,11 @@ const PIXEL_MATCH_LAB_SQ = PIXEL_MATCH_LAB * PIXEL_MATCH_LAB;
 const PIXEL_SAMPLE_WIDTH = 640; // Downscale screenshot for the area pass.
 const IMAGE_COLOR_MIN_SHARE = 0.02; // Min pixel share to surface a CSS-missed color.
 const MIN_TEXT_CONTRAST = 4.5; // WCAG AA; hard guardrail for the `text` role.
+// Below this pixel share a swatch is effectively never painted on screen.
+// Scoped to `border` (a role about visible stroked lines, unlike e.g. a
+// small-but-important `primary` button) so a CSS-declared-but-invisible
+// border color doesn't get reported as a design token.
+const AREA_DROP_THRESHOLD = 0.005;
 
 interface Canonical {
   color: Color;
@@ -354,6 +359,7 @@ export async function extractPalette({
   for (const role of COLOR_ROLES) {
     const c = assigned.get(role);
     if (!c) continue;
+    if (role === "border" && c.areaWeight < AREA_DROP_THRESHOLD) continue;
     colors.push({
       name: role,
       hex: c.hex,

@@ -36,6 +36,31 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
       return tag === "img" || tag === "svg" || tag === "picture" || tag === "canvas";
     }
 
+    const SKIP_TEXT_TAGS = new Set(["script", "style", "noscript", "template"]);
+
+    /** Concatenate visible text, excluding script/style/noscript/template subtrees. */
+    function collectVisibleText(el: Element): string {
+      let text = "";
+      for (const child of Array.from(el.childNodes)) {
+        if (child.nodeType === Node.TEXT_NODE) {
+          text += child.textContent || "";
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const tag = (child as Element).tagName.toLowerCase();
+          if (SKIP_TEXT_TAGS.has(tag)) continue;
+          text += collectVisibleText(child as Element);
+        }
+      }
+      return text;
+    }
+
+    /** Truncate to at most maxLen chars, breaking on a word boundary. */
+    function truncateAtWord(text: string, maxLen: number): string {
+      if (text.length <= maxLen) return text;
+      const cut = text.slice(0, maxLen);
+      const lastSpace = cut.lastIndexOf(" ");
+      return (lastSpace > 0 ? cut.slice(0, lastSpace) : cut) + "…";
+    }
+
     function getLandmark(el: Element): string | null {
       const tag = el.tagName.toLowerCase();
       if (["header", "nav", "main", "footer", "section", "article", "aside"].includes(tag)) {
@@ -66,6 +91,7 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
         return null;
       }
 
+      const landmark = getLandmark(el);
       const isFlex = style.display.includes("flex");
       const isGrid = style.display.includes("grid");
       let gridCols = 0;
@@ -85,15 +111,15 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
       const hasDirectText = Array.from(el.childNodes).some(
         (n) => n.nodeType === Node.TEXT_NODE && (n.textContent || "").trim().length > 0
       );
-      const textContent = (el.textContent || "").trim();
-      const textSnippet = textContent.length > 0 ? textContent.slice(0, 40) : undefined;
+      const textContent = collectVisibleText(el).replace(/\s+/g, " ").trim();
+      const textSnippet = textContent.length > 0 ? truncateAtWord(textContent, 40) : undefined;
 
       idCounter++;
       return {
         id: `node-${idCounter}`,
         tagName: tag,
         ariaRole: el.getAttribute("role"),
-        landmark: getLandmark(el),
+        landmark,
         bounds: {
           x: Math.round(rect.x),
           y: Math.round(rect.y),
@@ -101,6 +127,7 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
           height: Math.round(rect.height),
         },
         computedDisplay: style.display,
+        cssPosition: landmark ? style.position : undefined,
         flexGridInfo:
           isFlex || isGrid
             ? {

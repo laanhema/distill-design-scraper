@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { PrunedNode, ComponentDef, OntologyType } from "../structureSchema";
 import { ONTOLOGY_TYPES } from "../structureSchema";
 
-const MODEL = "claude-3-7-sonnet-20250219";
+const MODEL = "claude-opus-4-8";
 
 export const aiStructureResponseSchema = z.object({
   nodeUpdates: z.array(
@@ -146,16 +146,27 @@ export function buildFallbackComponentMap(node: PrunedNode): Record<string, Comp
   const map: Record<string, ComponentDef> = {};
 
   function walk(n: PrunedNode) {
+    // Every occurrence contributes its own local count (1, or the sibling
+    // group size `detectRepetition` collapsed onto it) — summed across the
+    // whole tree, not just the first time a component name is seen.
+    const occurrences = n.instanceCount || 1;
     if (!map[n.componentName]) {
-      const childNames = n.children.map((c) => c.componentName);
-      const composition = childNames.length > 0 ? Array.from(new Set(childNames)) : [n.componentName];
+      // Leaves never compose from themselves; they render as "—" downstream.
+      // A same-named child (e.g. a "GridSection" div nested directly inside
+      // another "GridSection" div) is excluded too, since the generic default
+      // namer can assign identical names to structurally-similar-but-distinct
+      // nodes — that's never a meaningful composition of a component from
+      // itself.
+      const childNames = n.children
+        .map((c) => c.componentName)
+        .filter((name) => name !== n.componentName);
       map[n.componentName] = {
         type: n.provisionalType,
-        composition,
-        instances: n.instanceCount || 1,
+        composition: Array.from(new Set(childNames)),
+        instances: occurrences,
       };
-    } else if (n.instanceCount) {
-      map[n.componentName].instances = (map[n.componentName].instances || 1) + n.instanceCount;
+    } else {
+      map[n.componentName].instances = (map[n.componentName].instances || 0) + occurrences;
     }
     n.children.forEach(walk);
   }
@@ -166,13 +177,18 @@ export function buildFallbackComponentMap(node: PrunedNode): Record<string, Comp
 
 function populateMissingComponentDefs(node: PrunedNode, map: Record<string, ComponentDef>) {
   function walk(n: PrunedNode) {
+    const occurrences = n.instanceCount || 1;
     if (!map[n.componentName]) {
-      const childNames = n.children.map((c) => c.componentName);
+      const childNames = n.children
+        .map((c) => c.componentName)
+        .filter((name) => name !== n.componentName);
       map[n.componentName] = {
         type: n.provisionalType,
-        composition: childNames.length > 0 ? Array.from(new Set(childNames)) : [n.componentName],
-        instances: n.instanceCount || 1,
+        composition: Array.from(new Set(childNames)),
+        instances: occurrences,
       };
+    } else {
+      map[n.componentName].instances = (map[n.componentName].instances || 0) + occurrences;
     }
     n.children.forEach(walk);
   }

@@ -37,6 +37,14 @@ export function pruneAndCollapse(
     }
   }
 
+  // Sticky/fixed landmarks (e.g. a pinned SiteHeader) matter for a rebuild —
+  // surface it alongside any flex/grid annotation already computed.
+  if (root.landmark && (root.cssPosition === "sticky" || root.cssPosition === "fixed")) {
+    layoutAnnotation = layoutAnnotation
+      ? `${layoutAnnotation} · ${root.cssPosition}`
+      : root.cssPosition;
+  }
+
   // Stage 4: Wrapper collapse rule.
   // If this node has EXACTLY 1 child, no flex/grid layout annotation, is not a landmark,
   // is not an interactive element, and is just a div/span wrapper without special identity,

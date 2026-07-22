@@ -457,13 +457,13 @@ function Preview({
             Elevation
           </SectionTitle>
           <div className="grid gap-3 sm:grid-cols-2">
-            {report.elevation.shadows.map((sh, i) => (
+            {report.elevation.shadows.map((sh) => (
               <div
-                key={i}
+                key={sh.name}
                 className="rounded-lg bg-white p-4 text-xs font-mono text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400"
-                style={{ boxShadow: sh }}
+                style={{ boxShadow: sh.value }}
               >
-                {sh}
+                <span className="font-semibold">{sh.name}</span> {sh.value}
               </div>
             ))}
           </div>
