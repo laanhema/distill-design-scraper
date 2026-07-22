@@ -52,6 +52,10 @@ export interface NodeStyle {
    *  ("alert"/"status" live regions, or an `aria-invalid` field) never inferred
    *  from color alone. */
   semanticContext?: "alert" | "invalid";
+  /** True when the node has an ancestor matching `nav` or `[role="navigation"]`
+   *  (§P8-1) — lets recipe classification tell a primary-nav link apart from a
+   *  generic body text link without re-walking the DOM. */
+  inNav?: boolean;
   /** Declared `:hover`/`:focus-visible` deltas read from the CSSOM for this
    *  node, when it's interactive and a matching rule exists (§P5-1). */
   states?: {
@@ -262,6 +266,8 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       const ctx = semanticContext(el);
       if (ctx) record.semanticContext = ctx;
 
+      if (el.closest('nav, [role="navigation"]')) record.inNav = true;
+
       nodes.push(record);
       elementRecords.set(el, record);
     }
@@ -276,6 +282,38 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       "border-color": "border-top-color",
       "box-shadow": "box-shadow",
     };
+
+    /**
+     * Resolve `var(--name)` / `var(--name, fallback)` references in a raw
+     * CSSOM rule-text value against the element's own computed style. This
+     * is not fabrication — `--name` is a real, directly-queryable computed
+     * property on the element (custom properties cascade/inherit like any
+     * other), so reading it off the element being scanned is representative
+     * of the actual measured value, even though the `:hover`/`:focus-visible`
+     * rule isn't literally applied at read time. Multiple `var()` references
+     * can appear in one value (e.g. a multi-part `box-shadow`), and a
+     * fallback can itself nest another `var(...)`, so this runs a bounded
+     * number of passes, resolving the innermost (paren-free-fallback) refs
+     * each pass. Anything that can't be resolved and has no fallback is left
+     * as literal `var(...)` text rather than causing a crash.
+     */
+    function resolveVarRefs(value: string, cs: CSSStyleDeclaration): string {
+      let result = value;
+      for (let pass = 0; pass < 3 && result.includes("var("); pass++) {
+        const next = result.replace(
+          /var\(\s*(--[a-zA-Z0-9_-]+)\s*(?:,\s*([^()]*))?\)/g,
+          (match, name: string, fallback?: string) => {
+            const resolved = cs.getPropertyValue(name).trim();
+            if (resolved) return resolved;
+            if (fallback !== undefined) return fallback.trim();
+            return match;
+          },
+        );
+        if (next === result) break;
+        result = next;
+      }
+      return result;
+    }
 
     function applyRule(rule: CSSStyleRule) {
       const selectorText = rule.selectorText;
@@ -308,7 +346,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
           const cs = getComputedStyle(el);
           const changes: { property: string; from: string; to: string }[] = [];
           for (const [prop, computedProp] of Object.entries(STATE_PROPS)) {
-            const to = rule.style.getPropertyValue(prop);
+            const to = resolveVarRefs(rule.style.getPropertyValue(prop), cs);
             if (!to) continue;
             const from = cs.getPropertyValue(computedProp);
             if (!from || from === to) continue;

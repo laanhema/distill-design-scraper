@@ -143,7 +143,7 @@ export type Elevation = z.infer<typeof elevationSchema>;
  * measured color matches a swatch (nearest ΔE), else the raw hex — never a
  * fabricated role.
  */
-export const RECIPE_ELEMENTS = ["Button", "TextLink", "Input", "Card"] as const;
+export const RECIPE_ELEMENTS = ["Button", "TextLink", "Input", "Card", "NavItem", "Badge"] as const;
 export type RecipeElement = (typeof RECIPE_ELEMENTS)[number];
 export const recipeElementSchema = z.enum(RECIPE_ELEMENTS);
 

@@ -10,6 +10,7 @@ import {
   type Report,
   type Spacing,
   type States,
+  type TypeToken,
   type Typography,
 } from "@/lib/schema";
 
@@ -122,6 +123,70 @@ function renderPalette(palette: Palette, heading = "Palette"): string {
   return lines.join("\n");
 }
 
+/**
+ * Static reference ranges for conventional type-scale sizing, purely for
+ * at-a-glance comparison in the rendered report — not derived from any
+ * capture, and never used to alter a measured `sizePx`.
+ */
+const RECOMMENDED_TYPE_RANGES: Record<TypeToken, string> = {
+  display: "64–96px",
+  h1: "48–64px",
+  h2: "32–40px",
+  h3: "24–28px",
+  body: "16–18px",
+  small: "14px",
+};
+
+/**
+ * Curated, best-effort lookup of proprietary/custom font names — the kind
+ * that show up in Framer/Webflow exports or brand type systems and are NOT
+ * freely available/licensable — mapped to a suggested open (Google Fonts)
+ * alternative with a broadly similar character. Deliberately small and
+ * conservative: an unrecognized name (including legitimate open fonts like
+ * "Inter" or "Roboto") gets no suggestion rather than a guessed one. Never
+ * used to alter the measured family name itself — purely a rendering-time
+ * suggestion, same spirit as `provenanceSuffix`.
+ */
+const FONT_FALLBACK_SUGGESTIONS: Record<string, string> = {
+  recifetext: "Plus Jakarta Sans",
+  recife: "Plus Jakarta Sans",
+  sohne: "Inter",
+  gtwalsheim: "Outfit",
+  neuemontreal: "Space Grotesk",
+  canela: "Fraunces",
+  foundersgrotesk: "Archivo",
+  circular: "Poppins",
+};
+
+/**
+ * Strip diacritics, common weight/style/variable-font suffixes, digits, and
+ * punctuation before matching — font names in the wild carry variants like
+ * "RecifeText-SemiBold", "Söhne Buch", "GT Walsheim VF", "Circular Std Bold".
+ */
+function normalizeFontName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(
+      /[_\s-]*(thin|hairline|extralight|ultralight|light|regular|book|std|buch|normal|medium|semibold|demibold|bold|extrabold|ultrabold|black|heavy|italic|oblique|vf|variable)\b/gi,
+      "",
+    )
+    .replace(/\d+/g, "")
+    .replace(/[^a-z0-9]/gi, "")
+    .toLowerCase();
+}
+
+/** Nearest known-proprietary-font match, or null if this name isn't in the curated table. */
+function suggestedFontAlternative(name: string): string | null {
+  const normalized = normalizeFontName(name);
+  if (!normalized) return null;
+  if (FONT_FALLBACK_SUGGESTIONS[normalized]) return FONT_FALLBACK_SUGGESTIONS[normalized];
+  for (const key of Object.keys(FONT_FALLBACK_SUGGESTIONS)) {
+    if (normalized.startsWith(key)) return FONT_FALLBACK_SUGGESTIONS[key];
+  }
+  return null;
+}
+
 function renderTypography(typography: Typography): string {
   const lines: string[] = [`## Typography${provenanceSuffix(typography.provenance)}`, ""];
 
@@ -131,18 +196,23 @@ function renderTypography(typography: Typography): string {
     const fallbacks = f.stack.filter((name) => name !== f.name);
     const fallbackSuffix =
       fallbacks.length > 0 ? ` · fallback: ${fallbacks.join(", ")}` : "";
+    const suggestion = suggestedFontAlternative(f.name);
+    const suggestionSuffix = suggestion
+      ? ` — _suggested open alternative: ${suggestion} (Google Fonts)_`
+      : "";
     lines.push(
-      `- **${f.name}** — ${f.role}, ${f.classification} · weights ${weights}${fallbackSuffix}`,
+      `- **${f.name}** — ${f.role}, ${f.classification} · weights ${weights}${fallbackSuffix}${suggestionSuffix}`,
     );
   }
 
   lines.push("", "**Type scale**", "");
-  lines.push("| Token | Size | Weight | Line height | Letter spacing |");
-  lines.push("|---|---|---|---|---|");
+  lines.push("| Token | Size | Recommended | Weight | Line height | Letter spacing |");
+  lines.push("|---|---|---|---|---|---|");
   for (const s of typography.scale) {
     const sizeCell = s.sizePxMobile ? `${s.sizePx}px (mobile ${s.sizePxMobile}px)` : `${s.sizePx}px`;
+    const recommendedCell = RECOMMENDED_TYPE_RANGES[s.token];
     lines.push(
-      `| ${s.token} | ${sizeCell} | ${s.weight} | ${s.lineHeight} | ${s.letterSpacing} |`,
+      `| ${s.token} | ${sizeCell} | ${recommendedCell} | ${s.weight} | ${s.lineHeight} | ${s.letterSpacing} |`,
     );
   }
   return lines.join("\n");

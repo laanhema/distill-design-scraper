@@ -21,9 +21,17 @@ function classify(node: NodeStyle): RecipeElement | null {
   // <input type="submit"|"button"> renders and behaves like a Button (styleDump.ts
   // only marks `interactive` true for those two input types, never plain text fields).
   if (node.tag === "input" && node.interactive) return "Button";
+  // A link inside primary nav gets its own recipe — check before the generic
+  // <a> fallthrough below, or every nav link would be swallowed as a TextLink.
+  if (node.tag === "a" && node.inNav === true) return "NavItem";
   if (node.tag === "a") return "TextLink";
   if (["input", "select", "textarea"].includes(node.tag)) return "Input";
   if (isCardLike(node)) return "Card";
+  // Badge only ever matches span/div, and Card requires hasText === false
+  // while Badge requires hasText === true — the two are mutually exclusive
+  // by tag and by text, so this can run before or after isCardLike with no
+  // effect on either branch's matches.
+  if (isBadgeLike(node)) return "Badge";
   return null;
 }
 
@@ -38,6 +46,29 @@ function isCardLike(node: NodeStyle): boolean {
   const hasSurfaceLook = layout.borderRadius !== "" || layout.boxShadow !== "";
   const hasPadding = layout.paddingsPx.some((p) => p > 0);
   return hasSurfaceLook && hasPadding;
+}
+
+/** A badge is a small, pill-shaped label — unlike a Card, its text lives
+ *  directly on the node itself (a status tag or count chip reads its own
+ *  label), and unlike a Button/NavItem it isn't interactive. "Pill-shaped" is
+ *  read straight off the measured radius: a `%` radius, an explicit "999"-style
+ *  value (the common CSS trick for "always fully rounded regardless of size"),
+ *  or a flat px radius large enough (>= 8px) that it's clearly not just a
+ *  slightly-softened rectangle. A small bounding-box height caps it to
+ *  label-sized elements rather than large rounded surfaces (which `isCardLike`
+ *  already covers via padding/shadow instead of radius alone). */
+function isBadgeLike(node: NodeStyle): boolean {
+  if (!["span", "div"].includes(node.tag)) return false;
+  if (!node.hasText) return false;
+  if (node.interactive) return false;
+  const layout = node.layout;
+  if (!layout || !layout.borderRadius) return false;
+  const radius = layout.borderRadius;
+  const isPillShaped =
+    radius.includes("%") || radius.includes("999") || parseFloat(radius) >= 8;
+  if (!isPillShaped) return false;
+  if (!node.colors.some((c) => c.channel === "background")) return false;
+  return node.rect.h > 0 && node.rect.h <= 40;
 }
 
 /** Most frequent value in `values`, keyed by `keyOf`; ties keep the first seen. */
