@@ -62,6 +62,24 @@ Distill includes a modern Next.js web application featuring:
    ANTHROPIC_API_KEY=sk-ant-...
    ```
 
+3. **SSRF guard** *(built in, no configuration required)*:
+   Before navigating to any submitted URL, Distill resolves its hostname via DNS and
+   rejects the request if the resolved address falls in a loopback, private, or
+   link-local range — `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
+   `169.254.0.0/16`, `0.0.0.0/8` (IPv4), and `::1`, `fc00::/7`, `fe80::/10` (IPv6,
+   including IPv4-mapped addresses like `::ffff:127.0.0.1`). Validation happens
+   *after* DNS resolution, not against the literal hostname string, so a hostname
+   that resolves to a private address is blocked even if it looks public. Non-`http(s)`
+   schemes (`file://`, `ftp://`, etc.) are always rejected.
+
+   To explicitly permit an internal target (e.g. a staging host), set
+   `SSRF_ALLOWLIST_HOSTS` in `.env.local` to a comma-separated, case-insensitive list
+   of exact hostnames:
+   ```env
+   # .env.local
+   SSRF_ALLOWLIST_HOSTS=staging.example.internal,localhost
+   ```
+
 ---
 
 ## Running the Application
