@@ -30,7 +30,3 @@ next-env.d.ts
 /eval/corpus/*/capture.json
 !/eval/corpus/clean-light/capture.json
 !/eval/corpus/dark-mode/capture.json
-
-# Agents folder
-.agents
-agents

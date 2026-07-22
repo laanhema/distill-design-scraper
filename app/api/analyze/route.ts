@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { analyzeImages, analyzeUrl, extractStructureFromCapture } from "@/lib/analyze";
 import { createCacheKey, getCache, setCache } from "@/lib/cache";
+import { UnsafeUrlError } from "@/lib/security/ssrfGuard";
 
 // Playwright needs the full Node runtime + a real Chromium binary — never Edge.
 export const runtime = "nodejs";
@@ -148,6 +149,9 @@ export async function POST(request: Request) {
     setCache(cacheKey, responsePayload);
     return NextResponse.json(responsePayload);
   } catch (err) {
+    if (err instanceof UnsafeUrlError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 400 });
+    }
     // §9: surface a clear error, never fabricate results.
     const message =
       err instanceof Error ? err.message : "Unknown rendering error.";

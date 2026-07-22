@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { collectStyleDump, type StyleDump } from "@/lib/extract/styleDump";
 import { harvestDomTree } from "@/lib/extract/structure/harvester";
 import type { RawHarvestNode, ResponsiveHarvest } from "@/lib/extract/structureSchema";
+import { assertSafeUrl } from "@/lib/security/ssrfGuard";
 
 /**
  * Phase 0 ingestion: render a URL in headless Chromium and capture screenshots.
@@ -82,15 +83,6 @@ const CONSENT_BUTTON_PATTERNS = [
   /^allow all$/i,
   /^ok$/i,
 ];
-
-function isValidHttpUrl(candidate: string): boolean {
-  try {
-    const u = new URL(candidate);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
 
 /**
  * Best-effort consent-banner dismissal. Returns true if something was clicked.
@@ -349,11 +341,7 @@ export async function renderUrl(
   options: RenderOptions = {},
 ): Promise<RenderResult> {
   const url = rawUrl.trim();
-  if (!isValidHttpUrl(url)) {
-    throw new Error(
-      `Invalid URL: must be an http(s) address, got "${rawUrl}".`,
-    );
-  }
+  await assertSafeUrl(url);
 
   const viewport = options.viewport ?? DEFAULT_VIEWPORT;
   const navTimeout = options.navTimeoutMs ?? DEFAULT_NAV_TIMEOUT;
