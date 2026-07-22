@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Report } from "@/lib/schema";
+import type { Report, StructureReport } from "@/lib/schema";
 
 interface Meta {
   finalUrl: string;
@@ -23,40 +23,65 @@ interface AnalyzeResponse {
   ok: boolean;
   report?: Report;
   markdown?: string;
+  structureReport?: StructureReport;
   meta?: Meta;
   refinements?: Refinement[];
   error?: string;
 }
 
 type Status = "idle" | "loading" | "done" | "error";
+type InputMode = "url" | "image";
 
 export default function Home() {
+  const [inputMode, setInputMode] = useState<InputMode>("url");
   const [url, setUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<Report | null>(null);
   const [markdown, setMarkdown] = useState<string>("");
+  const [structureReport, setStructureReport] = useState<StructureReport | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [refinements, setRefinements] = useState<Refinement[]>([]);
-  const [tab, setTab] = useState<"preview" | "markdown">("preview");
+  const [tab, setTab] = useState<"preview" | "tokens" | "structure">("preview");
   const [copied, setCopied] = useState(false);
+
+  function handleFileSelect(file: File) {
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setImagePreview(e.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+  }
 
   async function analyze(e: React.FormEvent) {
     e.preventDefault();
-    if (!url.trim()) return;
+    if (inputMode === "url" && !url.trim()) return;
+    if (inputMode === "image" && !selectedFile && !imagePreview) return;
 
     setStatus("loading");
     setError(null);
     setReport(null);
     setMarkdown("");
+    setStructureReport(null);
     setMeta(null);
     setRefinements([]);
 
     try {
+      let bodyData: Record<string, unknown> = { mode: "both" };
+      if (inputMode === "url") {
+        bodyData.url = url;
+      } else {
+        bodyData.image = imagePreview;
+        bodyData.imageName = selectedFile?.name || "uploaded-image";
+      }
+
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify(bodyData),
       });
       const data = (await res.json()) as AnalyzeResponse;
       if (!res.ok || !data.ok || !data.report) {
@@ -64,6 +89,7 @@ export default function Home() {
       }
       setReport(data.report);
       setMarkdown(data.markdown ?? "");
+      setStructureReport(data.structureReport ?? null);
       setMeta(data.meta ?? null);
       setRefinements(data.refinements ?? []);
       setStatus("done");
@@ -73,24 +99,29 @@ export default function Home() {
     }
   }
 
-  async function copyMarkdown() {
-    await navigator.clipboard.writeText(markdown);
+  async function copyActiveMarkdown() {
+    const textToCopy = tab === "structure" ? (structureReport?.markdown ?? "") : markdown;
+    await navigator.clipboard.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
 
-  function downloadMarkdown() {
-    const blob = new Blob([markdown], { type: "text/markdown" });
+  function downloadActiveMarkdown() {
+    const textToDownload = tab === "structure" ? (structureReport?.markdown ?? "") : markdown;
+    const isStruct = tab === "structure";
+    const blob = new Blob([textToDownload], { type: "text/markdown" });
     const href = URL.createObjectURL(blob);
     const a = document.createElement("a");
     let host = "report";
     try {
       host = new URL(meta?.finalUrl ?? url).hostname.replace(/^www\./, "");
     } catch {
-      /* keep default */
+      if (inputMode === "image" && selectedFile) {
+        host = selectedFile.name.replace(/\.[^/.]+$/, "");
+      }
     }
     a.href = href;
-    a.download = `distill-${host}.md`;
+    a.download = `distill-${isStruct ? "structure-" : ""}${host}.md`;
     a.click();
     URL.revokeObjectURL(href);
   }
@@ -100,41 +131,112 @@ export default function Home() {
       <header className="mb-10">
         <h1 className="text-4xl font-semibold tracking-tight">Distill</h1>
         <p className="mt-2 text-neutral-600 dark:text-neutral-400">
-          Point it at a URL → a Markdown design system.{" "}
+          Point it at a URL or drop an Image → Markdown Design System &amp; Layout Structure reports.{" "}
           <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-medium dark:bg-neutral-800">
-            Phase 2 · measured tokens + AI identity
+            Track A (Tokens) + Track B (Structure)
           </span>
         </p>
       </header>
 
-      <form onSubmit={analyze} className="flex gap-3">
-        <input
-          type="url"
-          inputMode="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="https://stripe.com"
-          required
-          className="flex-1 rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:ring-neutral-700"
-        />
+      <div className="mb-4 flex gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800">
         <button
-          type="submit"
-          disabled={status === "loading"}
-          className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+          type="button"
+          onClick={() => setInputMode("url")}
+          className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${
+            inputMode === "url"
+              ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+              : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+          }`}
         >
-          {status === "loading" ? "Analyzing…" : "Analyze"}
+          URL Input
         </button>
+        <button
+          type="button"
+          onClick={() => setInputMode("image")}
+          className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${
+            inputMode === "image"
+              ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+              : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+          }`}
+        >
+          Image Input (Palette &amp; Mood)
+        </button>
+      </div>
+
+      <form onSubmit={analyze} className="space-y-4">
+        {inputMode === "url" ? (
+          <div className="flex gap-3">
+            <input
+              type="url"
+              inputMode="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://stripe.com"
+              required
+              className="flex-1 rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:ring-neutral-700"
+            />
+            <button
+              type="submit"
+              disabled={status === "loading"}
+              className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              {status === "loading" ? "Analyzing…" : "Analyze"}
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <div
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files?.[0]) {
+                  handleFileSelect(e.dataTransfer.files[0]);
+                }
+              }}
+              className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 p-8 text-center transition hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-600"
+            >
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) handleFileSelect(e.target.files[0]);
+                }}
+                className="hidden"
+                id="image-input"
+              />
+              <label
+                htmlFor="image-input"
+                className="cursor-pointer text-sm font-medium text-neutral-700 dark:text-neutral-300"
+              >
+                {selectedFile ? (
+                  <span>Selected: <strong>{selectedFile.name}</strong></span>
+                ) : (
+                  <span>Drag &amp; drop an image here, or <span className="underline">browse</span></span>
+                )}
+              </label>
+            </div>
+            <button
+              type="submit"
+              disabled={status === "loading" || (!selectedFile && !imagePreview)}
+              className="self-end rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+            >
+              {status === "loading" ? "Analyzing…" : "Analyze Image"}
+            </button>
+          </div>
+        )}
       </form>
 
       {status === "loading" && (
         <p className="mt-6 animate-pulse text-sm text-neutral-500">
-          Rendering, reading computed styles, measuring palette &amp; type…
+          {inputMode === "url"
+            ? "Rendering, measuring palette, typography, layout tokens & harvesting structure…"
+            : "Processing image pixels & measuring color palette & mood…"}
         </p>
       )}
 
       {status === "error" && error && (
         <div className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
-          <strong className="font-medium">Couldn&apos;t analyze this page.</strong>{" "}
+          <strong className="font-medium">Couldn&apos;t analyze this input.</strong>{" "}
           {error}
         </div>
       )}
@@ -143,20 +245,25 @@ export default function Home() {
         <section className="mt-10 space-y-8">
           <div className="flex items-center gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <Tab active={tab === "preview"} onClick={() => setTab("preview")}>
-              Preview
+              Tokens Preview
             </Tab>
-            <Tab active={tab === "markdown"} onClick={() => setTab("markdown")}>
-              Markdown
+            <Tab active={tab === "tokens"} onClick={() => setTab("tokens")}>
+              Token Markdown
             </Tab>
+            {structureReport && (
+              <Tab active={tab === "structure"} onClick={() => setTab("structure")}>
+                Layout Structure Report
+              </Tab>
+            )}
             <div className="ml-auto flex gap-2">
               <button
-                onClick={copyMarkdown}
+                onClick={copyActiveMarkdown}
                 className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
               >
                 {copied ? "Copied ✓" : "Copy .md"}
               </button>
               <button
-                onClick={downloadMarkdown}
+                onClick={downloadActiveMarkdown}
                 className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
               >
                 Download .md
@@ -164,11 +271,19 @@ export default function Home() {
             </div>
           </div>
 
-          {tab === "preview" ? (
+          {tab === "preview" && (
             <Preview report={report} meta={meta} refinements={refinements} />
-          ) : (
+          )}
+
+          {tab === "tokens" && (
             <pre className="overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-xs leading-relaxed dark:border-neutral-800 dark:bg-neutral-900">
               <code>{markdown}</code>
+            </pre>
+          )}
+
+          {tab === "structure" && structureReport && (
+            <pre className="overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-xs leading-relaxed dark:border-neutral-800 dark:bg-neutral-900">
+              <code>{structureReport.markdown}</code>
             </pre>
           )}
         </section>
@@ -189,8 +304,8 @@ function Preview({
   return (
     <div className="space-y-10">
       <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-        <Meta label="Title" value={report.source.ref} />
-        <Meta label="Final URL" value={meta.finalUrl} />
+        <Meta label="Source" value={report.source.ref} />
+        <Meta label="Report Kind" value={report.reportKind} />
         <Meta label="Render time" value={`${meta.elapsedMs} ms`} />
         <Meta
           label="AI lane"
@@ -286,6 +401,69 @@ function Preview({
                 >
                   {s.sizePx}px · {s.weight}
                 </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {report.spacing && (
+        <section>
+          <SectionTitle provenance={report.spacing.provenance}>
+            Spacing
+          </SectionTitle>
+          <p className="mb-2 text-xs text-neutral-500">
+            Base unit: <strong className="font-mono">{report.spacing.baseUnitPx}px</strong>
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            {report.spacing.scale.map((px) => (
+              <div
+                key={px}
+                className="flex items-center gap-2 rounded-md border border-neutral-200 px-3 py-1.5 text-xs dark:border-neutral-800"
+              >
+                <div
+                  className="bg-neutral-800 dark:bg-neutral-200"
+                  style={{ width: `${Math.min(px, 32)}px`, height: "8px" }}
+                />
+                <span className="font-mono">{px}px</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {report.radius && (
+        <section>
+          <SectionTitle provenance={report.radius.provenance}>
+            Radius
+          </SectionTitle>
+          <div className="flex flex-wrap items-center gap-3">
+            {report.radius.scale.map((rad) => (
+              <div
+                key={rad}
+                className="flex h-12 w-12 items-center justify-center border-2 border-neutral-800 bg-neutral-100 text-[10px] font-mono dark:border-neutral-200 dark:bg-neutral-800"
+                style={{ borderRadius: rad }}
+              >
+                {rad}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {report.elevation && report.elevation.shadows.length > 0 && (
+        <section>
+          <SectionTitle provenance={report.elevation.provenance}>
+            Elevation
+          </SectionTitle>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {report.elevation.shadows.map((sh, i) => (
+              <div
+                key={i}
+                className="rounded-lg bg-white p-4 text-xs font-mono text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400"
+                style={{ boxShadow: sh }}
+              >
+                {sh}
               </div>
             ))}
           </div>

@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { load as yamlLoad } from "js-yaml";
-import { extractFromCapture, type Capture } from "@/lib/analyze";
+import { extractFromCapture, extractStructureFromCapture, type Capture } from "@/lib/analyze";
 import { CORPUS } from "./corpus";
 import {
   scorePalette,
@@ -9,6 +9,7 @@ import {
   combinedScore,
   type ExpectedSpec,
 } from "./score";
+import { scoreStructure } from "./scoreStructure";
 
 /**
  * Eval runner (§10). Replays each committed capture offline, runs the measured
@@ -36,6 +37,7 @@ interface SiteResult {
   scaleAccuracy: number | null;
   avgDeltaE: number;
   bodyFamilyOk: boolean | null;
+  structureScore: number | null;
   notes: string[];
 }
 
@@ -51,6 +53,17 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
   const pal = scorePalette(report.palette, expected.palette);
   const typo = scoreTypography(report.typography, expected.typography);
   const combined = combinedScore(pal, typo);
+
+  let structureScore: number | null = null;
+  if (capture.rawHarvestNode) {
+    try {
+      const structReport = await extractStructureFromCapture(capture);
+      const structResult = scoreStructure(structReport);
+      structureScore = structResult.combined;
+    } catch {
+      structureScore = null;
+    }
+  }
 
   const notes: string[] = [];
   for (const m of pal.misses) {
@@ -75,9 +88,11 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
     scaleAccuracy: typo?.scaleAccuracy ?? null,
     avgDeltaE: pal.avgDeltaE,
     bodyFamilyOk: typo?.bodyFamilyOk ?? null,
+    structureScore,
     notes,
   };
 }
+
 
 function fmtPct(n: number): string {
   return `${(n * 100).toFixed(0)}%`;

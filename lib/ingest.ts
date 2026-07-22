@@ -1,5 +1,7 @@
 import { chromium, type Browser, type Page } from "playwright";
 import { collectStyleDump, type StyleDump } from "@/lib/extract/styleDump";
+import { harvestDomTree } from "@/lib/extract/structure/harvester";
+import type { RawHarvestNode } from "@/lib/extract/structureSchema";
 
 /**
  * Phase 0 ingestion: render a URL in headless Chromium and capture screenshots.
@@ -28,6 +30,8 @@ export interface RenderResult {
   bannerDismissed: boolean;
   /** Per-node computed-style dump read off the same render (§5 extraction). */
   styleDump: StyleDump;
+  /** DOM harvest tree for layout-structure extraction (Track B). */
+  rawHarvestNode?: RawHarvestNode;
 }
 
 export interface RenderOptions {
@@ -99,6 +103,7 @@ export async function capturePage(page: Page): Promise<{
   fullPageShot: string;
   bannerDismissed: boolean;
   styleDump: StyleDump;
+  rawHarvestNode?: RawHarvestNode;
 }> {
   const bannerDismissed = await dismissConsentBanner(page);
 
@@ -112,12 +117,19 @@ export async function capturePage(page: Page): Promise<{
   const viewportShotBuf = await page.screenshot({ fullPage: false });
   const fullPageShotBuf = await page.screenshot({ fullPage: true });
   const styleDump = await collectStyleDump(page);
+  let rawHarvestNode: RawHarvestNode | undefined;
+  try {
+    rawHarvestNode = await harvestDomTree(page);
+  } catch (err) {
+    console.warn("DOM Harvest for structure failed:", err);
+  }
 
   return {
     viewportShot: viewportShotBuf.toString("base64"),
     fullPageShot: fullPageShotBuf.toString("base64"),
     bannerDismissed,
     styleDump,
+    rawHarvestNode,
   };
 }
 
@@ -166,6 +178,7 @@ export async function renderUrl(
       elapsedMs: Date.now() - startedAt,
       bannerDismissed: captured.bannerDismissed,
       styleDump: captured.styleDump,
+      rawHarvestNode: captured.rawHarvestNode,
     };
 
     await context.close();
@@ -175,3 +188,4 @@ export async function renderUrl(
     if (browser) await browser.close();
   }
 }
+

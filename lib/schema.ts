@@ -87,6 +87,25 @@ export const typographySchema = z.object({
 });
 export type Typography = z.infer<typeof typographySchema>;
 
+export const spacingSchema = z.object({
+  provenance: provenanceSchema,
+  baseUnitPx: z.number(),
+  scale: z.array(z.number()),
+});
+export type Spacing = z.infer<typeof spacingSchema>;
+
+export const radiusSchema = z.object({
+  provenance: provenanceSchema,
+  scale: z.array(z.string()),
+});
+export type Radius = z.infer<typeof radiusSchema>;
+
+export const elevationSchema = z.object({
+  provenance: provenanceSchema,
+  shadows: z.array(z.string()),
+});
+export type Elevation = z.infer<typeof elevationSchema>;
+
 // ── Interpretive lanes (§6, AI). Stamped `provenance: ai`; optional so a
 // measured-only report (or an API-key-less run) validates without faking them.
 
@@ -113,13 +132,19 @@ export const reportSchema = z.object({
     capturedAt: z.string(),
   }),
   palette: paletteSchema,
-  // Optional in Phase 1: unmeasured lanes are omitted, never faked.
+  // Optional: unmeasured lanes are omitted, never faked.
   typography: typographySchema.optional(),
+  spacing: spacingSchema.optional(),
+  radius: radiusSchema.optional(),
+  elevation: elevationSchema.optional(),
   // Optional interpretive lanes (§6); present once the AI lane has run.
   identity: identitySchema.optional(),
   imageMood: imageMoodSchema.optional(),
 });
 export type Report = z.infer<typeof reportSchema>;
+
+export * from "@/lib/extract/structureSchema";
+
 
 /**
  * The AI's raw JSON contract (§6). This guards the *model output* before it is

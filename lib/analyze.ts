@@ -1,6 +1,9 @@
 import { renderUrl, type RenderResult } from "@/lib/ingest";
 import { extractPalette } from "@/lib/extract/palette";
 import { extractTypography } from "@/lib/extract/typography";
+import { extractTokens } from "@/lib/extract/tokens";
+import { extractImagePalette } from "@/lib/extract/imagePalette";
+import { extractStructure } from "@/lib/extract/structure";
 import { buildReport, renderMarkdown } from "@/lib/emit";
 import {
   aiLaneAvailable,
@@ -9,10 +12,10 @@ import {
   type RefinementChange,
 } from "@/lib/interpret";
 import type { StyleDump } from "@/lib/extract/styleDump";
-import type { Report } from "@/lib/schema";
+import type { Report, RawHarvestNode, StructureReport } from "@/lib/schema";
 
 /**
- * Orchestration (§8, URL pipeline). Extraction is split from rendering on
+ * Orchestration (§8, URL & Image pipelines). Extraction is split from rendering on
  * purpose: `extractFromCapture` takes only the captured artifacts (style dump +
  * screenshot), so the eval harness (§10) can replay a cached render offline and
  * exercise every heuristic without launching a browser.
@@ -25,6 +28,8 @@ export interface Capture {
   styleDump: StyleDump;
   /** Base64 PNG of the viewport screenshot (area-weight pixel pass). */
   viewportShot: string;
+  /** DOM harvest tree for layout-structure extraction (Track B). */
+  rawHarvestNode?: RawHarvestNode;
 }
 
 export interface AnalyzeResult {
@@ -41,15 +46,33 @@ export async function extractFromCapture(
     screenshotPngBase64: capture.viewportShot,
   });
   const typography = extractTypography(capture.styleDump);
+  const tokens = extractTokens(capture.styleDump);
 
   const report = buildReport({
     reportKind: "design-system",
     source: capture.source,
     palette,
     typography,
+    spacing: tokens.spacing,
+    radius: tokens.radius,
+    elevation: tokens.elevation,
   });
 
   return { report, markdown: renderMarkdown(report) };
+}
+
+/** Run the structure lane over an already-captured page. */
+export async function extractStructureFromCapture(
+  capture: Capture,
+): Promise<StructureReport> {
+  if (!capture.rawHarvestNode) {
+    throw new Error("Capture does not contain rawHarvestNode for structure extraction.");
+  }
+  return extractStructure({
+    sourceUrl: capture.source.ref,
+    capturedAt: capture.source.capturedAt,
+    rawHarvestNode: capture.rawHarvestNode,
+  });
 }
 
 /**
@@ -83,11 +106,66 @@ export async function enrichWithAI(
     source: measured.report.source,
     palette,
     typography: measured.report.typography,
+    spacing: measured.report.spacing,
+    radius: measured.report.radius,
+    elevation: measured.report.elevation,
     identity: interpretation.identity,
     imageMood: interpretation.imageMood,
   });
 
   return { report, markdown: renderMarkdown(report), refinements: changes };
+}
+
+/** Phase 3: Full image processing path ("Palette & Mood" report, §3, §8). */
+export async function analyzeImage(
+  imageInput: Buffer | string,
+  refName = "uploaded-image",
+): Promise<
+  AnalyzeResult & {
+    refinements: RefinementChange[];
+    meta: {
+      finalUrl: string;
+      title: string;
+      elapsedMs: number;
+      bannerDismissed: boolean;
+      aiApplied: boolean;
+    };
+  }
+> {
+  const startedAt = Date.now();
+  const capturedAt = new Date().toISOString();
+  const palette = await extractImagePalette(imageInput);
+
+  const baseReport = buildReport({
+    reportKind: "palette-mood",
+    source: { type: "image", ref: refName, capturedAt },
+    palette,
+  });
+
+  const measuredResult: AnalyzeResult = {
+    report: baseReport,
+    markdown: renderMarkdown(baseReport),
+  };
+
+  const imageBase64 =
+    typeof imageInput === "string"
+      ? imageInput
+      : imageInput.toString("base64");
+
+  const enriched = await enrichWithAI(measuredResult, imageBase64);
+
+  return {
+    report: enriched.report,
+    markdown: enriched.markdown,
+    refinements: enriched.refinements,
+    meta: {
+      finalUrl: refName,
+      title: refName,
+      elapsedMs: Date.now() - startedAt,
+      bannerDismissed: false,
+      aiApplied: Boolean(enriched.report.identity),
+    },
+  };
 }
 
 /** Turn a live render into the artifacts the extraction lane consumes. */
@@ -102,6 +180,7 @@ export function captureFromRender(
     title: render.title,
     styleDump: render.styleDump,
     viewportShot: render.viewportShot,
+    rawHarvestNode: render.rawHarvestNode,
   };
 }
 
@@ -136,3 +215,12 @@ export async function analyzeUrl(url: string): Promise<AnalyzeResult & {
     },
   };
 }
+
+/** Full URL path for Track B structure extraction alone or combined. */
+export async function analyzeUrlStructure(url: string): Promise<StructureReport> {
+  const capturedAt = new Date().toISOString();
+  const render = await renderUrl(url);
+  const capture = captureFromRender(render, url, capturedAt);
+  return extractStructureFromCapture(capture);
+}
+

@@ -40,6 +40,14 @@ export interface NodeStyle {
     lineHeightPx: number;
     letterSpacing: string;
   };
+  /** Spacing, radius & elevation properties (§5 Phase 4). */
+  layout?: {
+    marginsPx: number[];
+    paddingsPx: number[];
+    gapsPx: number[];
+    borderRadius: string;
+    boxShadow: string;
+  };
 }
 
 export interface StyleDump {
@@ -171,7 +179,34 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
         if (stroke) colors.push({ channel: "stroke", value: stroke });
       }
 
-      if (colors.length === 0) continue;
+      const marginsPx = [
+        parseFloat(cs.marginTop) || 0,
+        parseFloat(cs.marginRight) || 0,
+        parseFloat(cs.marginBottom) || 0,
+        parseFloat(cs.marginLeft) || 0,
+      ];
+      const paddingsPx = [
+        parseFloat(cs.paddingTop) || 0,
+        parseFloat(cs.paddingRight) || 0,
+        parseFloat(cs.paddingBottom) || 0,
+        parseFloat(cs.paddingLeft) || 0,
+      ];
+      const rowGap = parseFloat(cs.rowGap) || 0;
+      const colGap = parseFloat(cs.columnGap) || 0;
+      const gapsPx = [rowGap, colGap].filter((g) => g > 0);
+      const borderRadius =
+        cs.borderRadius && cs.borderRadius !== "0px" ? cs.borderRadius : "";
+      const boxShadow =
+        cs.boxShadow && cs.boxShadow !== "none" ? cs.boxShadow : "";
+
+      const hasLayout =
+        borderRadius !== "" ||
+        boxShadow !== "" ||
+        gapsPx.length > 0 ||
+        paddingsPx.some((p) => p > 0) ||
+        marginsPx.some((m) => m > 0);
+
+      if (colors.length === 0 && !hasText && !hasLayout) continue;
 
       const record: Record<string, unknown> = {
         tag: el.tagName.toLowerCase(),
@@ -179,6 +214,13 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
         colors,
         hasText,
         interactive: isInteractive(el),
+        layout: {
+          marginsPx,
+          paddingsPx,
+          gapsPx,
+          borderRadius,
+          boxShadow,
+        },
       };
 
       if (hasText) {

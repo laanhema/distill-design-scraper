@@ -1,10 +1,13 @@
 import { dump as yamlDump } from "js-yaml";
 import {
   reportSchema,
+  type Elevation,
   type Identity,
   type ImageMood,
   type Palette,
+  type Radius,
   type Report,
+  type Spacing,
   type Typography,
 } from "@/lib/schema";
 
@@ -20,6 +23,9 @@ export interface BuildReportInput {
   reportKind: Report["reportKind"];
   palette: Palette;
   typography?: Typography;
+  spacing?: Spacing;
+  radius?: Radius;
+  elevation?: Elevation;
   identity?: Identity;
   imageMood?: ImageMood;
 }
@@ -31,6 +37,9 @@ export function buildReport(input: BuildReportInput): Report {
     source: input.source,
     palette: input.palette,
     ...(input.typography ? { typography: input.typography } : {}),
+    ...(input.spacing ? { spacing: input.spacing } : {}),
+    ...(input.radius ? { radius: input.radius } : {}),
+    ...(input.elevation ? { elevation: input.elevation } : {}),
     ...(input.identity ? { identity: input.identity } : {}),
     ...(input.imageMood ? { imageMood: input.imageMood } : {}),
   };
@@ -58,6 +67,9 @@ function renderBody(report: Report): string {
 
   parts.push(renderPalette(report.palette));
   if (report.typography) parts.push(renderTypography(report.typography));
+  if (report.spacing) parts.push(renderSpacing(report.spacing));
+  if (report.radius) parts.push(renderRadius(report.radius));
+  if (report.elevation) parts.push(renderElevation(report.elevation));
   if (report.identity) parts.push(renderIdentity(report.identity));
   if (report.imageMood) parts.push(renderImageMood(report.imageMood));
 
@@ -101,6 +113,28 @@ function renderTypography(typography: Typography): string {
     lines.push(
       `| ${s.token} | ${s.sizePx}px | ${s.weight} | ${s.lineHeight} | ${s.letterSpacing} |`,
     );
+  }
+  return lines.join("\n");
+}
+
+function renderSpacing(spacing: Spacing): string {
+  const lines: string[] = [`## Spacing _(${spacing.provenance})_`, ""];
+  lines.push(`Base unit: \`${spacing.baseUnitPx}px\``, "");
+  lines.push(`Scale: \`[${spacing.scale.join(", ")}]\``);
+  return lines.join("\n");
+}
+
+function renderRadius(radius: Radius): string {
+  const lines: string[] = [`## Radius _(${radius.provenance})_`, ""];
+  lines.push(`Scale: \`[${radius.scale.join(", ")}]\``);
+  return lines.join("\n");
+}
+
+function renderElevation(elevation: Elevation): string {
+  const lines: string[] = [`## Elevation _(${elevation.provenance})_`, ""];
+  lines.push("Shadows:", "");
+  for (const s of elevation.shadows) {
+    lines.push(`- \`${s}\``);
   }
   return lines.join("\n");
 }
