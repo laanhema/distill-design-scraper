@@ -63,7 +63,6 @@ function renderBody(report: Report): string {
       ? "Design System"
       : "Palette & Mood";
   parts.push(`# ${title}`);
-  parts.push(`Source: [${report.source.ref}](${report.source.ref}) · captured ${report.source.capturedAt}`);
 
   parts.push(renderPalette(report.palette));
   if (report.typography) parts.push(renderTypography(report.typography));
@@ -80,8 +79,13 @@ function pct(n: number): string {
   return `${Math.round(n * 100)}%`;
 }
 
+/** Heading suffix for a lane's provenance, omitted when it's "measured". */
+function provenanceSuffix(provenance: string): string {
+  return provenance === "measured" ? "" : ` _(${provenance})_`;
+}
+
 function renderPalette(palette: Palette): string {
-  const lines: string[] = [`## Palette _(${palette.provenance})_`, ""];
+  const lines: string[] = [`## Palette${provenanceSuffix(palette.provenance)}`, ""];
   for (const c of palette.colors) {
     const flags = c.imageSourced ? " · image-sourced" : "";
     lines.push(
@@ -98,7 +102,7 @@ function renderPalette(palette: Palette): string {
 }
 
 function renderTypography(typography: Typography): string {
-  const lines: string[] = [`## Typography _(${typography.provenance})_`, ""];
+  const lines: string[] = [`## Typography${provenanceSuffix(typography.provenance)}`, ""];
 
   lines.push("**Families**", "");
   for (const f of typography.families) {
@@ -118,20 +122,20 @@ function renderTypography(typography: Typography): string {
 }
 
 function renderSpacing(spacing: Spacing): string {
-  const lines: string[] = [`## Spacing _(${spacing.provenance})_`, ""];
+  const lines: string[] = [`## Spacing${provenanceSuffix(spacing.provenance)}`, ""];
   lines.push(`Base unit: \`${spacing.baseUnitPx}px\``, "");
   lines.push(`Scale: \`[${spacing.scale.join(", ")}]\``);
   return lines.join("\n");
 }
 
 function renderRadius(radius: Radius): string {
-  const lines: string[] = [`## Radius _(${radius.provenance})_`, ""];
+  const lines: string[] = [`## Radius${provenanceSuffix(radius.provenance)}`, ""];
   lines.push(`Scale: \`[${radius.scale.join(", ")}]\``);
   return lines.join("\n");
 }
 
 function renderElevation(elevation: Elevation): string {
-  const lines: string[] = [`## Elevation _(${elevation.provenance})_`, ""];
+  const lines: string[] = [`## Elevation${provenanceSuffix(elevation.provenance)}`, ""];
   lines.push("Shadows:", "");
   for (const s of elevation.shadows) {
     lines.push(`- \`${s}\``);
@@ -140,7 +144,7 @@ function renderElevation(elevation: Elevation): string {
 }
 
 function renderIdentity(identity: Identity): string {
-  const lines: string[] = [`## Identity _(${identity.provenance})_`, ""];
+  const lines: string[] = [`## Identity${provenanceSuffix(identity.provenance)}`, ""];
   lines.push(`**${identity.archetype}**`, "");
   lines.push(identity.description, "");
   lines.push(identity.adjectives.map((a) => `\`${a}\``).join(" · "));
@@ -148,7 +152,7 @@ function renderIdentity(identity: Identity): string {
 }
 
 function renderImageMood(imageMood: ImageMood): string {
-  const lines: string[] = [`## Image mood _(${imageMood.provenance})_`, ""];
+  const lines: string[] = [`## Image mood${provenanceSuffix(imageMood.provenance)}`, ""];
   lines.push("Unsplash search keywords.", "");
   lines.push("**Hero**", "");
   for (const q of imageMood.hero) lines.push(`- ${q}`);

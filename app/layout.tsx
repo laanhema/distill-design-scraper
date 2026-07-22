@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Distill — design-system scraper",
+  title: "Distill - Design System Scraper",
   description:
     "Point it at a URL or drop in an image → a Markdown design system.",
 };

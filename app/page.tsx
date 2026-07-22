@@ -131,9 +131,9 @@ export default function Home() {
       <header className="mb-10">
         <h1 className="text-4xl font-semibold tracking-tight">Distill</h1>
         <p className="mt-2 text-neutral-600 dark:text-neutral-400">
-          Point it at a URL or drop an Image → Markdown Design System &amp; Layout Structure reports.{" "}
+          Point it at a URL or drop an Image → Markdown Format Design System &amp; Layout Structure.{" "}
           <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-medium dark:bg-neutral-800">
-            Track A (Tokens) + Track B (Structure)
+            Track A (Design System) + Track B (Layout Structure)
           </span>
         </p>
       </header>
@@ -159,7 +159,7 @@ export default function Home() {
               : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
           }`}
         >
-          Image Input (Palette &amp; Mood)
+          Image Input
         </button>
       </div>
 
@@ -245,14 +245,14 @@ export default function Home() {
         <section className="mt-10 space-y-8">
           <div className="flex items-center gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800">
             <Tab active={tab === "preview"} onClick={() => setTab("preview")}>
-              Tokens Preview
+              Design System Preview
             </Tab>
             <Tab active={tab === "tokens"} onClick={() => setTab("tokens")}>
-              Token Markdown
+              Design System Markdown
             </Tab>
             {structureReport && (
               <Tab active={tab === "structure"} onClick={() => setTab("structure")}>
-                Layout Structure Report
+                Layout Structure Markdown
               </Tab>
             )}
             <div className="ml-auto flex gap-2">
