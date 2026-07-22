@@ -61,9 +61,12 @@ function modal<T>(values: T[], keyOf: (v: T) => string): T | null {
 }
 
 function modalPadding(nodes: NodeStyle[]): string {
+  // Zero is a real measured value, not "missing data" — excluding it would
+  // let a single padded outlier win the mode whenever most instances of a
+  // class (e.g. plain text links) genuinely have no padding.
   const rounded = nodes
     .map((n) => n.layout?.paddingsPx.map((p) => Math.round(p)))
-    .filter((p): p is number[] => !!p && p.some((v) => v > 0));
+    .filter((p): p is number[] => !!p);
   const best = modal(rounded, (p) => p.join(","));
   if (!best) return "0px";
   const [top, right, bottom, left] = best;

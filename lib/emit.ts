@@ -82,6 +82,7 @@ function renderBody(report: Report): string {
   if (report.recipes) parts.push(renderRecipes(report.recipes));
   if (report.identity) parts.push(renderIdentity(report.identity));
   if (report.imageMood) parts.push(renderImageMood(report.imageMood));
+  parts.push(renderCssVariables(report));
 
   return parts.join("\n\n");
 }
@@ -204,6 +205,60 @@ function renderIdentity(identity: Identity): string {
   lines.push(`**${identity.archetype}**`, "");
   lines.push(identity.description, "");
   lines.push(identity.adjectives.map((a) => `\`${a}\``).join(" · "));
+  return lines.join("\n");
+}
+
+/** Quote a font-family name only when it needs it (contains whitespace). */
+function cssFontName(name: string): string {
+  return /\s/.test(name) ? `"${name}"` : name;
+}
+
+/**
+ * CSS variables (§P8-4): the last step from report to usable code — a
+ * `:root` block derived from the same report object rendered everywhere
+ * else, so there's nothing here that doesn't already trace to a
+ * frontmatter field.
+ */
+function renderCssVariables(report: Report): string {
+  const lines: string[] = ["## CSS variables", "", "```css", ":root {"];
+
+  for (const c of report.palette.colors) {
+    lines.push(`  --color-${c.role}: ${c.hex};`);
+  }
+
+  if (report.typography) {
+    const primary = report.typography.families[0];
+    if (primary) {
+      const stack = primary.stack.length > 0 ? primary.stack : [primary.name];
+      lines.push(`  --font-family: ${stack.map(cssFontName).join(", ")};`);
+    }
+    for (const s of report.typography.scale) {
+      lines.push(`  --font-size-${s.token}: ${s.sizePx}px;`);
+      lines.push(`  --font-weight-${s.token}: ${s.weight};`);
+      lines.push(`  --line-height-${s.token}: ${s.lineHeight};`);
+      lines.push(`  --letter-spacing-${s.token}: ${s.letterSpacing};`);
+    }
+  }
+
+  if (report.spacing) {
+    report.spacing.scale.forEach((px, i) => {
+      lines.push(`  --space-${i + 1}: ${px}px;`);
+    });
+  }
+
+  if (report.radius) {
+    report.radius.scale.forEach((r, i) => {
+      lines.push(`  --radius-${i + 1}: ${r};`);
+    });
+  }
+
+  if (report.elevation) {
+    for (const s of report.elevation.shadows) {
+      lines.push(`  --shadow-${s.name}: ${s.value};`);
+    }
+  }
+
+  lines.push("}", "```");
   return lines.join("\n");
 }
 
