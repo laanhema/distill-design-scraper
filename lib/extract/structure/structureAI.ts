@@ -142,55 +142,51 @@ function applyNodeUpdates(
   };
 }
 
-export function buildFallbackComponentMap(node: PrunedNode): Record<string, ComponentDef> {
-  const map: Record<string, ComponentDef> = {};
+/**
+ * Walks the tree aggregating every occurrence of each component name into one
+ * definition: instance counts sum, and composition is the *union* of child
+ * names seen across all occurrences (not just the first) so the map never
+ * contradicts the machine-block tree when two instances of the same
+ * component have different children.
+ */
+function walkComponentMap(n: PrunedNode, map: Record<string, ComponentDef>) {
+  // Every occurrence contributes its own local count (1, or the sibling
+  // group size `detectRepetition` collapsed onto it) — summed across the
+  // whole tree, not just the first time a component name is seen.
+  const occurrences = n.instanceCount || 1;
+  // Leaves never compose from themselves; they render as "—" downstream.
+  // A same-named child (e.g. a "GridSection" div nested directly inside
+  // another "GridSection" div) is excluded too, since the generic default
+  // namer can assign identical names to structurally-similar-but-distinct
+  // nodes — that's never a meaningful composition of a component from
+  // itself.
+  const childNames = n.children
+    .map((c) => c.componentName)
+    .filter((name) => name !== n.componentName);
 
-  function walk(n: PrunedNode) {
-    // Every occurrence contributes its own local count (1, or the sibling
-    // group size `detectRepetition` collapsed onto it) — summed across the
-    // whole tree, not just the first time a component name is seen.
-    const occurrences = n.instanceCount || 1;
-    if (!map[n.componentName]) {
-      // Leaves never compose from themselves; they render as "—" downstream.
-      // A same-named child (e.g. a "GridSection" div nested directly inside
-      // another "GridSection" div) is excluded too, since the generic default
-      // namer can assign identical names to structurally-similar-but-distinct
-      // nodes — that's never a meaningful composition of a component from
-      // itself.
-      const childNames = n.children
-        .map((c) => c.componentName)
-        .filter((name) => name !== n.componentName);
-      map[n.componentName] = {
-        type: n.provisionalType,
-        composition: Array.from(new Set(childNames)),
-        instances: occurrences,
-      };
-    } else {
-      map[n.componentName].instances = (map[n.componentName].instances || 0) + occurrences;
-    }
-    n.children.forEach(walk);
+  const existing = map[n.componentName];
+  if (!existing) {
+    map[n.componentName] = {
+      type: n.provisionalType,
+      composition: Array.from(new Set(childNames)),
+      instances: occurrences,
+    };
+  } else {
+    const composition = new Set(existing.composition);
+    childNames.forEach((name) => composition.add(name));
+    existing.composition = Array.from(composition);
+    existing.instances = (existing.instances || 0) + occurrences;
   }
 
-  walk(node);
+  n.children.forEach((c) => walkComponentMap(c, map));
+}
+
+export function buildFallbackComponentMap(node: PrunedNode): Record<string, ComponentDef> {
+  const map: Record<string, ComponentDef> = {};
+  walkComponentMap(node, map);
   return map;
 }
 
 function populateMissingComponentDefs(node: PrunedNode, map: Record<string, ComponentDef>) {
-  function walk(n: PrunedNode) {
-    const occurrences = n.instanceCount || 1;
-    if (!map[n.componentName]) {
-      const childNames = n.children
-        .map((c) => c.componentName)
-        .filter((name) => name !== n.componentName);
-      map[n.componentName] = {
-        type: n.provisionalType,
-        composition: Array.from(new Set(childNames)),
-        instances: occurrences,
-      };
-    } else {
-      map[n.componentName].instances = (map[n.componentName].instances || 0) + occurrences;
-    }
-    n.children.forEach(walk);
-  }
-  walk(node);
+  walkComponentMap(node, map);
 }

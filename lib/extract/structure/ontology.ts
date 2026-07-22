@@ -8,7 +8,7 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
   const childrenTyped = node.children.map((c) => assignOntologyTypes(c, depth + 1));
 
   let provisionalType: OntologyType = "container";
-  let name = formatDefaultName(node);
+  let name = formatDefaultName(node, childrenTyped);
   let layoutAnnotation = node.layoutAnnotation;
 
   // 1. Landmarks -> region
@@ -31,11 +31,14 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
     ["button", "a", "input", "h1", "h2", "h3", "h4", "img", "svg", "p", "label"].includes(node.tagName)
   ) {
     provisionalType = "atom";
-    if (node.tagName === "button" || node.isInteractive) name = "Button";
-    else if (node.tagName === "a") name = "TextLink";
+    // Name by tag first — `isInteractive` also covers a/input/select/textarea,
+    // so it must not catch those before their specific tag names do.
+    if (node.tagName === "a") name = "TextLink";
+    else if (["input", "select", "textarea"].includes(node.tagName)) name = "Input";
     else if (node.tagName.startsWith("h")) name = "Heading";
     else if (node.isImageOrSvg) name = "Image";
-    else if (node.tagName === "input") name = "Input";
+    else if (node.tagName === "button") name = "Button";
+    else if (node.isInteractive) name = "Button";
   }
   // 3. Repeated units -> content-block
   else if (node.instanceCount && node.instanceCount >= 2) {
@@ -64,16 +67,33 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
   };
 }
 
-function formatDefaultName(node: PrunedNode): string {
-  if (node.landmark) {
-    return capitalize(node.landmark);
-  }
+/** A hero is expected to sit in the initial viewport, not further down the page. */
+const HERO_Y_THRESHOLD_PX = 900;
+
+function formatDefaultName(node: PrunedNode, childrenTyped: PrunedNode[] = []): string {
+  // `<section>` always carries `landmark === "section"` (harvester.ts getLandmark),
+  // so this structure-aware check must run before the generic landmark fallback below
+  // — otherwise every section collapses to the literal capitalized landmark ("Section").
   if (node.tagName === "div" || node.tagName === "section") {
+    if (isHeroSection(node, childrenTyped)) return "Hero";
     if (node.layoutAnnotation?.includes("grid")) return "GridSection";
     if (node.layoutAnnotation?.includes("flex")) return "FlexContainer";
     return "Section";
   }
+  if (node.landmark) {
+    return capitalize(node.landmark);
+  }
   return capitalize(node.tagName);
+}
+
+/** First section containing an h1 near the top of the page reads as the hero. */
+function isHeroSection(node: PrunedNode, childrenTyped: PrunedNode[]): boolean {
+  if (node.bounds.y >= HERO_Y_THRESHOLD_PX) return false;
+  return containsTag(childrenTyped, "h1");
+}
+
+function containsTag(nodes: PrunedNode[], tag: string): boolean {
+  return nodes.some((n) => n.tagName === tag || containsTag(n.children, tag));
 }
 
 function capitalize(s: string): string {
