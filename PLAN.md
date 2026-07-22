@@ -386,3 +386,160 @@ P5-3 builds on P4-2's `Hero` rule. P5-1/P6-1 are additive schema changes —
 same caveat as round 1 about consumers asserting exact frontmatter. P5-2
 changes the capture shape: refresh `eval/corpus/*/capture.json` and
 `baseline.json` deliberately in that PR, never as a side effect.
+
+---
+---
+
+# Fix Plan — Round 3: Rebuild-Sufficiency Audit (2026-07-22)
+
+Status at time of writing: rounds 1–2 Phases 1–4 are implemented and verified
+against fresh fixture output (`TextLink ×4`, distinct `Hero`/`GridSection`,
+font stacks, token hints, compact machine block, `contentMaxWidth`). **Phases
+5–6 (P5-1, P5-2, P5-3, P6-1, P6-2) remain open** — they are not restated here;
+the order table at the end slots them in among the new items.
+
+New issues below come from auditing the generated reports against the goal
+*"an LLM or developer should be able to build a new website from these two
+files alone."* Grouped by track, same item format as earlier rounds.
+
+**Regression gate (unchanged):** `npm run eval` after each phase; baseline
+refresh only when a score change is intended.
+
+---
+
+## Phase 7 — Report honesty & measurement framing (small, do first)
+
+### P7-1 · Heuristic naming is not flagged — degraded reports claim `measured`
+
+- **Symptom:** a key-less run emits `P`, `Span`, `Small` component names (the
+  AI labeller silently fell back to `buildFallbackComponentMap`), yet the
+  header and machine block still read `fidelity: measured` with nothing to
+  tell a consumer the semantic layer is heuristic.
+- **Cause:** `lib/extract/structure/index.ts:85` hardcodes
+  `fidelity: "measured"`; `runStructureAILabeller` gives no signal about
+  whether it ran (`structureAI.ts:35` returns the fallback when
+  `ANTHROPIC_API_KEY` is absent or the call fails).
+- **Fix:** thread a `naming: "ai" | "heuristic"` flag from the labeller
+  through `emitStructureReport` into the header code block and
+  `structureMachineBlockSchema` (additive optional field). `fidelity` keeps
+  meaning "bounds/layout were measured" — this is a separate axis.
+- **Accept:** key-less fixture run shows `naming: heuristic` in header +
+  machine block; a keyed run shows `naming: ai`; schema validates both.
+
+### P7-2 · Region pixel heights encode outcome, not intent
+
+- **Symptom:** `Hero [h 479px]` invites a rebuilder to hard-code a height
+  that is really "content at 1440×900". Vertical rhythm (the transferable
+  intent) is nowhere.
+- **Cause:** `lib/extract/structure/ontology.ts:25` appends `h {round(px)}`
+  for region nodes; nothing derives padding.
+- **Fix:**
+  1. Derive vertical padding for regions from measured bounds (first-child
+     top minus region top / region bottom minus last-child bottom), snapped
+     to the spacing scale when within tolerance → annotate `padY 64px`
+     alongside (or instead of) the raw height for content-driven regions.
+     `styleDump.ts` already records `paddingsPx` per node — cross-link by
+     bounds overlap like `tokenLink.ts` does, fall back to bounds math in
+     structure-only mode.
+  2. Keep raw height only where it is intent (viewport-pinned `SiteHeader`,
+     near-viewport-height heroes → `h 100vh`-style note), and state the
+     measurement viewport once in the header, not per node.
+- **Accept:** fixture skeleton shows `Hero [padY 96px]`-style annotations;
+  no bare `h Npx` on ordinary content regions; structure eval holds.
+
+---
+
+## Phase 8 — Design-report sufficiency: recipes, pairings, schemes
+
+### P8-1 · No component recipes — tokens are ingredients without amounts
+
+- **Gap:** the design report never says what a button *is*: padding, radius,
+  border, font token, bg/text roles. A rebuilder improvises the most visible
+  element on the page. (P5-1 covers *state changes*; this is the base
+  recipe.)
+- **Cause:** emit-side only — `lib/extract/styleDump.ts` already captures
+  per-node `paddingsPx`, border width/style, `borderRadius`, colors per
+  channel, and type info; nothing aggregates it per element class.
+- **Fix:**
+  1. New `lib/extract/recipes.ts`: group dump nodes by element class
+     (`button`-like interactive, text `a`, `input`/`select`, card-like
+     surfaces), take the modal value per property, express colors as
+     palette-role references (nearest ΔE match, same rule as
+     `tokenLink.ts`) and type as the nearest scale token.
+  2. Schema: optional `recipes` lane in `lib/schema.ts` —
+     `{ provenance, entries: [{ element, padding, radius, border?, bg?,
+     text?, typeToken? }] }`; omitted when a class has no instances.
+  3. Emit: `## Component recipes` section —
+     `- **Button** — bg \`primary\` · text \`#ffffff\` · padding 12px 24px ·
+     radius 8px · type \`body\`/600`.
+- **Accept:** fixture report emits Button, TextLink, and Card recipes whose
+  values match the fixture CSS; sites with no `<button>` omit that entry;
+  eval untouched (additive lane).
+
+### P8-2 · Contrast pairs answer only two questions
+
+- **Symptom:** `buildContrast` (`lib/extract/palette.ts:324`) emits
+  text/background and primary/background only. "What text goes on a
+  `primary` button?" and "what text goes on `surface`?" — the two pairings a
+  rebuild needs most — are unanswered.
+- **Fix:**
+  1. **On-primary (measured):** read the modal text color of
+     primary-background nodes from the style dump → emit an `on-primary`
+     swatch + `on-primary on primary` contrast pair.
+  2. **Text/muted on surface (computed):** both colors exist; just add the
+     pairs.
+  3. Only when no measured on-primary exists, pick `#ffffff`/`#000000` by
+     contrast and stamp the swatch `provenance: inferred` — never silently.
+- **Accept:** fixture emits `on-primary` (`#ffffff`, measured) and
+  `text on surface` pairs; each new pair carries a ratio + WCAG grade.
+
+### P8-3 · Single color-scheme capture
+
+- **Gap:** a site with light + dark themes yields only whichever scheme the
+  headless default saw; the other mode is unrepresented.
+- **Fix:**
+  1. `lib/ingest.ts`: after the primary capture, re-run with
+     `page.emulateMedia({ colorScheme: "dark" })` (style dump + screenshot
+     only, same session — cheap, like P5-2's second harvest).
+  2. Compare backgrounds (ΔE threshold): if unchanged, discard silently — no
+     fake dark palette for single-scheme sites.
+  3. If changed, run the palette lane on the second dump → optional
+     `paletteDark` lane in `lib/schema.ts`, emitted as `## Palette (dark
+     scheme)` with its own contrast pairs.
+- **Accept:** `dark-mode` fixture (or a `prefers-color-scheme` variant of
+  it) yields both palettes; `clean-light` output is byte-identical to
+  before; capture-shape change is versioned with refreshed corpus in the
+  same PR (same rule as P5-2 — consider shipping them together, both touch
+  `ingest.ts`'s second-pass machinery).
+
+### P8-4 · Reports stop one step short of usable code
+
+- **Gap (polish, do last):** the stated goal is *easy* reuse; every consumer
+  must first transform frontmatter → CSS variables.
+- **Fix:** derived `## CSS variables` section at the end of the design
+  report body — a fenced `:root { --color-primary: #1a73e8; … }` block
+  rendered from the same report object (no drift, same principle as the
+  rest of `renderBody`). Roles, type scale, spacing steps, radius, shadows.
+- **Accept:** block parses as valid CSS; every value traces to a frontmatter
+  field; no new schema surface.
+
+---
+
+## Suggested order & verification
+
+| Step | Items | Verify with |
+|---|---|---|
+| 1 | P7-1 (naming flag), P7-2 (padY annotations) | key-less vs keyed fixture runs; skeleton eyeball |
+| 2 | P5-3 *(round 2)* — heuristic naming | no-key fixture reads semantically |
+| 3 | P8-1 (recipes), P8-2 (contrast pairs) | fixture recipes vs fixture CSS; eval |
+| 4 | P5-1 *(round 2)* — hover/focus states | site with `:hover` rules |
+| 5 | P5-2 *(round 2)* + P8-3 — multi-viewport & dark scheme, one capture-shape PR | 3col→1col delta; dual palettes; refreshed corpus |
+| 6 | P6-1, P6-2 *(round 2)* — image-path parity | two-image upload; inferred skeleton |
+| 7 | P8-4 (CSS variables block) | block parses; values trace to frontmatter |
+
+Dependencies: P8-1 and P8-2 both lean on the dump→palette role-matching used
+by `tokenLink.ts` — extract that matcher into a shared helper first rather
+than copying it a third time. P5-2 and P8-3 both add a second in-session
+pass in `ingest.ts` and both change capture shape; land them in one PR so
+`eval/corpus/*/capture.json` and `baseline.json` are refreshed once,
+deliberately.

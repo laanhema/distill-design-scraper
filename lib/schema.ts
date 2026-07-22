@@ -22,6 +22,16 @@ export const COLOR_ROLES = [
   "accent",
   "muted",
   "border",
+  // Not a scored role (never assigned by `assignRoles`) — the modal text
+  // color measured on primary-background elements, added directly as a
+  // swatch (§P8-2). Kept in the same enum so it validates as a normal Swatch.
+  "on-primary",
+  // Semantic states (§P5-1): assigned only on strong evidence (hue band +
+  // usage context — an alert/status role or an aria-invalid element), never
+  // synthesized from `primary`. Absent when no such evidence exists.
+  "success",
+  "warning",
+  "danger",
 ] as const;
 export type ColorRole = (typeof COLOR_ROLES)[number];
 export const colorRoleSchema = z.enum(COLOR_ROLES);
@@ -36,6 +46,10 @@ export const swatchSchema = z.object({
   /** True when the color was recovered from pixels but missing from the DOM
    *  reads (a gradient/image color CSS couldn't see). */
   imageSourced: z.boolean().optional(),
+  /** Set only when this swatch wasn't actually measured — e.g. `on-primary`
+   *  picked by contrast because no real button text was observed (§P8-2).
+   *  Omitted (implicitly "measured") for every ordinary role swatch. */
+  provenance: z.enum(["measured", "inferred"]).optional(),
 });
 export type Swatch = z.infer<typeof swatchSchema>;
 
@@ -118,6 +132,66 @@ export const elevationSchema = z.object({
 });
 export type Elevation = z.infer<typeof elevationSchema>;
 
+/**
+ * Component recipes (§P8-1): the base look of the handful of element classes
+ * a rebuild needs verbatim, aggregated as the modal observed value per class
+ * from the style dump. `bg`/`text`/`border` are palette-role names when the
+ * measured color matches a swatch (nearest ΔE), else the raw hex — never a
+ * fabricated role.
+ */
+export const RECIPE_ELEMENTS = ["Button", "TextLink", "Input", "Card"] as const;
+export type RecipeElement = (typeof RECIPE_ELEMENTS)[number];
+export const recipeElementSchema = z.enum(RECIPE_ELEMENTS);
+
+export const recipeEntrySchema = z.object({
+  element: recipeElementSchema,
+  padding: z.string(),
+  radius: z.string().optional(),
+  border: z.string().optional(),
+  bg: z.string().optional(),
+  text: z.string().optional(),
+  typeToken: z.enum(TYPE_TOKENS).optional(),
+  typeWeight: z.number().optional(),
+});
+export type RecipeEntry = z.infer<typeof recipeEntrySchema>;
+
+export const recipesSchema = z.object({
+  provenance: provenanceSchema,
+  entries: z.array(recipeEntrySchema),
+});
+export type Recipes = z.infer<typeof recipesSchema>;
+
+/**
+ * Interactive states (§P5-1): declared `:hover`/`:focus-visible` deltas read
+ * straight from the CSSOM (never computed/interpolated), attributed to the
+ * palette role of the element's own base color. `target` is a `ColorRole`
+ * rather than a free string on purpose — an entry only exists when the base
+ * color actually matched a real swatch, so this lane can never point at a
+ * role that isn't in the palette.
+ */
+export const STATE_KINDS = ["hover", "focus"] as const;
+export type StateKind = (typeof STATE_KINDS)[number];
+
+export const stateChangeSchema = z.object({
+  property: z.string(),
+  from: z.string(),
+  to: z.string(),
+});
+export type StateChange = z.infer<typeof stateChangeSchema>;
+
+export const stateEntrySchema = z.object({
+  target: colorRoleSchema,
+  state: z.enum(STATE_KINDS),
+  changes: z.array(stateChangeSchema),
+});
+export type StateEntry = z.infer<typeof stateEntrySchema>;
+
+export const statesSchema = z.object({
+  provenance: provenanceSchema,
+  entries: z.array(stateEntrySchema),
+});
+export type States = z.infer<typeof statesSchema>;
+
 // ── Interpretive lanes (§6, AI). Stamped `provenance: ai`; optional so a
 // measured-only report (or an API-key-less run) validates without faking them.
 
@@ -149,6 +223,8 @@ export const reportSchema = z.object({
   spacing: spacingSchema.optional(),
   radius: radiusSchema.optional(),
   elevation: elevationSchema.optional(),
+  recipes: recipesSchema.optional(),
+  states: statesSchema.optional(),
   // Optional interpretive lanes (§6); present once the AI lane has run.
   identity: identitySchema.optional(),
   imageMood: imageMoodSchema.optional(),

@@ -1,0 +1,163 @@
+import { hex, parseColor } from "@/lib/color";
+import type { NodeStyle, StyleDump, ColorChannel } from "@/lib/extract/styleDump";
+import { RECIPE_ELEMENTS } from "@/lib/schema";
+import type { Palette, RecipeElement, RecipeEntry, Recipes, Typography } from "@/lib/schema";
+import { nearestPaletteRole } from "./roleMatch";
+
+/**
+ * Stage — Component recipes (§P8-1)
+ * The design report says what colors and sizes exist but never what a real
+ * component *is*: padding, radius, border, color roles, type. This groups
+ * style-dump nodes into a handful of element classes and takes the modal
+ * (most common) observed value per property, so one outlier instance can't
+ * skew the recipe.
+ */
+
+/** Max px gap between a class's modal font size and a type-scale step to call it "that token". */
+const TYPE_TOKEN_MATCH_TOLERANCE_PX = 2;
+
+function classify(node: NodeStyle): RecipeElement | null {
+  if (node.tag === "button") return "Button";
+  // <input type="submit"|"button"> renders and behaves like a Button (styleDump.ts
+  // only marks `interactive` true for those two input types, never plain text fields).
+  if (node.tag === "input" && node.interactive) return "Button";
+  if (node.tag === "a") return "TextLink";
+  if (["input", "select", "textarea"].includes(node.tag)) return "Input";
+  if (isCardLike(node)) return "Card";
+  return null;
+}
+
+/** A card is a padded, radius/shadow-bearing surface — never a text leaf itself
+ *  (its content lives on a descendant), which is what distinguishes it from an
+ *  incidentally-rounded text container. */
+function isCardLike(node: NodeStyle): boolean {
+  if (!["div", "article", "li"].includes(node.tag)) return false;
+  if (node.hasText) return false;
+  const layout = node.layout;
+  if (!layout) return false;
+  const hasSurfaceLook = layout.borderRadius !== "" || layout.boxShadow !== "";
+  const hasPadding = layout.paddingsPx.some((p) => p > 0);
+  return hasSurfaceLook && hasPadding;
+}
+
+/** Most frequent value in `values`, keyed by `keyOf`; ties keep the first seen. */
+function modal<T>(values: T[], keyOf: (v: T) => string): T | null {
+  const counts = new Map<string, { count: number; value: T }>();
+  for (const v of values) {
+    const key = keyOf(v);
+    const entry = counts.get(key);
+    if (entry) entry.count++;
+    else counts.set(key, { count: 1, value: v });
+  }
+  let best: T | null = null;
+  let bestCount = 0;
+  for (const { count, value } of counts.values()) {
+    if (count > bestCount) {
+      bestCount = count;
+      best = value;
+    }
+  }
+  return best;
+}
+
+function modalPadding(nodes: NodeStyle[]): string {
+  const rounded = nodes
+    .map((n) => n.layout?.paddingsPx.map((p) => Math.round(p)))
+    .filter((p): p is number[] => !!p && p.some((v) => v > 0));
+  const best = modal(rounded, (p) => p.join(","));
+  if (!best) return "0px";
+  const [top, right, bottom, left] = best;
+  if (top === bottom && right === left) {
+    return top === right ? `${top}px` : `${top}px ${right}px`;
+  }
+  return `${top}px ${right}px ${bottom}px ${left}px`;
+}
+
+function modalRadius(nodes: NodeStyle[]): string | undefined {
+  const values = nodes.map((n) => n.layout?.borderRadius).filter((r): r is string => !!r);
+  return modal(values, (r) => r) ?? undefined;
+}
+
+function modalColorValue(nodes: NodeStyle[], channel: ColorChannel): string | undefined {
+  const values = nodes
+    .map((n) => n.colors.find((c) => c.channel === channel)?.value)
+    .filter((v): v is string => !!v);
+  return modal(values, (v) => v) ?? undefined;
+}
+
+/** Prefer a palette-role name (nearest ΔE); fall back to the raw hex rather
+ *  than fabricating a role that doesn't match anything measured. */
+function resolveColorLabel(value: string, palette: Palette): string {
+  const role = nearestPaletteRole(value, palette);
+  if (role) return role;
+  const parsed = parseColor(value);
+  return parsed ? hex(parsed) : value;
+}
+
+function modalType(
+  nodes: NodeStyle[],
+  typography: Typography | undefined,
+): Pick<RecipeEntry, "typeToken" | "typeWeight"> {
+  const withType = nodes.filter((n): n is NodeStyle & { type: NonNullable<NodeStyle["type"]> } =>
+    Boolean(n.type),
+  );
+  if (withType.length === 0 || !typography) return {};
+
+  const best = modal(withType, (n) => `${Math.round(n.type.fontSizePx)}:${n.type.fontWeight}`);
+  if (!best) return {};
+
+  let token: RecipeEntry["typeToken"];
+  let bestDiff = Infinity;
+  for (const step of typography.scale) {
+    const diff = Math.abs(step.sizePx - best.type.fontSizePx);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      token = step.token;
+    }
+  }
+  if (!token || bestDiff > TYPE_TOKEN_MATCH_TOLERANCE_PX) return {};
+  return { typeToken: token, typeWeight: best.type.fontWeight };
+}
+
+/** Only present in `both`-lane runs — recipes are derived from the same
+ *  measured palette/typography the rest of the design report uses. */
+export function buildRecipes(
+  dump: StyleDump,
+  context: { palette: Palette; typography?: Typography },
+): Recipes | undefined {
+  const byElement = new Map<RecipeElement, NodeStyle[]>();
+  for (const node of dump.nodes) {
+    const cls = classify(node);
+    if (!cls) continue;
+    const list = byElement.get(cls);
+    if (list) list.push(node);
+    else byElement.set(cls, [node]);
+  }
+
+  const entries: RecipeEntry[] = [];
+  for (const element of RECIPE_ELEMENTS) {
+    const nodes = byElement.get(element);
+    if (!nodes || nodes.length === 0) continue;
+
+    const entry: RecipeEntry = { element, padding: modalPadding(nodes) };
+
+    const radius = modalRadius(nodes);
+    if (radius) entry.radius = radius;
+
+    const bg = modalColorValue(nodes, "background");
+    if (bg) entry.bg = resolveColorLabel(bg, context.palette);
+
+    const text = modalColorValue(nodes, "text");
+    if (text) entry.text = resolveColorLabel(text, context.palette);
+
+    const border = modalColorValue(nodes, "border");
+    if (border) entry.border = resolveColorLabel(border, context.palette);
+
+    Object.assign(entry, modalType(nodes, context.typography));
+
+    entries.push(entry);
+  }
+
+  if (entries.length === 0) return undefined;
+  return { provenance: "measured", entries };
+}

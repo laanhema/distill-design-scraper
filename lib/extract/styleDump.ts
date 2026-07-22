@@ -48,6 +48,16 @@ export interface NodeStyle {
     borderRadius: string;
     boxShadow: string;
   };
+  /** ARIA evidence for semantic (success/warning/danger) color roles (§P5-1) —
+   *  ("alert"/"status" live regions, or an `aria-invalid` field) never inferred
+   *  from color alone. */
+  semanticContext?: "alert" | "invalid";
+  /** Declared `:hover`/`:focus-visible` deltas read from the CSSOM for this
+   *  node, when it's interactive and a matching rule exists (§P5-1). */
+  states?: {
+    state: "hover" | "focus";
+    changes: { property: string; from: string; to: string }[];
+  }[];
 }
 
 export interface StyleDump {
@@ -134,8 +144,18 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       "PATH", "CIRCLE", "RECT", "POLYGON", "ELLIPSE", "LINE", "SVG",
     ]);
 
+    function semanticContext(el: Element): "alert" | "invalid" | undefined {
+      const role = el.getAttribute("role");
+      if (role === "alert" || role === "status") return "alert";
+      if (el.getAttribute("aria-invalid") === "true") return "invalid";
+      return undefined;
+    }
+
     const all = document.querySelectorAll("*");
     const nodes: unknown[] = [];
+    // Only elements that end up with a record are eligible hover/focus scan
+    // targets — "already in the dump", per §P5-1.
+    const elementRecords = new Map<Element, Record<string, unknown>>();
     let totalVisible = 0;
     let truncated = false;
 
@@ -239,7 +259,100 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
         };
       }
 
+      const ctx = semanticContext(el);
+      if (ctx) record.semanticContext = ctx;
+
       nodes.push(record);
+      elementRecords.set(el, record);
+    }
+
+    // Interactive states (§P5-1): declared `:hover`/`:focus-visible` deltas,
+    // read straight from the CSSOM — never simulated by toggling the pseudo
+    // class, so a rule guarded by JS (`.is-hovering`) is an honest miss, not a
+    // wrong answer. Cross-origin stylesheets throw on `.cssRules`; skipped.
+    const STATE_PROPS: Record<string, string> = {
+      "background-color": "background-color",
+      "color": "color",
+      "border-color": "border-top-color",
+      "box-shadow": "box-shadow",
+    };
+
+    function applyRule(rule: CSSStyleRule) {
+      const selectorText = rule.selectorText;
+      if (!selectorText) return;
+      for (const rawSelector of selectorText.split(",")) {
+        const selector = rawSelector.trim();
+        const state = selector.includes(":hover")
+          ? "hover"
+          : selector.includes(":focus-visible")
+            ? "focus"
+            : null;
+        if (!state) continue;
+        const baseSelector = selector
+          .replace(/:hover/g, "")
+          .replace(/:focus-visible/g, "")
+          .trim();
+        if (!baseSelector) continue;
+
+        let matched: NodeListOf<Element>;
+        try {
+          matched = document.querySelectorAll(baseSelector);
+        } catch {
+          continue;
+        }
+
+        for (const el of matched) {
+          const record = elementRecords.get(el);
+          if (!record || !record.interactive) continue;
+
+          const cs = getComputedStyle(el);
+          const changes: { property: string; from: string; to: string }[] = [];
+          for (const [prop, computedProp] of Object.entries(STATE_PROPS)) {
+            const to = rule.style.getPropertyValue(prop);
+            if (!to) continue;
+            const from = cs.getPropertyValue(computedProp);
+            if (!from || from === to) continue;
+            changes.push({ property: prop, from, to });
+          }
+          if (changes.length === 0) continue;
+
+          const states = (record.states ?? []) as {
+            state: "hover" | "focus";
+            changes: { property: string; from: string; to: string }[];
+          }[];
+          const existing = states.find((s) => s.state === state);
+          if (existing) {
+            for (const ch of changes) {
+              if (!existing.changes.some((e) => e.property === ch.property)) {
+                existing.changes.push(ch);
+              }
+            }
+          } else {
+            states.push({ state, changes });
+          }
+          record.states = states;
+        }
+      }
+    }
+
+    function scanRules(rules: CSSRuleList) {
+      for (const rule of rules) {
+        if (rule instanceof CSSMediaRule) {
+          scanRules(rule.cssRules);
+          continue;
+        }
+        if (rule instanceof CSSStyleRule) applyRule(rule);
+      }
+    }
+
+    for (const sheet of document.styleSheets) {
+      let rules: CSSRuleList | null;
+      try {
+        rules = sheet.cssRules;
+      } catch {
+        continue; // cross-origin stylesheet — can't be read, skip silently.
+      }
+      if (rules) scanRules(rules);
     }
 
     return { nodes, totalVisible, truncated };

@@ -33,6 +33,9 @@ export type ComponentDef = z.infer<typeof componentDefSchema>;
  */
 export interface StructureTreeNode {
   component: string;
+  /** Original HTML tag, only carried when the component name is a generic
+   *  heuristic label (e.g. "Text") that would otherwise lose it (§P5-3). */
+  tag?: string;
   variant?: string;
   count?: number;
   variance?: string;
@@ -44,6 +47,7 @@ export const structureTreeNodeSchema: z.ZodType<StructureTreeNode> = z.lazy(
   () =>
     z.object({
       component: z.string(),
+      tag: z.string().optional(),
       variant: z.string().optional(),
       count: z.number().optional(),
       variance: z.string().optional(),
@@ -61,6 +65,10 @@ export const structureMachineBlockSchema = z.object({
   viewport: z.tuple([z.number(), z.number()]),
   captured: z.string(),
   fidelity: z.enum(["measured", "inferred"]),
+  /** Whether component names/types came from the AI pass or the heuristic
+   *  fallback (§P7-1) — independent of `fidelity`, which only speaks to
+   *  whether bounds/layout were measured. */
+  naming: z.enum(["ai", "heuristic"]).optional(),
   /** Widest common width among MainContent's children that's narrower than
    *  the viewport — the page's centered-content constraint, if any. */
   contentMaxWidth: z.number().optional(),
@@ -78,6 +86,7 @@ export interface StructureReport {
     viewport: string;
     captured: string;
     fidelity: "measured" | "inferred";
+    naming?: "ai" | "heuristic";
     contentMaxWidth?: number;
   };
   skeletonAscii: string;

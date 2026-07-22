@@ -29,14 +29,21 @@ export type AiStructureResponse = z.infer<typeof aiStructureResponseSchema>;
  * Stage 7 — AI Labelling Pass (§5b, §6)
  * Text-only Claude call to refine component names, ontology types, and composition strings.
  */
-export async function runStructureAILabeller(
-  root: PrunedNode,
-): Promise<{ root: PrunedNode; components: Record<string, ComponentDef> }> {
+export interface StructureAIResult {
+  root: PrunedNode;
+  components: Record<string, ComponentDef>;
+  /** Whether component names/types came from the AI pass or the heuristic
+   *  fallback (§P7-1) — a separate axis from `fidelity`, which only speaks to
+   *  whether bounds/layout were measured. */
+  naming: "ai" | "heuristic";
+}
+
+export async function runStructureAILabeller(root: PrunedNode): Promise<StructureAIResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   const fallback = buildFallbackComponentMap(root);
 
   if (!apiKey) {
-    return { root, components: fallback };
+    return { root, components: fallback, naming: "heuristic" };
   }
 
   const client = new Anthropic({ apiKey });
@@ -80,12 +87,12 @@ Return strict JSON matching this Zod schema:
     const text = message.content[0].type === "text" ? message.content[0].text : "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      return { root, components: fallback };
+      return { root, components: fallback, naming: "heuristic" };
     }
 
     const parsed = aiStructureResponseSchema.safeParse(JSON.parse(jsonMatch[0]));
     if (!parsed.success) {
-      return { root, components: fallback };
+      return { root, components: fallback, naming: "heuristic" };
     }
 
     // Apply updates to node tree
@@ -105,10 +112,10 @@ Return strict JSON matching this Zod schema:
     // Ensure all components used in the updated root have definitions
     populateMissingComponentDefs(updatedRoot, finalComponents);
 
-    return { root: updatedRoot, components: finalComponents };
+    return { root: updatedRoot, components: finalComponents, naming: "ai" };
   } catch (err) {
     console.warn("AI Structure Labeller failed, using heuristic fallback:", err);
-    return { root, components: fallback };
+    return { root, components: fallback, naming: "heuristic" };
   }
 }
 

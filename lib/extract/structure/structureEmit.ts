@@ -12,6 +12,9 @@ export interface StructureEmitInput {
   viewport: { width: number; height: number };
   capturedAt: string;
   fidelity: "measured" | "inferred";
+  /** Whether component names came from the AI pass or the heuristic
+   *  fallback (§P7-1). */
+  naming: "ai" | "heuristic";
   root: PrunedNode;
   components: Record<string, ComponentDef>;
   /** Per-component design-token hints (§P3-1), only present in `both` mode. */
@@ -23,7 +26,8 @@ export interface StructureEmitInput {
  * Formats the ASCII skeleton, component map, and machine JSON block into the target report.
  */
 export function emitStructureReport(input: StructureEmitInput): StructureReport {
-  const { sourceUrl, viewport, capturedAt, fidelity, root, components, tokenHints } = input;
+  const { sourceUrl, viewport, capturedAt, fidelity, naming, root, components, tokenHints } =
+    input;
   const viewportStr = `${viewport.width}×${viewport.height}`;
   const contentMaxWidth = computeContentMaxWidth(root, viewport.width);
 
@@ -50,6 +54,7 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
     viewport: [viewport.width, viewport.height],
     captured: capturedAt.split("T")[0],
     fidelity,
+    naming,
     ...(contentMaxWidth !== undefined ? { contentMaxWidth } : {}),
     tree: treeNodes,
     components: mergedComponents,
@@ -72,7 +77,8 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
 source:    ${sourceUrl}
 viewport:  ${viewportStr}
 captured:  ${capturedAt.split("T")[0]}
-fidelity:  ${fidelity}${contentMaxWidthLine}
+fidelity:  ${fidelity}
+naming:    ${naming}${contentMaxWidthLine}
 \`\`\`
 
 ## Skeleton
@@ -100,6 +106,7 @@ ${serializeMachineBlockCompact(machineBlock)}
       viewport: viewportStr,
       captured: capturedAt.split("T")[0],
       fidelity,
+      naming,
       ...(contentMaxWidth !== undefined ? { contentMaxWidth } : {}),
     },
     skeletonAscii,
@@ -221,6 +228,9 @@ function buildMachineTreeNodes(nodes: PrunedNode[]): StructureTreeNode[] {
     const result: StructureTreeNode = {
       component: node.componentName,
     };
+    if (node.componentName === "Text") {
+      result.tag = node.tagName;
+    }
     if (node.instanceCount && node.instanceCount > 1) {
       result.count = node.instanceCount;
     }

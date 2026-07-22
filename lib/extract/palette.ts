@@ -5,6 +5,7 @@ import {
   contrastRatio,
   deltaE,
   hex,
+  hue,
   isNeutral,
   labDistanceSq,
   labTriple,
@@ -63,6 +64,10 @@ interface Canonical {
   areaWeight: number;
   /** True when recovered from pixels but absent from the DOM (gradient/image). */
   imageSourced: boolean;
+  /** Observations on nodes flagged `alert`/`status`/`aria-invalid` — the
+   *  usage-context evidence semantic (success/warning/danger) roles require
+   *  (§P5-1), never assigned from hue alone. */
+  semanticContext: number;
 }
 
 function emptyChannels(): Record<ColorChannel, number> {
@@ -78,6 +83,7 @@ function collectCanonical(dump: StyleDump): Canonical[] {
     color: Color,
     channel: ColorChannel,
     interactive: boolean,
+    semanticContext: boolean,
   ) => {
     // Merge into an existing canonical color if perceptually near-identical.
     for (const c of canon) {
@@ -85,6 +91,7 @@ function collectCanonical(dump: StyleDump): Canonical[] {
         c.channels[channel]++;
         c.total++;
         if (interactive) c.interactive++;
+        if (semanticContext) c.semanticContext++;
         return;
       }
     }
@@ -99,6 +106,7 @@ function collectCanonical(dump: StyleDump): Canonical[] {
       interactive: interactive ? 1 : 0,
       areaWeight: 0,
       imageSourced: false,
+      semanticContext: semanticContext ? 1 : 0,
     });
   };
 
@@ -106,7 +114,7 @@ function collectCanonical(dump: StyleDump): Canonical[] {
     for (const obs of node.colors) {
       const parsed = parseColor(obs.value);
       if (!parsed) continue;
-      addObservation(parsed, obs.channel, node.interactive);
+      addObservation(parsed, obs.channel, node.interactive, Boolean(node.semanticContext));
     }
   }
 
@@ -194,6 +202,7 @@ async function assignAreaWeights(
         interactive: 0,
         areaWeight: share,
         imageSourced: true,
+        semanticContext: 0,
       });
     }
   }
@@ -242,6 +251,29 @@ function mutedScore(c: Canonical): number {
   return Math.log1p(c.total) * areaPenalty;
 }
 
+/** True when hue `h` falls within `[lo, hi]`, wrapping past 360°. */
+function inHueBand(h: number, lo: number, hi: number): boolean {
+  return lo <= hi ? h >= lo && h <= hi : h >= lo || h <= hi;
+}
+
+// Semantic (success/warning/danger) hue bands, in OKLCH degrees — sampled from
+// sRGB primaries (red ≈29°, orange/yellow ≈50-90°, green ≈100-170°).
+const SEMANTIC_HUE_BANDS: Record<"success" | "warning" | "danger", [number, number]> = {
+  danger: [345, 40],
+  warning: [40, 95],
+  success: [95, 170],
+};
+
+/** Requires *both* a matching hue band and real usage-context evidence
+ *  (an `alert`/`status`/`aria-invalid` node) — a red brand color with no such
+ *  evidence never becomes `danger` (§P5-1). */
+function semanticScore(c: Canonical, band: [number, number]): number {
+  if (c.semanticContext === 0) return 0;
+  if (isNeutral(c.color)) return 0;
+  if (!inHueBand(hue(c.color), band[0], band[1])) return 0;
+  return c.semanticContext * chroma(c.color);
+}
+
 // ── Stage D: resolve conflicts by best score, with guardrails ────────────────
 
 function assignRoles(canon: Canonical[]): Map<ColorRole, Canonical> {
@@ -279,6 +311,16 @@ function assignRoles(canon: Canonical[]): Map<ColorRole, Canonical> {
 
   // Order matters for guardrails: background anchors text/surface contrast.
   const background = pick("background", backgroundScore);
+
+  // Semantic roles claim their color *before* the generic surface/primary/
+  // accent scorers run: `semanticScore` only fires on real alert/invalid
+  // usage-context evidence, so a color that clears it is authoritatively
+  // success/warning/danger and must not be swallowed by a broader role first
+  // just because nothing else was competing for it (§P5-1).
+  pick("danger", (c) => semanticScore(c, SEMANTIC_HUE_BANDS.danger));
+  pick("warning", (c) => semanticScore(c, SEMANTIC_HUE_BANDS.warning));
+  pick("success", (c) => semanticScore(c, SEMANTIC_HUE_BANDS.success));
+
   pick(
     "surface",
     backgroundScore,
@@ -319,25 +361,91 @@ export const ROLE_USAGE: Record<ColorRole, string> = {
   accent: "secondary emphasis",
   muted: "secondary text, dividers",
   border: "borders, separators",
+  "on-primary": "text/icons on primary buttons",
+  success: "positive/confirmation state",
+  warning: "caution/warning state",
+  danger: "error/destructive state",
 };
+
+function makeContrastPair(a: string, b: string, colorA: Color, colorB: Color): ContrastPair {
+  const ratio = contrastRatio(colorA, colorB);
+  return {
+    pair: [a, b],
+    ratio: Math.round(ratio * 10) / 10,
+    wcag: wcagGrade(ratio),
+  };
+}
 
 function buildContrast(
   assigned: Map<ColorRole, Canonical>,
+  onPrimary: { color: Color } | null,
 ): ContrastPair[] {
-  const bg = assigned.get("background");
-  if (!bg) return [];
   const pairs: ContrastPair[] = [];
-  for (const role of ["text", "primary"] as const) {
-    const c = assigned.get(role);
-    if (!c) continue;
-    const ratio = contrastRatio(c.color, bg.color);
-    pairs.push({
-      pair: [role, "background"],
-      ratio: Math.round(ratio * 10) / 10,
-      wcag: wcagGrade(ratio),
-    });
+
+  const bg = assigned.get("background");
+  if (bg) {
+    for (const role of ["text", "primary"] as const) {
+      const c = assigned.get(role);
+      if (c) pairs.push(makeContrastPair(role, "background", c.color, bg.color));
+    }
   }
+
+  // The two pairings a rebuild needs most: what goes on a card, and what goes
+  // on a primary button (§P8-2) — `text on background` alone doesn't answer
+  // either.
+  const surface = assigned.get("surface");
+  if (surface) {
+    for (const role of ["text", "muted"] as const) {
+      const c = assigned.get(role);
+      if (c) pairs.push(makeContrastPair(role, "surface", c.color, surface.color));
+    }
+  }
+
+  const primary = assigned.get("primary");
+  if (primary && onPrimary) {
+    pairs.push(makeContrastPair("on-primary", "primary", onPrimary.color, primary.color));
+  }
+
   return pairs;
+}
+
+/** Modal text color measured directly on primary-background elements — i.e.
+ *  nodes whose own computed background is (perceptually) the primary color
+ *  *and* whose own computed text color was observed (a direct text child).
+ *  Wrapped button labels (text on a child <span>) won't show up here; that's
+ *  a miss, not a wrong answer — the inferred fallback covers it (§P8-2). */
+function findMeasuredOnPrimary(dump: StyleDump, primaryColor: Color): Color | null {
+  const counts = new Map<string, { count: number; color: Color }>();
+  for (const node of dump.nodes) {
+    const bg = node.colors.find((c) => c.channel === "background");
+    const text = node.colors.find((c) => c.channel === "text");
+    if (!bg || !text) continue;
+    const bgParsed = parseColor(bg.value);
+    if (!bgParsed || deltaE(bgParsed, primaryColor) > MERGE_DELTA_E) continue;
+    const textParsed = parseColor(text.value);
+    if (!textParsed) continue;
+    const key = hex(textParsed);
+    const entry = counts.get(key);
+    if (entry) entry.count++;
+    else counts.set(key, { count: 1, color: textParsed });
+  }
+  let best: Color | null = null;
+  let bestCount = 0;
+  for (const { count, color } of counts.values()) {
+    if (count > bestCount) {
+      bestCount = count;
+      best = color;
+    }
+  }
+  return best;
+}
+
+/** Black or white, whichever contrasts more with `against` — the last-resort,
+ *  honestly-labeled fallback when no real on-primary text was observed. */
+function contrastFallback(against: Color): Color {
+  const white: Color = { mode: "rgb", r: 1, g: 1, b: 1 };
+  const black: Color = { mode: "rgb", r: 0, g: 0, b: 0 };
+  return contrastRatio(white, against) >= contrastRatio(black, against) ? white : black;
 }
 
 export interface PaletteInput {
@@ -370,9 +478,30 @@ export async function extractPalette({
     });
   }
 
+  // On-primary (§P8-2): measured when a real button's text color is directly
+  // observable, else honestly stamped `inferred` — never silently guessed.
+  const primary = assigned.get("primary");
+  let onPrimary: { color: Color } | null = null;
+  if (primary) {
+    const measured = findMeasuredOnPrimary(dump, primary.color);
+    const isInferred = measured === null;
+    const color = measured ?? contrastFallback(primary.color);
+    onPrimary = { color };
+    const onPrimaryHex = hex(color);
+    const matchingCanon = canon.find((c) => deltaE(c.color, color) <= MERGE_DELTA_E);
+    colors.push({
+      name: "on-primary",
+      hex: onPrimaryHex,
+      role: "on-primary",
+      usage: ROLE_USAGE["on-primary"],
+      areaWeight: matchingCanon ? Math.round(matchingCanon.areaWeight * 1000) / 1000 : 0,
+      ...(isInferred ? { provenance: "inferred" as const } : {}),
+    });
+  }
+
   return {
     provenance: "measured",
     colors,
-    contrast: buildContrast(assigned),
+    contrast: buildContrast(assigned, onPrimary),
   };
 }

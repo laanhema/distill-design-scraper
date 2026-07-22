@@ -1,7 +1,8 @@
-import { hex, parseColor } from "@/lib/color";
-import type { StyleDump, NodeStyle } from "@/lib/extract/styleDump";
-import type { PrunedNode } from "../structureSchema";
 import type { Report } from "@/lib/schema";
+import type { PrunedNode } from "../structureSchema";
+import { findMatchingStyleNode } from "./styleMatch";
+import { nearestPaletteRole } from "../roleMatch";
+import type { NodeStyle, StyleDump } from "@/lib/extract/styleDump";
 
 /**
  * Stage 8b — Token Link (§P3-1, `both` mode only)
@@ -12,38 +13,8 @@ import type { Report } from "@/lib/schema";
  * simply gets no hint — this never guesses a token that isn't in the report.
  */
 
-/** Max total px difference (x+y+w+h) for a style-dump node to "be" a PrunedNode. */
-const BOUNDS_MATCH_TOLERANCE = 6;
 /** Max px difference for a measured gap to count as "the same" scale step. */
 const GAP_MATCH_TOLERANCE = 2;
-
-function boundsDistance(
-  a: PrunedNode["bounds"],
-  b: NodeStyle["rect"],
-): number {
-  return (
-    Math.abs(a.x - b.x) +
-    Math.abs(a.y - b.y) +
-    Math.abs(a.width - b.w) +
-    Math.abs(a.height - b.h)
-  );
-}
-
-function findMatchingStyleNode(
-  bounds: PrunedNode["bounds"],
-  dump: StyleDump,
-): NodeStyle | null {
-  let best: NodeStyle | null = null;
-  let bestDist = Infinity;
-  for (const n of dump.nodes) {
-    const d = boundsDistance(bounds, n.rect);
-    if (d < bestDist) {
-      bestDist = d;
-      best = n;
-    }
-  }
-  return bestDist <= BOUNDS_MATCH_TOLERANCE ? best : null;
-}
 
 /** Uniform-corner radius only — a composite (mixed-corner) value is skipped
  *  rather than guessed at, same guardrail as the deterministic extractor. */
@@ -73,11 +44,7 @@ function buildHint(styleNode: NodeStyle, report: Report): string | null {
 
   const bgObs = styleNode.colors.find((c) => c.channel === "background");
   if (bgObs) {
-    const parsed = parseColor(bgObs.value);
-    const bgHex = parsed ? hex(parsed) : null;
-    const role = bgHex
-      ? report.palette.colors.find((c) => c.hex.toLowerCase() === bgHex.toLowerCase())?.role
-      : null;
+    const role = nearestPaletteRole(bgObs.value, report.palette);
     if (role) parts.push(`bg=${role}`);
   }
 

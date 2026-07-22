@@ -2,6 +2,8 @@ import { renderUrl, type RenderResult } from "@/lib/ingest";
 import { extractPalette } from "@/lib/extract/palette";
 import { extractTypography } from "@/lib/extract/typography";
 import { extractTokens } from "@/lib/extract/tokens";
+import { buildRecipes } from "@/lib/extract/recipes";
+import { buildStates } from "@/lib/extract/states";
 import { extractImagePalette } from "@/lib/extract/imagePalette";
 import { extractStructure } from "@/lib/extract/structure";
 import { buildReport, renderMarkdown } from "@/lib/emit";
@@ -47,6 +49,8 @@ export async function extractFromCapture(
   });
   const typography = extractTypography(capture.styleDump);
   const tokens = extractTokens(capture.styleDump);
+  const recipes = buildRecipes(capture.styleDump, { palette, typography });
+  const states = buildStates(capture.styleDump, palette);
 
   const report = buildReport({
     reportKind: "design-system",
@@ -56,6 +60,8 @@ export async function extractFromCapture(
     spacing: tokens.spacing,
     radius: tokens.radius,
     elevation: tokens.elevation,
+    recipes,
+    states,
   });
 
   return { report, markdown: renderMarkdown(report) };
@@ -116,6 +122,8 @@ export async function enrichWithAI(
     spacing: measured.report.spacing,
     radius: measured.report.radius,
     elevation: measured.report.elevation,
+    recipes: measured.report.recipes,
+    states: measured.report.states,
     identity: interpretation.identity,
     imageMood: interpretation.imageMood,
   });

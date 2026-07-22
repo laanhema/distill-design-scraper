@@ -4,11 +4,19 @@ import type { PrunedNode, OntologyType } from "../structureSchema";
  * Stage 6 — Type against Ontology (§5b)
  * Heuristically assigns provisional ontology types & default names from the vocabulary.
  */
-export function assignOntologyTypes(node: PrunedNode, depth: number = 0): PrunedNode {
-  const childrenTyped = node.children.map((c) => assignOntologyTypes(c, depth + 1));
+export function assignOntologyTypes(
+  node: PrunedNode,
+  depth: number = 0,
+  insideFooter: boolean = false,
+): PrunedNode {
+  const childInsideFooter =
+    insideFooter || node.tagName === "footer" || node.landmark === "contentinfo";
+  const childrenTyped = node.children.map((c) =>
+    assignOntologyTypes(c, depth + 1, childInsideFooter),
+  );
 
   let provisionalType: OntologyType = "container";
-  let name = formatDefaultName(node, childrenTyped);
+  let name = formatDefaultName(node, childrenTyped, insideFooter);
   let layoutAnnotation = node.layoutAnnotation;
 
   // 1. Landmarks -> region
@@ -21,8 +29,17 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
 
     // Region heights give a rebuild vertical rhythm (header/footer bands,
     // hero height, etc.) that the flex/grid annotation alone doesn't convey.
+    // (Stage 8a replaces this raw tag with a padY/100vh note where the raw
+    // height itself isn't the intent — §P7-2.)
     const heightTag = `h ${Math.round(node.bounds.height)}px`;
     layoutAnnotation = layoutAnnotation ? `${layoutAnnotation} · ${heightTag}` : heightTag;
+  }
+  // 1b. Button/link groups -> composite "CtaRow" (§P5-3). Checked ahead of the
+  // tag-based leaf bucket below because the wrapper is often a bare <p> — its
+  // tag alone would otherwise mislabel a real action row as plain text.
+  else if (isCtaRow(childrenTyped)) {
+    provisionalType = "composite";
+    name = "CtaRow";
   }
   // 2. Interactive / leaf elements -> atom
   else if (
@@ -39,6 +56,9 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
     else if (node.isImageOrSvg) name = "Image";
     else if (node.tagName === "button") name = "Button";
     else if (node.isInteractive) name = "Button";
+    // A heuristic name of "P" carries no more meaning than "Text" — collapse
+    // it, keeping the real tag in the machine block only (§P5-3).
+    else if (node.tagName === "p") name = "Text";
   }
   // 3. Repeated units -> content-block
   else if (node.instanceCount && node.instanceCount >= 2) {
@@ -48,6 +68,8 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
   // 3b. Text-bearing leaves (e.g. span/small labels) -> atom, never container
   else if (node.hasText && childrenTyped.length === 0) {
     provisionalType = "atom";
+    // Same collapse as the "p" case above, for the other plain-text tags.
+    if (["span", "small"].includes(node.tagName)) name = "Text";
   }
   // 4. Containers with children -> container or composite
   else if (childrenTyped.length > 0) {
@@ -67,19 +89,42 @@ export function assignOntologyTypes(node: PrunedNode, depth: number = 0): Pruned
   };
 }
 
+/** A CTA row is a small group of buttons/links, whether flattened to one
+ *  repeated representative (`detectRepetition`) or left as distinct siblings —
+ *  so instances are summed rather than counting array entries. */
+function isCtaRow(childrenTyped: PrunedNode[]): boolean {
+  if (childrenTyped.length === 0) return false;
+  const allButtonish = childrenTyped.every(
+    (c) => c.componentName === "Button" || c.componentName === "TextLink",
+  );
+  if (!allButtonish) return false;
+  const hasButton = childrenTyped.some((c) => c.componentName === "Button");
+  const totalCount = childrenTyped.reduce((sum, c) => sum + (c.instanceCount || 1), 0);
+  return hasButton && totalCount >= 2;
+}
+
 /** A hero is expected to sit in the initial viewport, not further down the page. */
 const HERO_Y_THRESHOLD_PX = 900;
 
-function formatDefaultName(node: PrunedNode, childrenTyped: PrunedNode[] = []): string {
+function formatDefaultName(
+  node: PrunedNode,
+  childrenTyped: PrunedNode[] = [],
+  insideFooter: boolean = false,
+): string {
   // `<section>` always carries `landmark === "section"` (harvester.ts getLandmark),
   // so this structure-aware check must run before the generic landmark fallback below
   // — otherwise every section collapses to the literal capitalized landmark ("Section").
   if (node.tagName === "div" || node.tagName === "section") {
     if (isHeroSection(node, childrenTyped)) return "Hero";
+    if (isCardGrid(childrenTyped)) return "CardGrid";
+    if (insideFooter && (node.layoutAnnotation?.includes("grid") || node.layoutAnnotation?.includes("flex"))) {
+      return "FooterColumns";
+    }
     if (node.layoutAnnotation?.includes("grid")) return "GridSection";
     if (node.layoutAnnotation?.includes("flex")) return "FlexContainer";
     return "Section";
   }
+  if (node.tagName === "nav" && isNavLinksGroup(childrenTyped)) return "NavLinks";
   if (node.landmark) {
     return capitalize(node.landmark);
   }
@@ -90,6 +135,23 @@ function formatDefaultName(node: PrunedNode, childrenTyped: PrunedNode[] = []): 
 function isHeroSection(node: PrunedNode, childrenTyped: PrunedNode[]): boolean {
   if (node.bounds.y >= HERO_Y_THRESHOLD_PX) return false;
   return containsTag(childrenTyped, "h1");
+}
+
+/** A container whose only content is one repeated card-like block is a card
+ *  grid, whatever its own tag/layout — a more transferable name than the
+ *  generic layout-derived "GridSection" (§P5-3). */
+function isCardGrid(childrenTyped: PrunedNode[]): boolean {
+  return (
+    childrenTyped.length === 1 &&
+    childrenTyped[0].provisionalType === "content-block" &&
+    (childrenTyped[0].instanceCount ?? 1) >= 2
+  );
+}
+
+/** A <nav> whose children are entirely link atoms is a nav link group, not
+ *  just "Nav" (§P5-3). */
+function isNavLinksGroup(childrenTyped: PrunedNode[]): boolean {
+  return childrenTyped.length > 0 && childrenTyped.every((c) => c.componentName === "TextLink");
 }
 
 function containsTag(nodes: PrunedNode[], tag: string): boolean {

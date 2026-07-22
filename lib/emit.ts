@@ -6,8 +6,10 @@ import {
   type ImageMood,
   type Palette,
   type Radius,
+  type Recipes,
   type Report,
   type Spacing,
+  type States,
   type Typography,
 } from "@/lib/schema";
 
@@ -26,6 +28,8 @@ export interface BuildReportInput {
   spacing?: Spacing;
   radius?: Radius;
   elevation?: Elevation;
+  recipes?: Recipes;
+  states?: States;
   identity?: Identity;
   imageMood?: ImageMood;
 }
@@ -40,6 +44,8 @@ export function buildReport(input: BuildReportInput): Report {
     ...(input.spacing ? { spacing: input.spacing } : {}),
     ...(input.radius ? { radius: input.radius } : {}),
     ...(input.elevation ? { elevation: input.elevation } : {}),
+    ...(input.recipes ? { recipes: input.recipes } : {}),
+    ...(input.states ? { states: input.states } : {}),
     ...(input.identity ? { identity: input.identity } : {}),
     ...(input.imageMood ? { imageMood: input.imageMood } : {}),
   };
@@ -65,6 +71,7 @@ function renderBody(report: Report): string {
   parts.push(`# ${title}`);
 
   parts.push(renderPalette(report.palette));
+  if (report.states) parts.push(renderStates(report.states));
   if (report.typography) parts.push(renderTypography(report.typography));
   if (report.spacing) parts.push(renderSpacing(report.spacing));
   if (report.radius) parts.push(renderRadius(report.radius));
@@ -72,6 +79,7 @@ function renderBody(report: Report): string {
     const elevationSection = renderElevation(report.elevation);
     if (elevationSection) parts.push(elevationSection);
   }
+  if (report.recipes) parts.push(renderRecipes(report.recipes));
   if (report.identity) parts.push(renderIdentity(report.identity));
   if (report.imageMood) parts.push(renderImageMood(report.imageMood));
 
@@ -90,9 +98,15 @@ function provenanceSuffix(provenance: string): string {
 function renderPalette(palette: Palette): string {
   const lines: string[] = [`## Palette${provenanceSuffix(palette.provenance)}`, ""];
   for (const c of palette.colors) {
-    const flags = c.imageSourced ? " · image-sourced" : "";
+    const flags = [
+      c.imageSourced ? "image-sourced" : "",
+      c.provenance === "inferred" ? "inferred" : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const flagsSuffix = flags ? ` · ${flags}` : "";
     lines.push(
-      `- **${c.role}** \`${c.hex}\` — ${c.usage} · area ${pct(c.areaWeight)}${flags}`,
+      `- **${c.role}** \`${c.hex}\` — ${c.usage} · area ${pct(c.areaWeight)}${flagsSuffix}`,
     );
   }
   if (palette.contrast.length > 0) {
@@ -148,6 +162,39 @@ function renderElevation(elevation: Elevation): string | null {
   lines.push("Shadows:", "");
   for (const s of elevation.shadows) {
     lines.push(`- **${s.name}** \`${s.value}\``);
+  }
+  return lines.join("\n");
+}
+
+const STATE_PROPERTY_LABEL: Record<string, string> = {
+  "background-color": "background",
+  color: "text",
+  "border-color": "border",
+  "box-shadow": "shadow",
+};
+
+function renderStates(states: States): string {
+  const lines: string[] = [`## States${provenanceSuffix(states.provenance)}`, ""];
+  for (const e of states.entries) {
+    for (const ch of e.changes) {
+      const label = STATE_PROPERTY_LABEL[ch.property] ?? ch.property;
+      lines.push(`- **${e.target}** ${e.state}: \`${ch.to}\` (${label})`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function renderRecipes(recipes: Recipes): string {
+  const lines: string[] = [`## Component recipes${provenanceSuffix(recipes.provenance)}`, ""];
+  for (const e of recipes.entries) {
+    const parts: string[] = [];
+    if (e.bg) parts.push(`bg \`${e.bg}\``);
+    if (e.text) parts.push(`text \`${e.text}\``);
+    if (e.border) parts.push(`border \`${e.border}\``);
+    parts.push(`padding ${e.padding}`);
+    if (e.radius) parts.push(`radius ${e.radius}`);
+    if (e.typeToken) parts.push(`type \`${e.typeToken}\`${e.typeWeight ? `/${e.typeWeight}` : ""}`);
+    lines.push(`- **${e.element}** — ${parts.join(" · ")}`);
   }
   return lines.join("\n");
 }

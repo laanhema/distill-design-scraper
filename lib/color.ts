@@ -49,6 +49,12 @@ export function lightness(color: Color): number {
   return Number.isFinite(l) ? l : 0;
 }
 
+/** OKLCH hue in degrees [0, 360). Undefined (achromatic greys) reads as 0. */
+export function hue(color: Color): number {
+  const h = toOklch(color).h;
+  return Number.isFinite(h) ? (h as number) : 0;
+}
+
 /** WCAG contrast ratio (1–21) between two colors. Order-independent. */
 export function contrastRatio(a: Color, b: Color): number {
   return wcagContrast(a, b);

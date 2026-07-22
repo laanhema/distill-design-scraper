@@ -6,6 +6,7 @@ import { assignOntologyTypes } from "./ontology";
 import { runStructureAILabeller, buildFallbackComponentMap } from "./structureAI";
 import { emitStructureReport } from "./structureEmit";
 import { linkComponentsToTokens } from "./tokenLink";
+import { annotateRegionMetrics } from "./regionMetrics";
 import type { StructureReport, RawHarvestNode } from "../structureSchema";
 import type { StyleDump } from "../styleDump";
 import type { Report } from "@/lib/schema";
@@ -71,11 +72,20 @@ export async function extractStructure(
   const typedRoot = assignOntologyTypes(repeatedRoot);
 
   // Stage 7: AI Labelling pass
-  const { root: labeledRoot, components } = await runStructureAILabeller(typedRoot);
+  const { root: labeledRoot, components, naming } = await runStructureAILabeller(typedRoot);
+
+  // Stage 8a: Region Metrics — replace raw region heights with vertical
+  // padding intent where the height itself isn't the point (§P7-2).
+  const metricsRoot = annotateRegionMetrics({
+    root: labeledRoot,
+    viewportHeight: viewport.height,
+    dump,
+    report,
+  });
 
   // Stage 8b: Token Link — only when the design-tokens lane ran alongside us.
   const tokenHints =
-    dump && report ? linkComponentsToTokens(labeledRoot, dump, report) : undefined;
+    dump && report ? linkComponentsToTokens(metricsRoot, dump, report) : undefined;
 
   // Stage 8: Structure Emit
   return emitStructureReport({
@@ -83,7 +93,8 @@ export async function extractStructure(
     viewport,
     capturedAt,
     fidelity: "measured",
-    root: labeledRoot,
+    naming,
+    root: metricsRoot,
     components,
     tokenHints,
   });
