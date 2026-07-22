@@ -37,6 +37,16 @@ export interface Capture {
   responsiveHarvests?: ResponsiveHarvest[];
   /** Dark-color-scheme render off the same session (§P8-3). */
   darkCapture?: { viewportShot: string; styleDump: StyleDump };
+  /** Additional screenshots scrolled toward the bottom of the page, same
+   *  session (§ scroll capture) — the complete gapless viewport-tall tile
+   *  set sent to the AI lane (subsampled for full-page coverage). The
+   *  area-weight pixel pass reads `panoramaShot` instead. */
+  scrollShots?: string[];
+  /** Single seamless full-page screenshot stitched from gapless viewport
+   *  tiles (§ panorama capture) — feeds the area-weight pixel pass and the
+   *  frontend gallery. Omitted when the page fits in one viewport, or on
+   *  capture failure. */
+  panoramaShot?: string;
 }
 
 export interface AnalyzeResult {
@@ -51,6 +61,7 @@ export async function extractFromCapture(
   const palette = await extractPalette({
     dump: capture.styleDump,
     screenshotPngBase64: capture.viewportShot,
+    additionalScreenshotsPngBase64: capture.panoramaShot ? [capture.panoramaShot] : undefined,
   });
   let typography = extractTypography(capture.styleDump);
   const tokens = extractTokens(capture.styleDump);
@@ -281,7 +292,22 @@ export function captureFromRender(
     rawHarvestNode: render.rawHarvestNode,
     responsiveHarvests: render.responsiveHarvests,
     darkCapture: render.darkCapture,
+    scrollShots: render.scrollShots,
+    panoramaShot: render.panoramaShot,
   };
+}
+
+/** Picks up to `maxCount` items evenly spread across `items` (always
+ *  including the first and last), so a long top-to-bottom tile sequence
+ *  still gives the AI lane full-page coverage instead of just whatever the
+ *  first few happen to be. */
+function subsampleEvenly<T>(items: T[], maxCount: number): T[] {
+  if (items.length <= maxCount) return items;
+  const result: T[] = [];
+  for (let i = 0; i < maxCount; i++) {
+    result.push(items[Math.round((i * (items.length - 1)) / (maxCount - 1))]);
+  }
+  return result;
 }
 
 /** Full URL path: render, extract (measured), then interpret (AI, §6). */
@@ -300,7 +326,10 @@ export async function analyzeUrl(url: string): Promise<AnalyzeResult & {
   const render = await renderUrl(url);
   const capture = captureFromRender(render, url, capturedAt);
   const measured = await extractFromCapture(capture);
-  const enriched = await enrichWithAI(measured, [capture.viewportShot]);
+  const enriched = await enrichWithAI(measured, [
+    capture.viewportShot,
+    ...subsampleEvenly(capture.scrollShots ?? [], 3),
+  ]);
   return {
     report: enriched.report,
     markdown: enriched.markdown,

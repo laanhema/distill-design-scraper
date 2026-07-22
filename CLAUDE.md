@@ -4,6 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
+**Start here by task:**
+- Touching extraction logic? Read "Design-tokens lane" or "Structure lane" below, then the eval harness section.
+- Adding a report field? Read "Schema" — the optional-field + provenance + conditional-`render*` contract is mandatory.
+- Wiring ingestion or the API route? Read "Ingestion" and "API route".
+- Anything else? "Orchestration entry points" first, then drill down.
+
 Distill turns a URL or one-or-more uploaded images into a Markdown design-system / layout-structure report: YAML frontmatter (the machine-parseable contract) followed by a human-readable body _derived from the same object_, so the two can never drift. It runs two largely independent extraction tracks — the **design-tokens lane** (palette, typography, spacing, recipes) and the **structure lane** (page skeleton, component map) — which can run alone or together (`mode: "tokens" | "structure" | "both"`).
 
 The prevailing design principle across the codebase: **measured, never faked**. Every lane stamps a `provenance` (`measured` / `inferred` / `ai`), every schema field for an unmeasured lane is optional and simply omitted rather than synthesized, and any heuristic fallback (e.g. an inferred `on-primary` swatch, an AI-refined color role) is honestly labeled as such rather than presented as a real measurement. Preserve this invariant when touching extraction code — a missing signal should produce an omitted field, not a guessed one.
@@ -14,7 +20,7 @@ The prevailing design principle across the codebase: **measured, never faked**. 
 npm run dev             # Next.js dev server (http://localhost:3000)
 npm run build           # production build
 npm run typecheck       # tsc --noEmit — run this after any lib/ change
-npm run lint            # next lint
+npm run lint            # next lint — run after any change, alongside typecheck
 
 npm run eval            # regression gate over the measured extraction lane (see below)
 npm run eval:capture    # (re)capture eval/corpus/*/capture.json from live fixtures/URLs
@@ -89,3 +95,7 @@ Accepts `url` or `images: { data, name? }[]` (capped at `MAX_IMAGES = 6`; the AI
 ### Path alias
 
 `@/*` maps to the project root (see `tsconfig.json`) — e.g. `@/lib/schema`, `@/lib/extract/palette`.
+
+## Git policy
+
+Do not commit, push, or open PRs unless explicitly asked. Stage only intended files and never commit secrets. After completing a task, run `npm run lint` and `npm run typecheck` to verify.
