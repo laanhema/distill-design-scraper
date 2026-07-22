@@ -63,6 +63,9 @@ export const structureMachineBlockSchema = z.object({
   reportKind: z.literal("layout-structure"),
   source: z.string(),
   viewport: z.tuple([z.number(), z.number()]),
+  /** Every viewport this run captured (primary first), only present when
+   *  secondary-viewport harvests ran alongside the primary render (§P5-2). */
+  viewports: z.array(z.tuple([z.number(), z.number()])).optional(),
   captured: z.string(),
   fidelity: z.enum(["measured", "inferred"]),
   /** Whether component names/types came from the AI pass or the heuristic
@@ -72,6 +75,12 @@ export const structureMachineBlockSchema = z.object({
   /** Widest common width among MainContent's children that's narrower than
    *  the viewport — the page's centered-content constraint, if any. */
   contentMaxWidth: z.number().optional(),
+  /** Per-component layout-annotation deltas across captured viewports, keyed
+   *  by component name then by viewport width in px (§P5-2), e.g.
+   *  `{"GridSection": {"1440": "grid · 3col", "390": "grid · 1col"}}`. Only
+   *  present when secondary-viewport harvests ran and produced at least one
+   *  real delta. */
+  responsive: z.record(z.string(), z.record(z.string(), z.string())).optional(),
   tree: z.array(structureTreeNodeSchema),
   components: z.record(z.string(), componentDefSchema),
 });
@@ -84,6 +93,9 @@ export interface StructureReport {
   header: {
     source: string;
     viewport: string;
+    /** All captured viewports, formatted (primary first), only present when
+     *  secondary-viewport harvests ran alongside the primary render (§P5-2). */
+    viewports?: string[];
     captured: string;
     fidelity: "measured" | "inferred";
     naming?: "ai" | "heuristic";
@@ -120,6 +132,19 @@ export interface RawHarvestNode {
   isInteractive: boolean; // button, a, input, select, textarea
   signature: string;
   children: RawHarvestNode[];
+}
+
+/**
+ * A secondary-viewport DOM harvest (§P5-2) — the cheap second pass `ingest.ts`
+ * takes off the same rendered session after resizing, so the responsive diff
+ * has real measured layout at more than one width to compare against.
+ */
+export interface ResponsiveHarvest {
+  viewport: { width: number; height: number };
+  rawHarvestNode: RawHarvestNode;
+  /** Computed h1/h2 font sizes at this viewport (§P5-2 item 4) — used to
+   *  annotate the type scale with `sizePxMobile` where it genuinely differs. */
+  typeSizesPx?: Record<string, number>;
 }
 
 /**

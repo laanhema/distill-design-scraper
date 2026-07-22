@@ -6,10 +6,14 @@ import {
   type StructureTreeNode,
   type StructureReport,
 } from "../structureSchema";
+import type { ResponsiveDeltas } from "./responsive";
 
 export interface StructureEmitInput {
   sourceUrl: string;
   viewport: { width: number; height: number };
+  /** Secondary viewports captured alongside the primary render (§P5-2), for
+   *  the header's `viewports:` line. */
+  secondaryViewports?: { width: number; height: number }[];
   capturedAt: string;
   fidelity: "measured" | "inferred";
   /** Whether component names came from the AI pass or the heuristic
@@ -19,6 +23,8 @@ export interface StructureEmitInput {
   components: Record<string, ComponentDef>;
   /** Per-component design-token hints (§P3-1), only present in `both` mode. */
   tokenHints?: Map<string, string>;
+  /** Per-component layout deltas across captured viewports (§P5-2). */
+  responsive?: ResponsiveDeltas;
 }
 
 /**
@@ -26,9 +32,22 @@ export interface StructureEmitInput {
  * Formats the ASCII skeleton, component map, and machine JSON block into the target report.
  */
 export function emitStructureReport(input: StructureEmitInput): StructureReport {
-  const { sourceUrl, viewport, capturedAt, fidelity, naming, root, components, tokenHints } =
-    input;
+  const {
+    sourceUrl,
+    viewport,
+    secondaryViewports,
+    capturedAt,
+    fidelity,
+    naming,
+    root,
+    components,
+    tokenHints,
+    responsive,
+  } = input;
   const viewportStr = `${viewport.width}×${viewport.height}`;
+  const allViewports = [viewport, ...(secondaryViewports ?? [])];
+  const viewportsStrs = allViewports.map((v) => `${v.width}×${v.height}`);
+  const hasResponsive = Boolean(responsive && Object.keys(responsive).length > 0);
   const contentMaxWidth = computeContentMaxWidth(root, viewport.width);
 
   const mergedComponents: Record<string, ComponentDef> = tokenHints
@@ -52,10 +71,14 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
     reportKind: "layout-structure",
     source: sourceUrl,
     viewport: [viewport.width, viewport.height],
+    ...(secondaryViewports && secondaryViewports.length > 0
+      ? { viewports: allViewports.map((v): [number, number] => [v.width, v.height]) }
+      : {}),
     captured: capturedAt.split("T")[0],
     fidelity,
     naming,
     ...(contentMaxWidth !== undefined ? { contentMaxWidth } : {}),
+    ...(hasResponsive ? { responsive } : {}),
     tree: treeNodes,
     components: mergedComponents,
   };
@@ -70,6 +93,14 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
 
   const contentMaxWidthLine =
     contentMaxWidth !== undefined ? `\ncontent-max-width: ${contentMaxWidth}px` : "";
+  const viewportsLine =
+    secondaryViewports && secondaryViewports.length > 0
+      ? `\nviewports: [${viewportsStrs.join(", ")}]`
+      : "";
+
+  const responsiveSection = hasResponsive
+    ? `\n\n## Responsive\n\n${buildResponsiveSectionText(responsive!)}`
+    : "";
 
   const markdown = `# Layout Structure — ${hostname}
 
@@ -78,7 +109,7 @@ source:    ${sourceUrl}
 viewport:  ${viewportStr}
 captured:  ${capturedAt.split("T")[0]}
 fidelity:  ${fidelity}
-naming:    ${naming}${contentMaxWidthLine}
+naming:    ${naming}${contentMaxWidthLine}${viewportsLine}
 \`\`\`
 
 ## Skeleton
@@ -91,7 +122,7 @@ ${skeletonAscii}
 
 Each component is defined once; the skeleton holds the instances.
 
-${componentMapText}
+${componentMapText}${responsiveSection}
 
 ## Machine block
 
@@ -104,6 +135,7 @@ ${serializeMachineBlockCompact(machineBlock)}
     header: {
       source: sourceUrl,
       viewport: viewportStr,
+      ...(secondaryViewports && secondaryViewports.length > 0 ? { viewports: viewportsStrs } : {}),
       captured: capturedAt.split("T")[0],
       fidelity,
       naming,
@@ -114,6 +146,19 @@ ${serializeMachineBlockCompact(machineBlock)}
     machineBlock,
     markdown,
   };
+}
+
+/** Bulleted `## Responsive` body list — one line per component with a real
+ *  layout delta. Viewport order follows plain-object key iteration (numeric
+ *  string keys sort ascending in JS regardless of insertion order), so this
+ *  reads narrowest-first rather than capture order (§P5-2). */
+function buildResponsiveSectionText(responsive: ResponsiveDeltas): string {
+  const lines: string[] = [];
+  for (const [name, byWidth] of Object.entries(responsive)) {
+    const parts = Object.entries(byWidth).map(([w, ann]) => `${w}px \`${ann}\``);
+    lines.push(`- **${name}** — ${parts.join(" → ")}`);
+  }
+  return lines.join("\n");
 }
 
 /**

@@ -24,6 +24,7 @@ export interface BuildReportInput {
   source: { type: "url" | "image"; ref: string; capturedAt: string };
   reportKind: Report["reportKind"];
   palette: Palette;
+  paletteDark?: Palette;
   typography?: Typography;
   spacing?: Spacing;
   radius?: Radius;
@@ -40,6 +41,7 @@ export function buildReport(input: BuildReportInput): Report {
     reportKind: input.reportKind,
     source: input.source,
     palette: input.palette,
+    ...(input.paletteDark ? { paletteDark: input.paletteDark } : {}),
     ...(input.typography ? { typography: input.typography } : {}),
     ...(input.spacing ? { spacing: input.spacing } : {}),
     ...(input.radius ? { radius: input.radius } : {}),
@@ -71,6 +73,7 @@ function renderBody(report: Report): string {
   parts.push(`# ${title}`);
 
   parts.push(renderPalette(report.palette));
+  if (report.paletteDark) parts.push(renderPalette(report.paletteDark, "Palette (dark scheme)"));
   if (report.states) parts.push(renderStates(report.states));
   if (report.typography) parts.push(renderTypography(report.typography));
   if (report.spacing) parts.push(renderSpacing(report.spacing));
@@ -96,8 +99,8 @@ function provenanceSuffix(provenance: string): string {
   return provenance === "measured" ? "" : ` _(${provenance})_`;
 }
 
-function renderPalette(palette: Palette): string {
-  const lines: string[] = [`## Palette${provenanceSuffix(palette.provenance)}`, ""];
+function renderPalette(palette: Palette, heading = "Palette"): string {
+  const lines: string[] = [`## ${heading}${provenanceSuffix(palette.provenance)}`, ""];
   for (const c of palette.colors) {
     const flags = [
       c.imageSourced ? "image-sourced" : "",
@@ -137,8 +140,9 @@ function renderTypography(typography: Typography): string {
   lines.push("| Token | Size | Weight | Line height | Letter spacing |");
   lines.push("|---|---|---|---|---|");
   for (const s of typography.scale) {
+    const sizeCell = s.sizePxMobile ? `${s.sizePx}px (mobile ${s.sizePxMobile}px)` : `${s.sizePx}px`;
     lines.push(
-      `| ${s.token} | ${s.sizePx}px | ${s.weight} | ${s.lineHeight} | ${s.letterSpacing} |`,
+      `| ${s.token} | ${sizeCell} | ${s.weight} | ${s.lineHeight} | ${s.letterSpacing} |`,
     );
   }
   return lines.join("\n");
@@ -234,6 +238,7 @@ function renderCssVariables(report: Report): string {
     }
     for (const s of report.typography.scale) {
       lines.push(`  --font-size-${s.token}: ${s.sizePx}px;`);
+      if (s.sizePxMobile) lines.push(`  --font-size-${s.token}-mobile: ${s.sizePxMobile}px;`);
       lines.push(`  --font-weight-${s.token}: ${s.weight};`);
       lines.push(`  --line-height-${s.token}: ${s.lineHeight};`);
       lines.push(`  --letter-spacing-${s.token}: ${s.letterSpacing};`);

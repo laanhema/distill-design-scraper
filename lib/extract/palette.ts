@@ -454,6 +454,34 @@ export interface PaletteInput {
   screenshotPngBase64: string;
 }
 
+// Background-shift threshold (§P8-3): below this ΔE, a `colorScheme: "dark"`
+// render is perceptually the same page as the light render — i.e. the site
+// doesn't actually support `prefers-color-scheme`. Kept well above
+// `MERGE_DELTA_E` (near-duplicate) since this guards against reporting a
+// second palette that isn't real, not against merging near-identical colors.
+const DARK_SCHEME_BACKGROUND_DELTA_E = 10;
+
+/** Runs the same measured palette pipeline over a `colorScheme: "dark"`
+ *  capture, then discards it silently unless the background actually shifted
+ *  — never fabricate a second scheme for a site that ignores
+ *  `prefers-color-scheme` (§P8-3). */
+export async function extractDarkPalette(
+  darkInput: PaletteInput,
+  lightPalette: Palette,
+): Promise<Palette | undefined> {
+  const dark = await extractPalette(darkInput);
+
+  const lightBg = lightPalette.colors.find((c) => c.role === "background");
+  const darkBg = dark.colors.find((c) => c.role === "background");
+  if (!lightBg || !darkBg) return undefined;
+
+  const a = parseColor(lightBg.hex);
+  const b = parseColor(darkBg.hex);
+  if (!a || !b || deltaE(a, b) < DARK_SCHEME_BACKGROUND_DELTA_E) return undefined;
+
+  return dark;
+}
+
 export async function extractPalette({
   dump,
   screenshotPngBase64,

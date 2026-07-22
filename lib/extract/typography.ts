@@ -255,6 +255,27 @@ function resolveFamilies(
   return families;
 }
 
+/** Below this px difference, a mobile heading size reads as rounding noise,
+ *  not a deliberate responsive choice (§P5-2 item 4). */
+const MOBILE_SIZE_DIFF_THRESHOLD_PX = 2;
+
+/** Annotates scale steps with a measured 390px size, only where it actually
+ *  differs from the desktop size — most sites don't resize headings, and a
+ *  1px wobble isn't a responsive typography decision worth reporting. */
+export function applyMobileTypeSizes(
+  typography: Typography,
+  mobileSizesPx: Record<string, number>,
+): Typography {
+  const scale = typography.scale.map((step) => {
+    const mobile = mobileSizesPx[step.token];
+    if (mobile === undefined || Math.abs(mobile - step.sizePx) < MOBILE_SIZE_DIFF_THRESHOLD_PX) {
+      return step;
+    }
+    return { ...step, sizePxMobile: Math.round(mobile) };
+  });
+  return { ...typography, scale };
+}
+
 function mostUsedFamily(familyCount: Map<string, number>): string {
   let best = "unknown";
   let bestN = -1;

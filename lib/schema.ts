@@ -91,6 +91,10 @@ export type TypeToken = (typeof TYPE_TOKENS)[number];
 export const typeScaleStepSchema = z.object({
   token: z.enum(TYPE_TOKENS),
   sizePx: z.number(),
+  /** Computed size at the 390px responsive harvest (§P5-2 item 4), only
+   *  present when it differs enough from `sizePx` to be a real responsive
+   *  choice rather than rounding noise. */
+  sizePxMobile: z.number().optional(),
   weight: z.number(),
   lineHeight: z.number(),
   letterSpacing: z.string(),
@@ -218,6 +222,10 @@ export const reportSchema = z.object({
     capturedAt: z.string(),
   }),
   palette: paletteSchema,
+  /** A second palette from a `prefers-color-scheme: dark` render (§P8-3),
+   *  only present when the background actually shifted — a single-scheme
+   *  site never gets a fabricated second palette. */
+  paletteDark: paletteSchema.optional(),
   // Optional: unmeasured lanes are omitted, never faked.
   typography: typographySchema.optional(),
   spacing: spacingSchema.optional(),

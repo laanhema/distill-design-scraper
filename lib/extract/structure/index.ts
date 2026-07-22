@@ -7,7 +7,8 @@ import { runStructureAILabeller, buildFallbackComponentMap } from "./structureAI
 import { emitStructureReport } from "./structureEmit";
 import { linkComponentsToTokens } from "./tokenLink";
 import { annotateRegionMetrics } from "./regionMetrics";
-import type { StructureReport, RawHarvestNode } from "../structureSchema";
+import { diffResponsive } from "./responsive";
+import type { StructureReport, RawHarvestNode, ResponsiveHarvest } from "../structureSchema";
 import type { StyleDump } from "../styleDump";
 import type { Report } from "@/lib/schema";
 
@@ -19,6 +20,8 @@ export interface ExtractStructureOptions {
   /** Present only in `both` mode — enables the P3-1 token cross-link. */
   dump?: StyleDump;
   report?: Report;
+  /** Secondary-viewport harvests off the same session (§P5-2), for the responsive diff. */
+  responsiveHarvests?: ResponsiveHarvest[];
 }
 
 /**
@@ -35,6 +38,7 @@ export async function extractStructure(
   let capturedAt = new Date().toISOString();
   let dump: StyleDump | undefined;
   let report: Report | undefined;
+  let responsiveHarvests: ResponsiveHarvest[] | undefined;
 
   if ("evaluate" in pageOrOptions && typeof pageOrOptions.evaluate === "function") {
     const page = pageOrOptions as Page;
@@ -45,6 +49,7 @@ export async function extractStructure(
       capturedAt = options.capturedAt || capturedAt;
       dump = options.dump;
       report = options.report;
+      responsiveHarvests = options.responsiveHarvests;
     }
   } else {
     const opts = pageOrOptions as ExtractStructureOptions;
@@ -57,6 +62,7 @@ export async function extractStructure(
     capturedAt = opts.capturedAt || capturedAt;
     dump = opts.dump;
     report = opts.report;
+    responsiveHarvests = opts.responsiveHarvests;
   }
 
   // Stage 3 & 4: Prune & Collapse Wrappers
@@ -73,6 +79,18 @@ export async function extractStructure(
 
   // Stage 7: AI Labelling pass
   const { root: labeledRoot, components, naming } = await runStructureAILabeller(typedRoot);
+
+  // Stage 7b: Responsive diff — only when secondary-viewport harvests were
+  // captured alongside the primary render (§P5-2).
+  const responsive =
+    responsiveHarvests && responsiveHarvests.length > 0
+      ? diffResponsive({
+          primaryTyped: typedRoot,
+          primaryLabeled: labeledRoot,
+          primaryViewport: viewport,
+          secondary: responsiveHarvests,
+        })
+      : undefined;
 
   // Stage 8a: Region Metrics — replace raw region heights with vertical
   // padding intent where the height itself isn't the point (§P7-2).
@@ -91,11 +109,13 @@ export async function extractStructure(
   return emitStructureReport({
     sourceUrl,
     viewport,
+    secondaryViewports: responsiveHarvests?.map((h) => h.viewport),
     capturedAt,
     fidelity: "measured",
     naming,
     root: metricsRoot,
     components,
     tokenHints,
+    responsive,
   });
 }

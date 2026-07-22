@@ -1,6 +1,6 @@
 import { renderUrl, type RenderResult } from "@/lib/ingest";
-import { extractPalette } from "@/lib/extract/palette";
-import { extractTypography } from "@/lib/extract/typography";
+import { extractPalette, extractDarkPalette } from "@/lib/extract/palette";
+import { extractTypography, applyMobileTypeSizes } from "@/lib/extract/typography";
 import { extractTokens } from "@/lib/extract/tokens";
 import { buildRecipes } from "@/lib/extract/recipes";
 import { buildStates } from "@/lib/extract/states";
@@ -14,7 +14,7 @@ import {
   type RefinementChange,
 } from "@/lib/interpret";
 import type { StyleDump } from "@/lib/extract/styleDump";
-import type { Report, RawHarvestNode, StructureReport } from "@/lib/schema";
+import type { Report, RawHarvestNode, ResponsiveHarvest, StructureReport } from "@/lib/schema";
 
 /**
  * Orchestration (§8, URL & Image pipelines). Extraction is split from rendering on
@@ -32,6 +32,10 @@ export interface Capture {
   viewportShot: string;
   /** DOM harvest tree for layout-structure extraction (Track B). */
   rawHarvestNode?: RawHarvestNode;
+  /** Secondary-viewport DOM harvests off the same session (§P5-2). */
+  responsiveHarvests?: ResponsiveHarvest[];
+  /** Dark-color-scheme render off the same session (§P8-3). */
+  darkCapture?: { viewportShot: string; styleDump: StyleDump };
 }
 
 export interface AnalyzeResult {
@@ -47,15 +51,28 @@ export async function extractFromCapture(
     dump: capture.styleDump,
     screenshotPngBase64: capture.viewportShot,
   });
-  const typography = extractTypography(capture.styleDump);
+  let typography = extractTypography(capture.styleDump);
   const tokens = extractTokens(capture.styleDump);
   const recipes = buildRecipes(capture.styleDump, { palette, typography });
   const states = buildStates(capture.styleDump, palette);
+
+  const mobileTypeSizes = capture.responsiveHarvests?.[0]?.typeSizesPx;
+  if (typography && mobileTypeSizes) {
+    typography = applyMobileTypeSizes(typography, mobileTypeSizes);
+  }
+
+  const paletteDark = capture.darkCapture
+    ? await extractDarkPalette(
+        { dump: capture.darkCapture.styleDump, screenshotPngBase64: capture.darkCapture.viewportShot },
+        palette,
+      )
+    : undefined;
 
   const report = buildReport({
     reportKind: "design-system",
     source: capture.source,
     palette,
+    paletteDark,
     typography,
     spacing: tokens.spacing,
     radius: tokens.radius,
@@ -85,6 +102,7 @@ export async function extractStructureFromCapture(
     rawHarvestNode: capture.rawHarvestNode,
     dump: report ? capture.styleDump : undefined,
     report,
+    responsiveHarvests: capture.responsiveHarvests,
   });
 }
 
@@ -118,6 +136,7 @@ export async function enrichWithAI(
     reportKind: measured.report.reportKind,
     source: measured.report.source,
     palette,
+    paletteDark: measured.report.paletteDark,
     typography: measured.report.typography,
     spacing: measured.report.spacing,
     radius: measured.report.radius,
@@ -196,6 +215,8 @@ export function captureFromRender(
     styleDump: render.styleDump,
     viewportShot: render.viewportShot,
     rawHarvestNode: render.rawHarvestNode,
+    responsiveHarvests: render.responsiveHarvests,
+    darkCapture: render.darkCapture,
   };
 }
 

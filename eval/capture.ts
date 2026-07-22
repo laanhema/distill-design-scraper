@@ -29,6 +29,9 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
     const context = await browser.newContext({
       viewport: VIEWPORT,
       deviceScaleFactor: 1,
+      // Same explicit baseline as `lib/ingest.ts` (§P8-3) — deterministic
+      // capture regardless of the CI/OS default color scheme.
+      colorScheme: "light",
     });
     const page = await context.newPage();
     await page.goto(target, { waitUntil: "domcontentloaded", timeout: 30_000 });
@@ -48,6 +51,8 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
       title: await page.title(),
       styleDump: captured.styleDump,
       viewportShot: captured.viewportShot,
+      responsiveHarvests: captured.responsiveHarvests,
+      darkCapture: captured.darkCapture,
     };
     await context.close();
     return capture;
