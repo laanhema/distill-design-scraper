@@ -1,4 +1,5 @@
 import { chromium, type Browser, type Page } from "playwright";
+import sharp from "sharp";
 import { collectStyleDump, type StyleDump } from "@/lib/extract/styleDump";
 import { harvestDomTree } from "@/lib/extract/structure/harvester";
 import type { RawHarvestNode, ResponsiveHarvest } from "@/lib/extract/structureSchema";
@@ -38,6 +39,21 @@ export interface RenderResult {
    *  actually a *different* scheme (vs. a single-scheme site) is decided in
    *  the extraction lane, not here. */
   darkCapture?: { viewportShot: string; styleDump: StyleDump };
+  /** Additional screenshots scrolled toward the bottom of the page, same
+   *  session, top-to-bottom order — the complete gapless viewport-tall tile
+   *  set (one per viewport-height step, plus a possibly shorter final crop)
+   *  used by the AI lane for full-page coverage. Omitted when the page fits
+   *  in one viewport (nothing more to see). */
+  scrollShots?: string[];
+  /** Single seamless full-page screenshot stitched from gapless viewport
+   *  tiles captured toward the bottom, same session — feeds the area-weight
+   *  pixel pass and the frontend gallery. Not Playwright's native `fullPage`
+   *  screenshot (see `fullPageShot`): that internally scroll-and-stitches
+   *  too, which is known to duplicate `position: fixed`/sticky elements at
+   *  tile boundaries on tall pages — this manual tile-and-composite path
+   *  avoids that. Omitted when the page fits in one viewport, or on capture
+   *  failure. */
+  panoramaShot?: string;
 }
 
 export interface RenderOptions {
@@ -173,6 +189,97 @@ async function captureDarkScheme(
   }
 }
 
+/** Safety cap on how far down we tile-capture, expressed as a multiple of
+ *  viewport height — guards against pathological infinite-scroll pages
+ *  blowing up capture time / stitched-image memory. ~12 viewports covers
+ *  virtually all marketing/landing/product pages. */
+const MAX_PANORAMA_VIEWPORTS = 12;
+
+/**
+ * Full-page panorama pass, same session: walks the page in contiguous,
+ * non-overlapping viewport-tall tiles from just past the top down to the true
+ * bottom (capped at MAX_PANORAMA_VIEWPORTS), then stitches every tile
+ * (including the already-captured top-of-page shot) into one seamless PNG via
+ * sharp. Returns the discrete tiles (`scrollShots`, kept at full resolution
+ * for the AI lane) and the stitched composite (`panoramaShot`, used for pixel
+ * area-weighting + the frontend gallery). Short pages that fit in one
+ * viewport yield neither — nothing more to see, nothing to stitch, matching
+ * the "omit, don't fabricate" convention used elsewhere in this file.
+ * Best-effort: a failure logs and returns whatever was captured so far;
+ * scroll position is always restored.
+ */
+async function captureFullPageTiles(
+  page: Page,
+  viewport: { width: number; height: number },
+  topShotBase64: string,
+): Promise<{ scrollShots: string[]; panoramaShot?: string }> {
+  const scrollShots: string[] = [];
+  try {
+    const scrollHeight = await page.evaluate(() => document.body.scrollHeight);
+    const cappedHeight = Math.min(scrollHeight, viewport.height * MAX_PANORAMA_VIEWPORTS);
+    if (scrollHeight > cappedHeight) {
+      console.warn(
+        `Page height ${scrollHeight}px exceeds panorama cap ${cappedHeight}px — truncating.`,
+      );
+    }
+    const maxScroll = cappedHeight - viewport.height;
+    if (maxScroll <= 0) return { scrollShots };
+
+    const tileBuffers: Buffer[] = [Buffer.from(topShotBase64, "base64")];
+    const fullTiles = Math.floor(cappedHeight / viewport.height);
+    for (let i = 1; i < fullTiles; i++) {
+      await page.evaluate((y) => window.scrollTo(0, y), i * viewport.height);
+      await page.waitForTimeout(200);
+      const buf = await page.screenshot({ fullPage: false });
+      tileBuffers.push(buf);
+      scrollShots.push(buf.toString("base64"));
+    }
+
+    const remainder = cappedHeight - fullTiles * viewport.height;
+    if (remainder > 0) {
+      await page.evaluate((y) => window.scrollTo(0, y), maxScroll);
+      await page.waitForTimeout(200);
+      const bottomBuf = await page.screenshot({ fullPage: false });
+      const croppedBuf = await sharp(bottomBuf)
+        .extract({
+          left: 0,
+          top: viewport.height - remainder,
+          width: viewport.width,
+          height: remainder,
+        })
+        .png()
+        .toBuffer();
+      tileBuffers.push(croppedBuf);
+      scrollShots.push(croppedBuf.toString("base64"));
+    }
+
+    // tileBuffers is strictly top-to-bottom: tile at array index i starts at
+    // i * viewport.height px from the top for every tile, including the
+    // (possibly shorter) cropped final tile — no special-casing needed here.
+    const panoramaBuf = await sharp({
+      create: {
+        width: viewport.width,
+        height: cappedHeight,
+        channels: 3,
+        // Browser screenshots have no real transparency (alpha always 255) —
+        // flattening the composite canvas to RGB is a pure size win.
+        background: { r: 255, g: 255, b: 255 },
+      },
+    })
+      .composite(tileBuffers.map((input, i) => ({ input, top: i * viewport.height, left: 0 })))
+      .png()
+      .toBuffer();
+
+    return { scrollShots, panoramaShot: panoramaBuf.toString("base64") };
+  } catch (err) {
+    console.warn("Full-page panorama capture failed:", err);
+    return { scrollShots };
+  } finally {
+    await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {});
+    await page.waitForTimeout(150);
+  }
+}
+
 /**
  * Everything after navigation: dismiss banners, nudge lazy content, capture
  * both screenshots, and read the computed-style dump off the *same* settled
@@ -187,6 +294,8 @@ export async function capturePage(page: Page): Promise<{
   rawHarvestNode?: RawHarvestNode;
   responsiveHarvests?: ResponsiveHarvest[];
   darkCapture?: { viewportShot: string; styleDump: StyleDump };
+  scrollShots?: string[];
+  panoramaShot?: string;
 }> {
   const primaryViewport = page.viewportSize() ?? DEFAULT_VIEWPORT;
   const bannerDismissed = await dismissConsentBanner(page);
@@ -199,6 +308,12 @@ export async function capturePage(page: Page): Promise<{
   await page.waitForTimeout(300);
 
   const viewportShotBuf = await page.screenshot({ fullPage: false });
+  // Captured but intentionally NOT threaded into Capture — Playwright's native
+  // `fullPage` screenshot internally scroll-and-stitches too, which is known to
+  // duplicate `position: fixed`/sticky elements at tile boundaries on tall
+  // pages. The manual tile-and-composite path in `captureFullPageTiles` is the
+  // panorama source; this stays as a dead-code fallback so a future reader
+  // doesn't "simplify" by swapping it in.
   const fullPageShotBuf = await page.screenshot({ fullPage: true });
   const styleDump = await collectStyleDump(page);
   let rawHarvestNode: RawHarvestNode | undefined;
@@ -210,6 +325,11 @@ export async function capturePage(page: Page): Promise<{
 
   const responsiveHarvests = await captureResponsiveHarvests(page, primaryViewport);
   const darkCapture = await captureDarkScheme(page);
+  const { scrollShots, panoramaShot } = await captureFullPageTiles(
+    page,
+    primaryViewport,
+    viewportShotBuf.toString("base64"),
+  );
 
   return {
     viewportShot: viewportShotBuf.toString("base64"),
@@ -219,6 +339,8 @@ export async function capturePage(page: Page): Promise<{
     rawHarvestNode,
     ...(responsiveHarvests.length > 0 ? { responsiveHarvests } : {}),
     ...(darkCapture ? { darkCapture } : {}),
+    ...(scrollShots.length > 0 ? { scrollShots } : {}),
+    ...(panoramaShot ? { panoramaShot } : {}),
   };
 }
 
@@ -273,6 +395,8 @@ export async function renderUrl(
       rawHarvestNode: captured.rawHarvestNode,
       responsiveHarvests: captured.responsiveHarvests,
       darkCapture: captured.darkCapture,
+      scrollShots: captured.scrollShots,
+      panoramaShot: captured.panoramaShot,
     };
 
     await context.close();

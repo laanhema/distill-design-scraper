@@ -139,6 +139,9 @@ export async function POST(request: Request) {
         ...meta,
         capturedAt: capture.source.capturedAt,
         viewportShot: `data:image/png;base64,${capture.viewportShot}`,
+        viewportShots: [capture.viewportShot, ...(capture.panoramaShot ? [capture.panoramaShot] : [])].map(
+          (shot) => `data:image/png;base64,${shot}`,
+        ),
       },
     };
 

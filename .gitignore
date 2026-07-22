@@ -33,3 +33,4 @@ next-env.d.ts
 
 # Agents folder
 .agents
+agents

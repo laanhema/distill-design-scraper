@@ -53,6 +53,8 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
       viewportShot: captured.viewportShot,
       responsiveHarvests: captured.responsiveHarvests,
       darkCapture: captured.darkCapture,
+      scrollShots: captured.scrollShots,
+      panoramaShot: captured.panoramaShot,
     };
     await context.close();
     return capture;

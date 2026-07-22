@@ -125,51 +125,57 @@ function collectCanonical(dump: StyleDump): Canonical[] {
 
 async function assignAreaWeights(
   canon: Canonical[],
-  screenshotPngBase64: string,
+  screenshotsPngBase64: string[],
 ): Promise<void> {
-  if (canon.length === 0) return;
+  if (canon.length === 0 || screenshotsPngBase64.length === 0) return;
 
-  const buf = Buffer.from(screenshotPngBase64, "base64");
-  const { data, info } = await sharp(buf)
-    .resize({ width: PIXEL_SAMPLE_WIDTH, withoutEnlargement: true })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const step = info.channels; // 3 (RGB) or 4 (RGBA)
-  const totalPixels = info.width * info.height;
   const credited = new Array<number>(canon.length).fill(0);
+  let totalPixels = 0;
 
   // Coarse histogram of pixels that match no DOM color — the gradient/image
-  // backstop. Keyed by 4-bit-per-channel bucket to keep it tiny.
+  // backstop. Keyed by 4-bit-per-channel bucket to keep it tiny. Accumulated
+  // across every screenshot (e.g. scroll-position shots of the same page) so
+  // a color painted lower on the page is credited too, not just the fold.
   const farBuckets = new Map<number, { count: number; r: number; g: number; b: number }>();
   let farCount = 0;
 
-  for (let i = 0; i < data.length; i += step) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const lab = labTriple({ mode: "rgb", r: r / 255, g: g / 255, b: b / 255 });
+  for (const screenshotPngBase64 of screenshotsPngBase64) {
+    const buf = Buffer.from(screenshotPngBase64, "base64");
+    const { data, info } = await sharp(buf)
+      .resize({ width: PIXEL_SAMPLE_WIDTH, withoutEnlargement: true })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
 
-    let best = -1;
-    let bestDist = Infinity;
-    for (let k = 0; k < canon.length; k++) {
-      const d = labDistanceSq(lab, canon[k].lab);
-      if (d < bestDist) {
-        bestDist = d;
-        best = k;
+    const step = info.channels; // 3 (RGB) or 4 (RGBA)
+    totalPixels += info.width * info.height;
+
+    for (let i = 0; i < data.length; i += step) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const lab = labTriple({ mode: "rgb", r: r / 255, g: g / 255, b: b / 255 });
+
+      let best = -1;
+      let bestDist = Infinity;
+      for (let k = 0; k < canon.length; k++) {
+        const d = labDistanceSq(lab, canon[k].lab);
+        if (d < bestDist) {
+          bestDist = d;
+          best = k;
+        }
       }
-    }
 
-    if (best >= 0 && bestDist <= PIXEL_MATCH_LAB_SQ) {
-      credited[best]++;
-    } else {
-      farCount++;
-      const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
-      const bucket = farBuckets.get(key);
-      if (bucket) {
-        bucket.count++;
+      if (best >= 0 && bestDist <= PIXEL_MATCH_LAB_SQ) {
+        credited[best]++;
       } else {
-        farBuckets.set(key, { count: 1, r, g, b });
+        farCount++;
+        const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+        const bucket = farBuckets.get(key);
+        if (bucket) {
+          bucket.count++;
+        } else {
+          farBuckets.set(key, { count: 1, r, g, b });
+        }
       }
     }
   }
@@ -452,6 +458,10 @@ export interface PaletteInput {
   dump: StyleDump;
   /** Base64 PNG of the viewport screenshot, for the area-weight pixel pass. */
   screenshotPngBase64: string;
+  /** Additional screenshots of the same page (e.g. scrolled further down),
+   *  merged into the same area-weight pass so colors painted below the fold
+   *  are credited too, not just what the top viewport shows. */
+  additionalScreenshotsPngBase64?: string[];
 }
 
 // Background-shift threshold (§P8-3): below this ΔE, a `colorScheme: "dark"`
@@ -485,9 +495,10 @@ export async function extractDarkPalette(
 export async function extractPalette({
   dump,
   screenshotPngBase64,
+  additionalScreenshotsPngBase64,
 }: PaletteInput): Promise<Palette> {
   const canon = collectCanonical(dump);
-  await assignAreaWeights(canon, screenshotPngBase64);
+  await assignAreaWeights(canon, [screenshotPngBase64, ...(additionalScreenshotsPngBase64 ?? [])]);
 
   const assigned = assignRoles(canon);
 
