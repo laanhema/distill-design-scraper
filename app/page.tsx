@@ -26,6 +26,9 @@ interface AnalyzeResponse {
   report?: Report;
   markdown?: string;
   structureReport?: StructureReport;
+  /** Set when structure was requested but couldn't be produced (image mode
+   *  without an API key, or the vision model failed) — §P6-2 step 2. */
+  structureUnavailableReason?: string;
   meta?: Meta;
   refinements?: Refinement[];
   error?: string;
@@ -46,6 +49,7 @@ export default function Home() {
   const [report, setReport] = useState<Report | null>(null);
   const [markdown, setMarkdown] = useState<string>("");
   const [structureReport, setStructureReport] = useState<StructureReport | null>(null);
+  const [structureUnavailableReason, setStructureUnavailableReason] = useState<string | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [refinements, setRefinements] = useState<Refinement[]>([]);
   const [tab, setTab] = useState<"preview" | "tokens" | "structure">("preview");
@@ -80,18 +84,17 @@ export default function Home() {
     setReport(null);
     setMarkdown("");
     setStructureReport(null);
+    setStructureUnavailableReason(null);
     setMeta(null);
     setRefinements([]);
 
     try {
-      let bodyData: Record<string, unknown> = { mode: "both" };
+      const bodyData: Record<string, unknown> = { mode: "both" };
       if (inputMode === "url") {
         bodyData.url = url;
       } else {
-        // Image mode only ever yields a Palette & Mood report (§P6-2) — there
-        // is no structure/DOM to extract from a static image, so `mode` isn't
-        // meaningful here and is simply omitted.
-        delete bodyData.mode;
+        // Image mode's structure lane is vision-inferred rather than DOM-measured
+        // (§P6-2 step 2) — the API reports back if it couldn't run (no key).
         bodyData.images = imagePreviews.map((data, i) => ({
           data,
           name: selectedFiles[i]?.name || `uploaded-image-${i + 1}`,
@@ -110,6 +113,7 @@ export default function Home() {
       setReport(data.report);
       setMarkdown(data.markdown ?? "");
       setStructureReport(data.structureReport ?? null);
+      setStructureUnavailableReason(data.structureUnavailableReason ?? null);
       setMeta(data.meta ?? null);
       setRefinements(data.refinements ?? []);
       setStatus("done");
@@ -151,10 +155,12 @@ export default function Home() {
       <header className="mb-10">
         <h1 className="text-4xl font-semibold tracking-tight">Distill</h1>
         <p className="mt-2 text-neutral-600 dark:text-neutral-400">
-          Point it at a URL for a Design System &amp; Layout Structure report, or drop in image(s)
-          for a Palette &amp; Mood report.{" "}
+          Point it at a URL for a measured Design System &amp; Layout Structure report, or drop in
+          image(s) for a Palette &amp; Mood report plus a vision-inferred layout skeleton.{" "}
           <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-medium dark:bg-neutral-800">
-            {inputMode === "url" ? "Track A (Design System) + Track B (Layout Structure)" : "Palette & Mood only"}
+            {inputMode === "url"
+              ? "Track A (Design System, measured) + Track B (Layout Structure, measured)"
+              : "Palette & Mood (measured) + Layout Structure (inferred)"}
           </span>
         </p>
       </header>
@@ -261,7 +267,8 @@ export default function Home() {
             )}
             <p className="text-xs text-neutral-500">
               Multiple images of the same site/design merge into one palette (up to {MAX_IMAGES}).
-              Image input yields a Palette &amp; Mood report only — no layout structure.
+              Layout structure from an image is vision-inferred, not measured (no DOM to walk) —
+              it's stamped <code>fidelity: inferred</code> and requires an API key.
             </p>
             <button
               type="submit"
@@ -289,6 +296,12 @@ export default function Home() {
         </div>
       )}
 
+      {status === "done" && report && meta && structureUnavailableReason && (
+        <p className="mt-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+          {structureUnavailableReason}
+        </p>
+      )}
+
       {status === "done" && report && meta && (
         <section className="mt-10 space-y-8">
           <div className="flex items-center gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800">
@@ -301,6 +314,7 @@ export default function Home() {
             {structureReport && (
               <Tab active={tab === "structure"} onClick={() => setTab("structure")}>
                 Layout Structure Markdown
+                {structureReport.header.fidelity === "inferred" ? " (inferred)" : ""}
               </Tab>
             )}
             <div className="ml-auto flex gap-2">

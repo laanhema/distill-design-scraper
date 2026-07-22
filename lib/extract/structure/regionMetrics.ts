@@ -41,7 +41,7 @@ export function annotateRegionMetrics(input: RegionMetricsInput): PrunedNode {
       return { ...node, children };
     }
     const rawTag = node.layoutAnnotation.match(HEIGHT_TAG)?.[0];
-    if (!rawTag) {
+    if (!rawTag || !node.bounds) {
       return { ...node, children };
     }
 
@@ -75,6 +75,8 @@ function derivePadY(
   dump: StyleDump | undefined,
   report: Report | undefined,
 ): string | null {
+  if (!node.bounds) return null;
+
   let top: number | null = null;
   let bottom: number | null = null;
 
@@ -95,6 +97,7 @@ function derivePadY(
     // math is unreliable here; bail rather than emit a fabricated number.
     if (last.instanceCount && last.instanceCount > 1) return null;
     const first = children[0];
+    if (!first.bounds || !last.bounds) return null;
     top = first.bounds.y - node.bounds.y;
     bottom = node.bounds.y + node.bounds.height - (last.bounds.y + last.bounds.height);
   }

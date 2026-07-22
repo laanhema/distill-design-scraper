@@ -65,12 +65,13 @@ export function detectRepetition(node: PrunedNode): PrunedNode {
 }
 
 function getBaseSignature(node: PrunedNode): string {
-  // Tag + immediate child tags
+  // Tag + immediate child tags — falls back to componentName when tagName is
+  // absent (a vision-inferred node has no real tag to key off of).
   const childTags = node.children
     .slice(0, 5)
-    .map((c) => c.tagName)
+    .map((c) => c.tagName ?? c.componentName)
     .join(",");
-  return `${node.tagName}[${childTags}]`;
+  return `${node.tagName ?? node.componentName}[${childTags}]`;
 }
 
 function isNearMatch(sigA: string, sigB: string): boolean {

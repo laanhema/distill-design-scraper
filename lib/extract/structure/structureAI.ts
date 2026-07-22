@@ -2,8 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { PrunedNode, ComponentDef, OntologyType } from "../structureSchema";
 import { ONTOLOGY_TYPES } from "../structureSchema";
-
-const MODEL = "claude-opus-4-8";
+import { AI_MODEL } from "@/lib/aiLane";
 
 export const aiStructureResponseSchema = z.object({
   nodeUpdates: z.array(
@@ -78,7 +77,7 @@ Return strict JSON matching this Zod schema:
 
   try {
     const message = await client.messages.create({
-      model: MODEL,
+      model: AI_MODEL,
       max_tokens: 2000,
       temperature: 0.1,
       messages: [{ role: "user", content: prompt }],

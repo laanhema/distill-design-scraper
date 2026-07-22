@@ -9,6 +9,8 @@ import {
   type Typography,
 } from "@/lib/schema";
 import { ROLE_USAGE } from "@/lib/extract/palette";
+import { detectImageMediaType } from "@/lib/extract/imageMediaType";
+import { AI_MODEL, aiLaneAvailable, retryOnce } from "@/lib/aiLane";
 
 /**
  * Interpretation engine (§6, the AI lane). Only `identity`, `imageMood`, and
@@ -26,9 +28,8 @@ import { ROLE_USAGE } from "@/lib/extract/palette";
  * report rather than a hard error or a faked interpretation.
  */
 
-// Vision-capable; low effort keeps this cheap and its read anchored on the
-// measured tokens rather than free-associating. No temperature knob on 4.8.
-const MODEL = "claude-opus-4-8";
+// Low effort keeps this cheap and its read anchored on the measured tokens
+// rather than free-associating. No temperature knob on 4.8.
 const MAX_TOKENS = 1024;
 
 const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
@@ -140,10 +141,7 @@ function groundingSummary(palette: Palette, typography?: Typography): string {
   return JSON.stringify(summary, null, 2);
 }
 
-/** True when a live interpretation is possible (an API key is configured). */
-export function aiLaneAvailable(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
+export { aiLaneAvailable };
 
 /** One model round-trip → parsed, Zod-validated JSON (or null on failure). */
 async function requestOnce(
@@ -151,9 +149,10 @@ async function requestOnce(
   screenshotsPngBase64: string[],
   summary: string,
 ): Promise<AiResponse | null> {
-  const imageBlocks = screenshotsPngBase64.map((data) => ({
+  const mediaTypes = await Promise.all(screenshotsPngBase64.map(detectImageMediaType));
+  const imageBlocks = screenshotsPngBase64.map((data, i) => ({
     type: "image" as const,
-    source: { type: "base64" as const, media_type: "image/png" as const, data },
+    source: { type: "base64" as const, media_type: mediaTypes[i], data },
   }));
   const promptNote =
     screenshotsPngBase64.length > 1
@@ -161,7 +160,7 @@ async function requestOnce(
       : "Measured tokens for this design:";
 
   const response = await client.messages.create({
-    model: MODEL,
+    model: AI_MODEL,
     max_tokens: MAX_TOKENS,
     system: SYSTEM_PROMPT,
     output_config: {
@@ -218,10 +217,7 @@ export async function interpret(
   const screenshots = input.screenshotsPngBase64.slice(0, MAX_INTERPRET_IMAGES);
 
   // One repair retry (§6), then graceful fallback.
-  let ai = await requestOnce(client, screenshots, summary).catch(() => null);
-  if (!ai) {
-    ai = await requestOnce(client, screenshots, summary).catch(() => null);
-  }
+  const ai = await retryOnce(() => requestOnce(client, screenshots, summary));
   if (!ai) return null;
 
   return {

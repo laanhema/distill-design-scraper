@@ -108,6 +108,16 @@ export interface StructureReport {
 }
 
 /**
+ * Pixel bounding box, as measured off a live DOM render.
+ */
+export interface Bounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
  * Intermediate node produced by the browser harvester (Stage 2)
  */
 export interface RawHarvestNode {
@@ -115,7 +125,7 @@ export interface RawHarvestNode {
   tagName: string;
   ariaRole: string | null;
   landmark: string | null;
-  bounds: { x: number; y: number; width: number; height: number };
+  bounds: Bounds;
   computedDisplay: string;
   /** Computed `position` — only captured for landmark nodes (§P2-2). */
   cssPosition?: string;
@@ -152,10 +162,16 @@ export interface ResponsiveHarvest {
  */
 export interface PrunedNode {
   id: string;
-  tagName: string;
+  /** Real DOM tag, only when this node came off a live render — a
+   *  vision-inferred node (`structureFromImage.ts`) has no HTML to read, so
+   *  this is genuinely absent rather than guessed (mirrors `landmark`/
+   *  `ariaRole` below). */
+  tagName?: string;
   ariaRole: string | null;
   landmark: string | null;
-  bounds: { x: number; y: number; width: number; height: number };
+  /** Real measured pixel bounds, only when this node came off a live render —
+   *  absent (not a fabricated zero rect) for a vision-inferred node. */
+  bounds?: Bounds;
   layoutAnnotation?: string; // e.g. "flex · space-between" or "grid · 3col"
   hasText: boolean;
   textSnippet?: string;

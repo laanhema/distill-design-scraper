@@ -20,7 +20,10 @@ export function assignOntologyTypes(
   let layoutAnnotation = node.layoutAnnotation;
 
   // 1. Landmarks -> region
-  if (depth <= 1 && (node.landmark || ["header", "nav", "main", "footer"].includes(node.tagName))) {
+  if (
+    depth <= 1 &&
+    (node.landmark || (node.tagName && ["header", "nav", "main", "footer"].includes(node.tagName)))
+  ) {
     provisionalType = "region";
     if (node.tagName === "header" || node.landmark === "banner") name = "SiteHeader";
     else if (node.tagName === "footer" || node.landmark === "contentinfo") name = "SiteFooter";
@@ -30,9 +33,12 @@ export function assignOntologyTypes(
     // Region heights give a rebuild vertical rhythm (header/footer bands,
     // hero height, etc.) that the flex/grid annotation alone doesn't convey.
     // (Stage 8a replaces this raw tag with a padY/100vh note where the raw
-    // height itself isn't the intent — §P7-2.)
-    const heightTag = `h ${Math.round(node.bounds.height)}px`;
-    layoutAnnotation = layoutAnnotation ? `${layoutAnnotation} · ${heightTag}` : heightTag;
+    // height itself isn't the intent — §P7-2.) Only measurable off a real
+    // DOM render — a vision-inferred node has no bounds to derive it from.
+    if (node.bounds) {
+      const heightTag = `h ${Math.round(node.bounds.height)}px`;
+      layoutAnnotation = layoutAnnotation ? `${layoutAnnotation} · ${heightTag}` : heightTag;
+    }
   }
   // 1b. Button/link groups -> composite "CtaRow" (§P5-3). Checked ahead of the
   // tag-based leaf bucket below because the wrapper is often a bare <p> — its
@@ -45,14 +51,17 @@ export function assignOntologyTypes(
   else if (
     node.isInteractive ||
     node.isImageOrSvg ||
-    ["button", "a", "input", "h1", "h2", "h3", "h4", "img", "svg", "p", "label"].includes(node.tagName)
+    (node.tagName &&
+      ["button", "a", "input", "h1", "h2", "h3", "h4", "img", "svg", "p", "label"].includes(
+        node.tagName,
+      ))
   ) {
     provisionalType = "atom";
     // Name by tag first — `isInteractive` also covers a/input/select/textarea,
     // so it must not catch those before their specific tag names do.
     if (node.tagName === "a") name = "TextLink";
-    else if (["input", "select", "textarea"].includes(node.tagName)) name = "Input";
-    else if (node.tagName.startsWith("h")) name = "Heading";
+    else if (node.tagName && ["input", "select", "textarea"].includes(node.tagName)) name = "Input";
+    else if (node.tagName?.startsWith("h")) name = "Heading";
     else if (node.isImageOrSvg) name = "Image";
     else if (node.tagName === "button") name = "Button";
     else if (node.isInteractive) name = "Button";
@@ -69,7 +78,7 @@ export function assignOntologyTypes(
   else if (node.hasText && childrenTyped.length === 0) {
     provisionalType = "atom";
     // Same collapse as the "p" case above, for the other plain-text tags.
-    if (["span", "small"].includes(node.tagName)) name = "Text";
+    if (node.tagName && ["span", "small"].includes(node.tagName)) name = "Text";
   }
   // 4. Containers with children -> container or composite
   else if (childrenTyped.length > 0) {
@@ -128,12 +137,13 @@ function formatDefaultName(
   if (node.landmark) {
     return capitalize(node.landmark);
   }
-  return capitalize(node.tagName);
+  return capitalize(node.tagName ?? "");
 }
 
-/** First section containing an h1 near the top of the page reads as the hero. */
+/** First section containing an h1 near the top of the page reads as the hero.
+ *  Bails without bounds (a vision-inferred node) rather than guessing. */
 function isHeroSection(node: PrunedNode, childrenTyped: PrunedNode[]): boolean {
-  if (node.bounds.y >= HERO_Y_THRESHOLD_PX) return false;
+  if (!node.bounds || node.bounds.y >= HERO_Y_THRESHOLD_PX) return false;
   return containsTag(childrenTyped, "h1");
 }
 

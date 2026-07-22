@@ -73,7 +73,7 @@ export function linkComponentsToTokens(
   const hints = new Map<string, string>();
 
   function walk(node: PrunedNode) {
-    if (!hints.has(node.componentName)) {
+    if (!hints.has(node.componentName) && node.bounds) {
       const styleNode = findMatchingStyleNode(node.bounds, dump);
       if (styleNode) {
         const hint = buildHint(styleNode, report);

@@ -1,6 +1,6 @@
 {
   "name": "distill",
-  "version": "0.0.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Point it at a URL or drop in an image → a Markdown design system.",
   "scripts": {

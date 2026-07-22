@@ -75,14 +75,18 @@ export async function POST(request: Request) {
         name: img.name || `uploaded-image-${i + 1}`,
       }));
 
-      const { report, markdown, meta, refinements } = await analyzeImages(
-        cleaned.map((img) => ({ data: img.clean, name: img.name })),
-      );
+      const { report, markdown, meta, refinements, structureReport, structureUnavailableReason } =
+        await analyzeImages(
+          cleaned.map((img) => ({ data: img.clean, name: img.name })),
+          mode,
+        );
 
       const responsePayload = {
         ok: true,
         report,
         markdown,
+        structureReport: structureReport ?? null,
+        structureUnavailableReason,
         refinements,
         meta: {
           ...meta,
@@ -97,7 +101,12 @@ export async function POST(request: Request) {
         },
       };
 
-      setCache(cacheKey, responsePayload);
+      // Don't cache a transient structure failure — replaying it verbatim for
+      // the full TTL would hide a one-off vision-model flake/timeout from a
+      // resubmission seconds later (§ code review finding #3).
+      if (!structureUnavailableReason) {
+        setCache(cacheKey, responsePayload);
+      }
       return NextResponse.json(responsePayload);
     }
 

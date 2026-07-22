@@ -6,6 +6,7 @@ import { buildRecipes } from "@/lib/extract/recipes";
 import { buildStates } from "@/lib/extract/states";
 import { extractImagePalette } from "@/lib/extract/imagePalette";
 import { extractStructure } from "@/lib/extract/structure";
+import { structureFromImages } from "@/lib/extract/structureFromImage";
 import { buildReport, renderMarkdown } from "@/lib/emit";
 import {
   aiLaneAvailable,
@@ -164,9 +165,15 @@ export interface ImageInput {
  */
 export async function analyzeImages(
   images: ImageInput[],
+  mode: "tokens" | "structure" | "both" = "tokens",
 ): Promise<
   AnalyzeResult & {
     refinements: RefinementChange[];
+    structureReport?: StructureReport;
+    /** Set when structure was requested but couldn't be produced — no API
+     *  key, or the vision model failed — so the caller can explain the gap
+     *  instead of silently omitting it (§P6-2 step 2). */
+    structureUnavailableReason?: string;
     meta: {
       finalUrl: string;
       title: string;
@@ -207,12 +214,48 @@ export async function analyzeImages(
     typeof img.data === "string" ? img.data : img.data.toString("base64"),
   );
 
-  const enriched = await enrichWithAI(measuredResult, screenshotsBase64);
+  const wantsStructure = (mode === "structure" || mode === "both") && aiLaneAvailable();
+  // A "structure"-only caller has no use for the identity/imageMood AI pass
+  // over the palette-mood report, so skip it rather than paying for both.
+  const wantsTokenEnrichment = mode === "tokens" || mode === "both";
+
+  const [enriched, structureOutcome] = await Promise.all([
+    wantsTokenEnrichment
+      ? enrichWithAI(measuredResult, screenshotsBase64)
+      : Promise.resolve({ ...measuredResult, refinements: [] as RefinementChange[] }),
+    wantsStructure
+      ? structureFromImages({
+          imagesPngBase64: screenshotsBase64,
+          sourceRef: ref,
+          capturedAt,
+        })
+          .then((structureReport) => ({
+            structureReport: structureReport ?? undefined,
+            structureUnavailableReason: structureReport
+              ? undefined
+              : "Vision structure inference failed for this image.",
+          }))
+          .catch((err) => {
+            console.warn("Image structure extraction error:", err);
+            return {
+              structureReport: undefined,
+              structureUnavailableReason: "Vision structure inference failed for this image.",
+            };
+          })
+      : Promise.resolve({
+          structureReport: undefined as StructureReport | undefined,
+          structureUnavailableReason: undefined as string | undefined,
+        }),
+  ]);
+
+  const { structureReport, structureUnavailableReason } = structureOutcome;
 
   return {
     report: enriched.report,
     markdown: enriched.markdown,
     refinements: enriched.refinements,
+    structureReport,
+    structureUnavailableReason,
     meta: {
       finalUrl: ref,
       title: ref,

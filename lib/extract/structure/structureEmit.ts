@@ -66,7 +66,7 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
   const componentMapText = buildComponentMapText(mergedComponents);
 
   // 3. Build Machine Block JSON
-  const treeNodes = buildMachineTreeNodes([root]);
+  const treeNodes = buildMachineTreeNodes([root], fidelity);
   const machineBlock: StructureMachineBlock = {
     reportKind: "layout-structure",
     source: sourceUrl,
@@ -186,6 +186,7 @@ function computeContentMaxWidth(root: PrunedNode, viewportWidth: number): number
   function walk(node: PrunedNode) {
     if (node.componentName === "MainContent" || node.tagName === "section") {
       for (const child of node.children) {
+        if (!child.bounds) continue;
         const w = Math.round(child.bounds.width);
         if (w > 0 && w < viewportWidth - 8) widths.push(w);
       }
@@ -268,12 +269,18 @@ function buildComponentMapText(components: Record<string, ComponentDef>): string
   return lines.join("\n").trim();
 }
 
-function buildMachineTreeNodes(nodes: PrunedNode[]): StructureTreeNode[] {
+function buildMachineTreeNodes(
+  nodes: PrunedNode[],
+  fidelity: "measured" | "inferred",
+): StructureTreeNode[] {
   return nodes.map((node) => {
     const result: StructureTreeNode = {
       component: node.componentName,
     };
-    if (node.componentName === "Text") {
+    // Only a "measured" tree's tagName is a real DOM observation — an
+    // "inferred" (vision) tree has no HTML to read, so carrying it here
+    // would present a fabricated tag as if it had been measured.
+    if (fidelity === "measured" && node.componentName === "Text") {
       result.tag = node.tagName;
     }
     if (node.instanceCount && node.instanceCount > 1) {
@@ -286,7 +293,7 @@ function buildMachineTreeNodes(nodes: PrunedNode[]): StructureTreeNode[] {
       result.layout = node.layoutAnnotation;
     }
     if (node.children.length > 0) {
-      result.children = buildMachineTreeNodes(node.children);
+      result.children = buildMachineTreeNodes(node.children, fidelity);
     }
     return result;
   });

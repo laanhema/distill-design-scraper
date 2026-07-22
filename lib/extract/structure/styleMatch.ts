@@ -1,5 +1,5 @@
 import type { NodeStyle, StyleDump } from "@/lib/extract/styleDump";
-import type { PrunedNode } from "../structureSchema";
+import type { Bounds } from "../structureSchema";
 
 /**
  * Shared bounds-overlap matcher (§P3-1 tokenLink, §P7-2 regionMetrics): finds
@@ -11,7 +11,7 @@ import type { PrunedNode } from "../structureSchema";
 /** Max total px difference (x+y+w+h) for a style-dump node to "be" a PrunedNode. */
 export const BOUNDS_MATCH_TOLERANCE = 6;
 
-export function boundsDistance(a: PrunedNode["bounds"], b: NodeStyle["rect"]): number {
+export function boundsDistance(a: Bounds, b: NodeStyle["rect"]): number {
   return (
     Math.abs(a.x - b.x) +
     Math.abs(a.y - b.y) +
@@ -21,7 +21,7 @@ export function boundsDistance(a: PrunedNode["bounds"], b: NodeStyle["rect"]): n
 }
 
 export function findMatchingStyleNode(
-  bounds: PrunedNode["bounds"],
+  bounds: Bounds,
   dump: StyleDump,
 ): NodeStyle | null {
   let best: NodeStyle | null = null;
