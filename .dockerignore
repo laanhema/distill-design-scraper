@@ -1,0 +1,25 @@
+# Dependencies — installed fresh via `npm ci` inside the build stage;
+# copying the host's would clobber that install.
+node_modules
+
+# Build output — produced by `npm run build` inside the image.
+.next
+tsconfig.tsbuildinfo
+
+# VCS / agent workspaces
+.git
+.agents
+.claude
+
+# Eval fixtures — large and unused by the app build.
+eval
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+
+# Root docs
+README.md
+CLAUDE.md
+AGENTS.md
+GEMINI.md
