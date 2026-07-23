@@ -52,18 +52,36 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
   const { report } = await extractFromCapture(capture);
   const pal = scorePalette(report.palette, expected.palette);
   const typo = scoreTypography(report.typography, expected.typography);
-  const combined = combinedScore(pal, typo);
 
   let structureScore: number | null = null;
+  let structureMisses: string[] = [];
   if (capture.rawHarvestNode) {
     try {
-      const structReport = await extractStructureFromCapture(capture);
-      const structResult = scoreStructure(structReport);
+      // Force the heuristic Stage 7 fallback (DIST-013) so the eval path
+      // never constructs the Anthropic client — keeps `npm run eval`
+      // offline and deterministic even when `ANTHROPIC_API_KEY` is set.
+      const structReport = await extractStructureFromCapture(
+        capture,
+        undefined,
+        { forceHeuristicNaming: true },
+      );
+      const structResult = scoreStructure(structReport, expected.structure);
       structureScore = structResult.combined;
-    } catch {
-      structureScore = null;
+      structureMisses = structResult.misses;
+    } catch (err) {
+      // A structure-extraction/scoring failure is a real regression —
+      // force `structureScore = 0` so `combinedScore` drops by 0.2
+      // (well past REGRESSION_EPS) instead of silently falling back to
+      // the old palette-only weighting (which would yield 1.0 on these
+      // perfect-palette/perfect-type fixtures and keep the gate green).
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`  ⚠ structure lane error for ${slug}: ${msg}`);
+      structureScore = 0;
+      structureMisses = [`lane error: ${msg}`];
     }
   }
+
+  const combined = combinedScore(pal, typo, structureScore);
 
   const notes: string[] = [];
   for (const m of pal.misses) {
@@ -79,6 +97,9 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
     if (typo.bodyFamilyOk === false) {
       notes.push(`body family mismatch (expected ${expected.typography?.bodyFamily})`);
     }
+  }
+  for (const m of structureMisses) {
+    notes.push(`structure: ${m}`);
   }
 
   return {

@@ -1,5 +1,6 @@
 import { deltaE, parseColor } from "@/lib/color";
 import type { Palette, Typography } from "@/lib/schema";
+import type { ExpectedStructureSpec } from "./scoreStructure";
 
 /**
  * Scoring for the measured lane (§10). Objective diffs against `expected.yaml`:
@@ -18,6 +19,9 @@ export interface ExpectedSpec {
     bodyFamily?: string;
     scale?: Record<string, number>;
   };
+  /** Optional structure spec (DIST-013) — when present, the structure lane
+   *  is scored against it and folded into `combinedScore`. */
+  structure?: ExpectedStructureSpec;
 }
 
 export interface PaletteScore {
@@ -116,11 +120,22 @@ export function scoreTypography(
   };
 }
 
-/** Combined per-site score: role accuracy weighted above type-scale overlap. */
+/** Combined per-site score: role accuracy weighted above type-scale overlap.
+ *  When a structure score is provided (DIST-013), it is folded in with
+ *  palette 0.5 / typography 0.3 / structure 0.2 — palette stays dominant
+ *  while a full structure collapse (`0.0`) drops combined by 0.2, well
+ *  past `REGRESSION_EPS`. Without structure, keeps the historical
+ *  palette 0.6 / typography 0.4 weighting. */
 export function combinedScore(
   palette: PaletteScore,
   typography: TypographyScore | null,
+  structure?: number | null,
 ): number {
+  if (structure !== undefined && structure !== null) {
+    const pal = palette.roleAccuracy;
+    const typo = typography ? typography.scaleAccuracy : pal;
+    return pal * 0.5 + typo * 0.3 + structure * 0.2;
+  }
   if (!typography) return palette.roleAccuracy;
   return palette.roleAccuracy * 0.6 + typography.scaleAccuracy * 0.4;
 }

@@ -51,6 +51,7 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
       title: await page.title(),
       styleDump: captured.styleDump,
       viewportShot: captured.viewportShot,
+      rawHarvestNode: captured.rawHarvestNode,
       responsiveHarvests: captured.responsiveHarvests,
       darkCapture: captured.darkCapture,
       scrollShots: captured.scrollShots,
