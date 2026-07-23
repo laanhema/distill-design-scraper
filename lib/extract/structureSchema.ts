@@ -69,6 +69,11 @@ export const sectionDigestSchema = z.object({
   ordinal: z.number(),
   /** Repetition count when the band is a collapsed repeated group (×N). */
   instances: z.number().optional(),
+  /** AI-provenance one-line intent description (#36 / DIST-030), e.g.
+   *  "Sticky pill nav: logo left, 5 items center, CTA right" — only present
+   *  when the Stage 7 AI pass ran and returned a line for this band; the
+   *  heuristic fallback omits it. */
+  description: z.string().optional(),
   /** Stage 8a band segments of the node's own annotation, e.g.
    *  "sticky · h 64px", "h 100vh", "padY 64px". */
   band: z.string().optional(),

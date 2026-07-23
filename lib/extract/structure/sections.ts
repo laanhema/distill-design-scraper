@@ -28,6 +28,9 @@ export interface BuildSectionDigestsInput {
   /** Stage 7b responsive deltas — only present when secondary-viewport
    *  harvests ran and produced real deltas. */
   responsive?: ResponsiveDeltas;
+  /** Stage 7 AI one-line intent descriptions keyed by band node id
+   *  (#36 / DIST-030) — only present when `naming: "ai"`. */
+  descriptions?: Record<string, string>;
 }
 
 function bandPart(annotation: string | undefined): string | undefined {
@@ -177,23 +180,33 @@ function joinResponsiveDeltas(names: string[], responsive: ResponsiveDeltas): st
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
-export function buildSectionDigests(
-  input: BuildSectionDigestsInput,
-): SectionDigest[] | undefined {
-  const { root, tokenHints, responsive } = input;
-
+/**
+ * The digest's band list: `SiteHeader`, each direct child of `MainContent`,
+ * `SiteFooter` — empty when the page has no identifiable main region (band
+ * identity would be a guess; the whole lane omits rather than fabricates).
+ * Single source used by BOTH Stage 9 (`buildSectionDigests`) and the Stage 7
+ * AI prompt (#36 / DIST-030), so the prompt's digest list and the emitted
+ * digest can never disagree about which nodes are sections.
+ */
+export function findDigestBands(root: PrunedNode): PrunedNode[] {
   const main = findBand(root, "main");
-  // No identifiable main region → band identity would be a guess; omit the
-  // whole lane rather than fabricate one.
-  if (!main) return undefined;
+  if (!main) return [];
 
   const header = findBand(root, "header", main);
   const footer = findBand(root, "footer", main);
-  const bands: PrunedNode[] = [
+  return [
     ...(header && header !== main ? [header] : []),
     ...main.children,
     ...(footer && footer !== main ? [footer] : []),
   ];
+}
+
+export function buildSectionDigests(
+  input: BuildSectionDigestsInput,
+): SectionDigest[] | undefined {
+  const { root, tokenHints, responsive, descriptions } = input;
+
+  const bands = findDigestBands(root);
   if (bands.length === 0) return undefined;
 
   const hasResponsive = Boolean(responsive && Object.keys(responsive).length > 0);
@@ -207,6 +220,10 @@ export function buildSectionDigests(
     if (band.instanceCount && band.instanceCount > 1) {
       digest.instances = band.instanceCount;
     }
+    // Band ids survive every stage via spread copies, so the Stage 7 line
+    // joins back even after the AI pass renamed the band.
+    const description = descriptions?.[band.id];
+    if (description) digest.description = description;
     const bandSegments = bandPart(band.layoutAnnotation);
     if (bandSegments) digest.band = bandSegments;
     const layout = findContentLayout(band);
@@ -234,6 +251,7 @@ export function formatSectionDigests(digests: SectionDigest[]): string {
   return digests
     .map((d) => {
       const lines = [`${d.ordinal}. ${d.name}${d.instances ? ` ×${d.instances}` : ""}`];
+      if (d.description) lines.push(`   intent: ${d.description}`);
       if (d.band) lines.push(`   band: ${d.band}`);
       if (d.layout) lines.push(`   layout: ${d.layout}`);
       if (d.contents) lines.push(`   contents: ${d.contents}`);

@@ -83,7 +83,12 @@ export async function extractStructure(
   const typedRoot = assignOntologyTypes(repeatedRoot);
 
   // Stage 7: AI Labelling pass
-  const { root: labeledRoot, components, naming } = await runStructureAILabeller(typedRoot);
+  const {
+    root: labeledRoot,
+    components,
+    naming,
+    sectionDescriptions,
+  } = await runStructureAILabeller(typedRoot);
 
   // Stage 7b: Responsive diff — only when secondary-viewport harvests were
   // captured alongside the primary render (§P5-2).
@@ -111,8 +116,14 @@ export async function extractStructure(
     dump && report ? linkComponentsToTokens(metricsRoot, dump, report) : undefined;
 
   // Stage 9: Section Digest (#34 / DIST-028) — ordered measured per-band
-  // summary, joined from the Stage 7b/8a/8b artifacts above.
-  const sections = buildSectionDigests({ root: metricsRoot, tokenHints, responsive });
+  // summary, joined from the Stage 7b/8a/8b artifacts above, plus the Stage 7
+  // AI intent lines when present (#36 / DIST-030).
+  const sections = buildSectionDigests({
+    root: metricsRoot,
+    tokenHints,
+    responsive,
+    descriptions: sectionDescriptions,
+  });
 
   // Stage 10: Structure Emit
   return emitStructureReport({
