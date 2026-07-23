@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { PrunedNode, ComponentDef, OntologyType } from "../structureSchema";
 import { ONTOLOGY_TYPES } from "../structureSchema";
 import { AI_MODEL, aiLaneAvailable, retryOnce } from "@/lib/aiLane";
+import { findDigestBands } from "./sections";
 
 export const aiStructureResponseSchema = z.object({
   nodeUpdates: z.array(
@@ -20,6 +21,9 @@ export const aiStructureResponseSchema = z.object({
       role: z.string().optional(),
     }),
   ),
+  /** One-line human intent description per page section (#36 / DIST-030),
+   *  keyed by the band node ids from the digest list in the prompt. */
+  sectionDescriptions: z.record(z.string(), z.string()).optional(),
 });
 
 export type AiStructureResponse = z.infer<typeof aiStructureResponseSchema>;
@@ -35,6 +39,33 @@ export interface StructureAIResult {
    *  fallback (§P7-1) — a separate axis from `fidelity`, which only speaks to
    *  whether bounds/layout were measured. */
   naming: "ai" | "heuristic";
+  /** One-line AI intent description per section digest (#36 / DIST-030),
+   *  keyed by band node id — only present on the `naming: "ai"` path when
+   *  the model returned lines for known band ids. */
+  sectionDescriptions?: Record<string, string>;
+}
+
+/** Digest-list entry sent to the prompt so the model can write one intent
+ *  line per section — the same band list Stage 9 digests, computed from the
+ *  same `findDigestBands` source. */
+type DigestListEntry = {
+  id: string;
+  name: string;
+  instances?: number;
+  layout?: string;
+  contents?: string;
+};
+
+function summarizeDigestListForAI(root: PrunedNode): DigestListEntry[] {
+  return findDigestBands(root).map((band) => ({
+    id: band.id,
+    name: band.componentName,
+    ...(band.instanceCount && band.instanceCount > 1
+      ? { instances: band.instanceCount }
+      : {}),
+    ...(band.layoutAnnotation ? { layout: band.layoutAnnotation } : {}),
+    ...(band.textSnippet ? { contents: band.textSnippet } : {}),
+  }));
 }
 
 /** One model round-trip → parsed, Zod-validated JSON (or null on failure) —
@@ -42,6 +73,7 @@ export interface StructureAIResult {
 async function requestOnce(
   client: Anthropic,
   compactTree: CompactTreeNode,
+  digestList: DigestListEntry[],
 ): Promise<AiStructureResponse | null> {
   // Prompt-injection surface (issue #27 / review S6): the compact tree embeds
   // page-controlled strings — `textSnippet`, tag names, landmarks, and
@@ -69,6 +101,14 @@ Here is the compact tree JSON:
 ${JSON.stringify(compactTree, null, 2)}
 \`\`\`
 
+Here is the page-section digest list (one entry per top-level page section, keyed by node id):
+\`\`\`json
+${JSON.stringify(digestList, null, 2)}
+\`\`\`
+For each digest entry, also write a one-line human intent description of the section
+(e.g., "Sticky pill nav: logo left, 5 items center, CTA right") and return it in
+\`sectionDescriptions\`, keyed by the same node id.
+
 Return strict JSON matching this Zod schema:
 {
   "nodeUpdates": [
@@ -77,12 +117,15 @@ Return strict JSON matching this Zod schema:
   "componentDefinitions": {
     "Button": { "type": "atom", "composition": ["Icon?", "Label"] },
     "FeatureCard": { "type": "content-block", "composition": ["Icon", "Heading", "Body"] }
+  },
+  "sectionDescriptions": {
+    "node-1": "Sticky pill nav: logo left, 5 items center, CTA right"
   }
 }`;
 
   const message = await client.messages.create({
     model: AI_MODEL,
-    max_tokens: 2000,
+    max_tokens: 3000,
     temperature: 0.1,
     messages: [{ role: "user", content: prompt }],
   });
@@ -110,11 +153,15 @@ export async function runStructureAILabeller(root: PrunedNode): Promise<Structur
 
   const client = new Anthropic();
   const compactTree = summarizeTreeForAI(root);
+  // Section digest list for the same single call (#36 / DIST-030) — computed
+  // from the same `findDigestBands` source Stage 9 uses, so the prompt and
+  // the emitted digest agree on which nodes are sections.
+  const digestList = summarizeDigestListForAI(root);
 
   // Shared AI-lane policy (`lib/aiLane.ts`): one repair retry, then graceful
   // fallback — here, heuristic naming instead of null.
   const response = await retryOnce(
-    () => requestOnce(client, compactTree),
+    () => requestOnce(client, compactTree, digestList),
     (err, attempt) => console.warn(`AI Structure Labeller failed (attempt ${attempt}):`, err),
   );
   if (!response) {
@@ -138,7 +185,18 @@ export async function runStructureAILabeller(root: PrunedNode): Promise<Structur
   // Ensure all components used in the updated root have definitions
   populateMissingComponentDefs(updatedRoot, finalComponents);
 
-  return { root: updatedRoot, components: finalComponents, naming: "ai" };
+  // Keep only descriptions keyed by band ids we actually asked about —
+  // never trust model-invented keys.
+  let sectionDescriptions: Record<string, string> | undefined;
+  if (response.sectionDescriptions) {
+    const knownIds = new Set(digestList.map((d) => d.id));
+    const filtered = Object.fromEntries(
+      Object.entries(response.sectionDescriptions).filter(([id]) => knownIds.has(id)),
+    );
+    if (Object.keys(filtered).length > 0) sectionDescriptions = filtered;
+  }
+
+  return { root: updatedRoot, components: finalComponents, naming: "ai", sectionDescriptions };
 }
 
 /** Compact JSON shape of the pruned tree sent to the model prompt. */
