@@ -18,6 +18,17 @@ export const maxDuration = 60;
 // cap (MAX_INTERPRET_IMAGES in lib/interpret.ts) on top of whatever's accepted here.
 const MAX_IMAGES = 6;
 
+// Request-body ceiling, sized from what a legitimate request can carry:
+// MAX_IMAGES uploads, each base64-encoded (≈4/3 inflation), at a generous
+// per-image wire ceiling. 8 MiB of encoded payload per image ≈ 6 MiB of raw
+// image — far above any real design screenshot — and absorbs the JSON
+// envelope (url/mode/names) riding along. Anything larger gets a 413 before
+// JSON.parse / base64 decode, so attacker-sized buffers never reach sharp,
+// the palette pipeline, or Playwright. App Router route handlers don't apply
+// the legacy `bodyParser` size config, so this is enforced explicitly.
+const MAX_IMAGE_PAYLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_REQUEST_BODY_BYTES = MAX_IMAGES * MAX_IMAGE_PAYLOAD_BYTES;
+
 interface ImageEntry {
   data: string;
   name?: string;
@@ -37,10 +48,48 @@ function stripDataUrlPrefix(image: string): string {
   return image.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
 }
 
+/** Reads the request body, enforcing MAX_REQUEST_BODY_BYTES. Returns null
+ *  when the limit is exceeded — either declared up front via Content-Length,
+ *  or observed while streaming (chunked bodies carry no Content-Length, so
+ *  the header alone can't be trusted to exist or be honest). On breach the
+ *  stream is cancelled rather than drained, so the rest of an oversized body
+ *  is never buffered. */
+async function readBodyWithinLimit(request: Request): Promise<string | null> {
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_REQUEST_BODY_BYTES) {
+    return null;
+  }
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_REQUEST_BODY_BYTES) {
+      // Best-effort abort; a cancel failure must not mask the 413.
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}
+
 export async function POST(request: Request) {
+  const rawBody = await readBodyWithinLimit(request);
+  if (rawBody === null) {
+    return NextResponse.json(
+      { error: `Request body exceeds the ${MAX_REQUEST_BODY_BYTES}-byte limit.` },
+      { status: 413 },
+    );
+  }
+
   let body: AnalyzeBody;
   try {
-    body = await request.json();
+    body = JSON.parse(rawBody);
   } catch {
     return NextResponse.json(
       { error: "Request body must be JSON." },
