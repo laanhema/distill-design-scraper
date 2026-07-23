@@ -29,8 +29,8 @@ function shadowMagnitude(raw: string): number {
  */
 
 export interface ExtractedTokens {
-  spacing: Spacing;
-  radius: Radius;
+  spacing?: Spacing;
+  radius?: Radius;
   elevation: Elevation;
 }
 
@@ -42,7 +42,7 @@ export function extractTokens(dump: StyleDump): ExtractedTokens {
   };
 }
 
-export function extractSpacing(dump: StyleDump): Spacing {
+export function extractSpacing(dump: StyleDump): Spacing | undefined {
   const counts = new Map<number, number>();
 
   for (const node of dump.nodes) {
@@ -90,15 +90,19 @@ export function extractSpacing(dump: StyleDump): Spacing {
     .map(([val]) => val)
     .sort((a, b) => a - b);
 
+  // Nothing observed → omit the lane entirely ("measured, never faked"):
+  // a defaulted scale must never carry `provenance: "measured"`.
+  if (scale.length === 0) return undefined;
+
   return {
     provenance: "measured",
     baseUnitPx,
-    scale: scale.length > 0 ? scale : [4, 8, 16, 24, 32, 48, 64],
+    scale,
     unit: "px",
   };
 }
 
-export function extractRadius(dump: StyleDump): Radius {
+export function extractRadius(dump: StyleDump): Radius | undefined {
   const counts = new Map<string, number>();
 
   for (const node of dump.nodes) {
@@ -138,9 +142,12 @@ export function extractRadius(dump: StyleDump): Radius {
     return numA - numB;
   });
 
+  // Nothing observed → omit the lane entirely ("measured, never faked").
+  if (sortedScale.length === 0) return undefined;
+
   return {
     provenance: "measured",
-    scale: sortedScale.length > 0 ? sortedScale.slice(0, 6) : ["4px", "8px", "16px", "9999px"],
+    scale: sortedScale.slice(0, 6),
   };
 }
 
