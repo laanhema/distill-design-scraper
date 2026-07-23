@@ -8,13 +8,25 @@ import { nearestPaletteRole } from "./roleMatch";
  * Stage — Component recipes (§P8-1)
  * The design report says what colors and sizes exist but never what a real
  * component *is*: padding, radius, border, color roles, type. This groups
- * style-dump nodes into a handful of element classes and takes the modal
- * (most common) observed value per property, so one outlier instance can't
- * skew the recipe.
+ * style-dump nodes into a handful of element classes, partitions each class
+ * into variant clusters by resolved background palette role (a filled primary
+ * button and a ghost button are different recipes, not one averaged chimera),
+ * and takes the modal (most common) observed value per property within each
+ * cluster, so one outlier instance can't skew the recipe.
  */
 
 /** Max px gap between a class's modal font size and a type-scale step to call it "that token". */
 const TYPE_TOKEN_MATCH_TOLERANCE_PX = 2;
+
+/** A variant cluster with at least this many instances always survives. */
+const MIN_CLUSTER_INSTANCES = 3;
+/** Smaller clusters survive only with at least this share of the class's instances. */
+const MIN_CLUSTER_SHARE = 0.15;
+/** Cap on recipe entries emitted per element class. */
+const MAX_VARIANTS_PER_ELEMENT = 3;
+
+/** Cluster key for the transparent / no-background variant — only ever a Map key, never emitted. */
+const NO_BACKGROUND_KEY = "none";
 
 function classify(node: NodeStyle): RecipeElement | null {
   // <input type="submit"|"button"> renders and behaves like a Button (styleDump.ts
@@ -132,6 +144,16 @@ function resolveColorLabel(value: string, palette: Palette): string {
   return parsed ? hex(parsed) : value;
 }
 
+/** Variant-cluster key for a node: its resolved background palette role, the
+ *  normalized hex when no role is within ΔE (two distinct unmatched bgs are
+ *  two distinct variants, not one), or the no-background sentinel — a
+ *  transparent/ghost variant is its own cluster. */
+function variantKey(node: NodeStyle, palette: Palette): string {
+  const bg = node.colors.find((c) => c.channel === "background")?.value;
+  if (!bg) return NO_BACKGROUND_KEY;
+  return resolveColorLabel(bg, palette);
+}
+
 function modalType(
   nodes: NodeStyle[],
   typography: Typography | undefined,
@@ -177,23 +199,45 @@ export function buildRecipes(
     const nodes = byElement.get(element);
     if (!nodes || nodes.length === 0) continue;
 
-    const entry: RecipeEntry = { element, padding: modalPadding(nodes) };
+    // Partition the class into variant clusters by resolved background role
+    // before any modal runs — modals taken across visually distinct variants
+    // (filled primary vs. ghost) describe no real element.
+    const clusters = new Map<string, NodeStyle[]>();
+    for (const node of nodes) {
+      const key = variantKey(node, context.palette);
+      const cluster = clusters.get(key);
+      if (cluster) cluster.push(node);
+      else clusters.set(key, [node]);
+    }
 
-    const radius = modalRadius(nodes);
-    if (radius) entry.radius = radius;
+    const kept = [...clusters.values()]
+      .filter(
+        (c) =>
+          c.length >= MIN_CLUSTER_INSTANCES || c.length / nodes.length >= MIN_CLUSTER_SHARE,
+      )
+      // Stable sort: ties keep first-seen (document-order) clusters first.
+      .sort((a, b) => b.length - a.length)
+      .slice(0, MAX_VARIANTS_PER_ELEMENT);
 
-    const bg = modalColorValue(nodes, "background");
-    if (bg) entry.bg = resolveColorLabel(bg, context.palette);
+    for (const cluster of kept) {
+      const entry: RecipeEntry = { element, padding: modalPadding(cluster) };
 
-    const text = modalColorValue(nodes, "text");
-    if (text) entry.text = resolveColorLabel(text, context.palette);
+      const radius = modalRadius(cluster);
+      if (radius) entry.radius = radius;
 
-    const border = modalColorValue(nodes, "border");
-    if (border) entry.border = resolveColorLabel(border, context.palette);
+      const bg = modalColorValue(cluster, "background");
+      if (bg) entry.bg = resolveColorLabel(bg, context.palette);
 
-    Object.assign(entry, modalType(nodes, context.typography));
+      const text = modalColorValue(cluster, "text");
+      if (text) entry.text = resolveColorLabel(text, context.palette);
 
-    entries.push(entry);
+      const border = modalColorValue(cluster, "border");
+      if (border) entry.border = resolveColorLabel(border, context.palette);
+
+      Object.assign(entry, modalType(cluster, context.typography));
+
+      entries.push(entry);
+    }
   }
 
   if (entries.length === 0) return undefined;
