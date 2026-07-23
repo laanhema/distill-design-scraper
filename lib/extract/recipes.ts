@@ -17,10 +17,14 @@ import { nearestPaletteRole } from "./roleMatch";
 const TYPE_TOKEN_MATCH_TOLERANCE_PX = 2;
 
 function classify(node: NodeStyle): RecipeElement | null {
-  if (node.tag === "button") return "Button";
   // <input type="submit"|"button"> renders and behaves like a Button (styleDump.ts
   // only marks `interactive` true for those two input types, never plain text fields).
-  if (node.tag === "input" && node.interactive) return "Button";
+  const isButtonLike = node.tag === "button" || (node.tag === "input" && node.interactive);
+  // A dropdown-trigger <button> inside primary nav is a NavItem, not a Button —
+  // check before the generic Button branch below, or unstyled nav triggers
+  // (padding 0, transparent bg) would skew the sitewide Button recipe's modes.
+  if (isButtonLike && node.inNav === true) return "NavItem";
+  if (isButtonLike) return "Button";
   // A link inside primary nav gets its own recipe — check before the generic
   // <a> fallthrough below, or every nav link would be swallowed as a TextLink.
   if (node.tag === "a" && node.inNav === true) return "NavItem";
