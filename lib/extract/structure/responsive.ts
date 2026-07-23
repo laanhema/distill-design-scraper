@@ -1,5 +1,6 @@
 import type { PrunedNode, ResponsiveHarvest } from "../structureSchema";
 import { pruneAndCollapse } from "./pruner";
+import { squashWrapperChains } from "./squash";
 import { detectRepetition } from "./repetition";
 import { assignOntologyTypes } from "./ontology";
 
@@ -90,7 +91,9 @@ function walk(
 function typeSecondary(raw: ResponsiveHarvest["rawHarvestNode"]): PrunedNode | null {
   const pruned = pruneAndCollapse(raw);
   if (!pruned) return null;
-  return assignOntologyTypes(detectRepetition(pruned));
+  // Same Stage 4b squash as the primary pipeline (index.ts) — the responsive
+  // diff aligns trees positionally, so both sides must be squashed identically.
+  return assignOntologyTypes(detectRepetition(squashWrapperChains(pruned)));
 }
 
 export interface DiffResponsiveInput {
