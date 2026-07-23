@@ -17,3 +17,14 @@ typography:
     h3: 24
     body: 16
     small: 13
+structure:
+  expectedSections:
+    - { name: SiteHeader }
+    - { name: Hero }
+    - { name: CardGrid }
+    - { name: SiteFooter }
+  expectedRegions: [SiteHeader, MainContent, CardGrid, SiteFooter]
+  expectedComponents:
+    SectionCard: { count: 6 }
+    TextLink: { count: 4 }
+    Button: { count: 2 }

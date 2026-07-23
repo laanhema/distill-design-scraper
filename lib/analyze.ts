@@ -106,6 +106,9 @@ export async function extractFromCapture(
 export async function extractStructureFromCapture(
   capture: Capture,
   report?: Report,
+  opts?: {
+    forceHeuristicNaming?: boolean
+  },
 ): Promise<StructureReport> {
   if (!capture.rawHarvestNode) {
     throw new Error("Capture does not contain rawHarvestNode for structure extraction.");
@@ -117,6 +120,7 @@ export async function extractStructureFromCapture(
     dump: report ? capture.styleDump : undefined,
     report,
     responsiveHarvests: capture.responsiveHarvests,
+    forceHeuristicNaming: opts?.forceHeuristicNaming,
   });
 }
 

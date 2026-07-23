@@ -144,7 +144,19 @@ Return strict JSON matching this Zod schema:
   return parsed.success ? parsed.data : null;
 }
 
-export async function runStructureAILabeller(root: PrunedNode): Promise<StructureAIResult> {
+export async function runStructureAILabeller(
+  root: PrunedNode,
+  opts?: { forceHeuristicNaming?: boolean },
+): Promise<StructureAIResult> {
+  // Eval-harness short-circuit (DIST-013): when the caller forces heuristic
+  // naming, skip the AI path entirely — before `aiLaneAvailable()` so the
+  // `Anthropic` client is never constructed. Keeps `npm run eval` offline even
+  // when `ANTHROPIC_API_KEY` is set, and suppresses DIST-030's
+  // `sectionDescriptions` (only produced on the AI path).
+  if (opts?.forceHeuristicNaming) {
+    return { root, components: buildFallbackComponentMap(root), naming: "heuristic" };
+  }
+
   const fallback = buildFallbackComponentMap(root);
 
   if (!aiLaneAvailable()) {
