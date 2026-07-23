@@ -80,6 +80,23 @@ Distill includes a modern Next.js web application featuring:
    SSRF_ALLOWLIST_HOSTS=staging.example.internal,localhost
    ```
 
+4. **Rate limiting** *(built in, tunable/disable-able)*:
+   `POST /api/analyze` enforces a per-client-IP token bucket — 20 requests per minute
+   by default — guarding the expensive Chromium render / AI enrichment path. Cache hits
+   don't count against the limit, since they do no render/AI work at all; only a cache
+   miss or `forceRefresh` request consumes a token. Once a client's bucket is empty, the
+   route returns `429` with a `Retry-After` header (seconds until the next token refills).
+   The store is bounded to at most `RATE_LIMIT_MAX_BUCKETS` distinct client IDs, so a
+   high-cardinality traffic pattern (e.g. spoofed `X-Forwarded-For` headers) can't grow
+   the limiter's own memory usage without bound. Tune or disable it via `.env.local`:
+   ```env
+   # .env.local
+   RATE_LIMIT_MAX_REQUESTS=20
+   RATE_LIMIT_WINDOW_MS=60000
+   RATE_LIMIT_MAX_BUCKETS=50000  # cap on distinct tracked client IDs
+   RATE_LIMIT_DISABLED=true   # disable entirely, e.g. for local dev
+   ```
+
 ---
 
 ## Running the Application
