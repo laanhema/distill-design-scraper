@@ -98,6 +98,9 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
   // (e.g. "system-ui, sans-serif" behind a proprietary "sohne-var") survives
   // even though `family` itself collapses to just the primary name.
   const familyStacks = new Map<string, string>();
+  // Sizes measured on real <h1> elements — used to anchor the h1 token to the
+  // actual primary heading rather than a frequency-popular lookalike.
+  const h1Sizes: number[] = [];
 
   for (const node of dump.nodes) {
     if (!node.type) continue;
@@ -105,6 +108,7 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
     const size = Math.round(t.fontSizePx);
     if (size < 6 || size > 200) continue; // ignore degenerate values
     const family = firstFamily(t.fontFamily);
+    if (node.tag === "h1") h1Sizes.push(size);
     if (!familyStacks.has(family)) familyStacks.set(family, t.fontFamily);
 
     const bucket = bySize.get(size) ?? [];
@@ -142,8 +146,27 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
   // extra `display` slot is only used when there is a *fourth*, even larger
   // cluster above h1. So a page with three heading sizes reads as h1/h2/h3, not
   // display/h1/h2.
+  //
+  // The `h1` token is anchored to the measured size of real <h1> elements when
+  // we saw one: pure frequency can hand the slot to a small but ubiquitous
+  // h1-styled size while the one-off hero h1 gets dropped from the picks,
+  // inverting desktop vs. mobile (the mobile pass measures the h1 element
+  // directly) — DIST-031. With no <h1>-tagged samples, behaviour is unchanged.
   const headingTokens: TypeToken[] = ["display", "h1", "h2", "h3"];
-  const chosenAbove = pickSpread(above, bySize, 4).sort((a, b) => b - a);
+  let chosenAbove: number[];
+  const h1Size = representativeHeadingSize(h1Sizes);
+  if (h1Size !== undefined && h1Size > bodySize) {
+    // Build the picks around the real h1 size: one slot above it (`display`,
+    // only if a larger cluster exists) and up to two below it, so the
+    // bottom-up token assignment below always lands `h1` on the hero size.
+    const freqRanked = pickSpread(above, bySize, 4);
+    const larger = freqRanked.filter((s) => s > h1Size).sort((a, b) => b - a);
+    const smaller = freqRanked.filter((s) => s < h1Size).sort((a, b) => b - a);
+    chosenAbove = [...larger.slice(0, 1), h1Size, ...smaller.slice(0, 2)];
+  } else {
+    chosenAbove = pickSpread(above, bySize, 4);
+  }
+  chosenAbove.sort((a, b) => b - a);
   const usedTokens = headingTokens.slice(headingTokens.length - chosenAbove.length);
   const scale: TypeScaleStep[] = [];
 
@@ -179,6 +202,26 @@ function pickSpread(
   return [...candidates]
     .sort((a, b) => bySize.get(b)!.length - bySize.get(a)!.length)
     .slice(0, n);
+}
+
+/**
+ * Representative size of the real <h1> elements: the modal size, ties broken
+ * toward the larger one — the dominant/hero heading, not a smaller outlier
+ * (DIST-031). Undefined when no <h1>-tagged text was observed.
+ */
+function representativeHeadingSize(sizes: number[]): number | undefined {
+  if (sizes.length === 0) return undefined;
+  const counts = new Map<number, number>();
+  for (const s of sizes) counts.set(s, (counts.get(s) ?? 0) + 1);
+  let best: number | undefined;
+  let bestN = 0;
+  for (const [size, n] of counts) {
+    if (n > bestN || (n === bestN && best !== undefined && size > best)) {
+      best = size;
+      bestN = n;
+    }
+  }
+  return best;
 }
 
 function buildStep(
