@@ -153,7 +153,10 @@ export type Elevation = z.infer<typeof elevationSchema>;
  * a rebuild needs verbatim, aggregated as the modal observed value per class
  * from the style dump. `bg`/`text`/`border` are palette-role names when the
  * measured color matches a swatch (nearest ΔE), else the raw hex — never a
- * fabricated role.
+ * fabricated role. `variant` is the bg-role-derived cluster label (e.g.
+ * `primary`, `transparent`), present only when an element class kept more
+ * than one variant cluster — a single-variant class has nothing to
+ * distinguish, so the field is omitted rather than stamped redundantly.
  */
 export const RECIPE_ELEMENTS = ["Button", "TextLink", "Input", "Card", "NavItem", "Badge"] as const;
 export type RecipeElement = (typeof RECIPE_ELEMENTS)[number];
@@ -161,6 +164,7 @@ export const recipeElementSchema = z.enum(RECIPE_ELEMENTS);
 
 export const recipeEntrySchema = z.object({
   element: recipeElementSchema,
+  variant: z.string().optional(),
   padding: z.string(),
   radius: z.string().optional(),
   border: z.string().optional(),

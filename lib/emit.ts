@@ -269,7 +269,8 @@ function renderRecipes(recipes: Recipes): string {
     parts.push(`padding ${e.padding}`);
     if (e.radius) parts.push(`radius ${e.radius}`);
     if (e.typeToken) parts.push(`type \`${e.typeToken}\`${e.typeWeight ? `/${e.typeWeight}` : ""}`);
-    lines.push(`- **${e.element}** — ${parts.join(" · ")}`);
+    const name = e.variant ? `${e.element} (${e.variant})` : e.element;
+    lines.push(`- **${name}** — ${parts.join(" · ")}`);
   }
   return lines.join("\n");
 }
