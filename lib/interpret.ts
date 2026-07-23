@@ -150,6 +150,14 @@ async function requestOnce(
   summary: string,
 ): Promise<AiResponse | null> {
   const mediaTypes = await Promise.all(screenshotsPngBase64.map(detectImageMediaType));
+  // Prompt-injection surface (issue #27 / review S6): these pixels are page-
+  // or user-controlled — a rendered page or uploaded image can contain
+  // adversarial text ("ignore previous instructions…") that the vision model
+  // reads like any other prompt content. Impact is bounded by the Zod-gated
+  // response (`aiResponseSchema` below) plus the graceful-null fallback, so
+  // injection can at worst skew identity/imageMood text or a color-role
+  // refinement — never tool use or data exfiltration. Widening what this
+  // response can drive widens the injection blast radius.
   const imageBlocks = screenshotsPngBase64.map((data, i) => ({
     type: "image" as const,
     source: { type: "base64" as const, media_type: mediaTypes[i], data },
