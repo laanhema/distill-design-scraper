@@ -7,6 +7,7 @@ import {
   RateLimitExceededError,
 } from "@/lib/security/rateLimiter";
 import { UnsafeUrlError } from "@/lib/security/ssrfGuard";
+import { DegenerateImageError } from "@/lib/extract/imagePalette";
 
 // Playwright needs the full Node runtime + a real Chromium binary — never Edge.
 export const runtime = "nodejs";
@@ -220,6 +221,11 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof UnsafeUrlError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: 400 });
+    }
+    // Degenerate image upload (fully transparent / unreadable): the input is
+    // at fault, not the pipeline — answer with an actionable 422, not a 502.
+    if (err instanceof DegenerateImageError) {
+      return NextResponse.json({ ok: false, error: err.message }, { status: 422 });
     }
     // §9: surface a clear error, never fabricate results.
     const message =
