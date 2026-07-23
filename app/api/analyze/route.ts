@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { analyzeImages, analyzeUrl, extractStructureFromCapture } from "@/lib/analyze";
 import { createCacheKey, getCache, setCache } from "@/lib/cache";
+import {
+  assertWithinRateLimit,
+  extractClientId,
+  RateLimitExceededError,
+} from "@/lib/security/rateLimiter";
 import { UnsafeUrlError } from "@/lib/security/ssrfGuard";
 
 // Playwright needs the full Node runtime + a real Chromium binary — never Edge.
@@ -66,6 +71,21 @@ export async function POST(request: Request) {
     if (cached) {
       return NextResponse.json(cached);
     }
+  }
+
+  // Cache hits return above and never reach here, so they consume zero
+  // budget — only a cache miss/forceRefresh (about to trigger a Chromium
+  // render or AI-lane call) counts against the limit.
+  try {
+    assertWithinRateLimit(extractClientId(request));
+  } catch (err) {
+    if (err instanceof RateLimitExceededError) {
+      return NextResponse.json(
+        { ok: false, error: err.message },
+        { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } },
+      );
+    }
+    throw err;
   }
 
   try {
