@@ -9,8 +9,7 @@ import {
   parseColor,
   wcagGrade,
 } from "@/lib/color";
-import type { ContrastPair, Palette, Swatch, ColorRole } from "@/lib/schema";
-import { COLOR_ROLES } from "@/lib/schema";
+import type { ContrastPair, Palette, Swatch } from "@/lib/schema";
 import { ROLE_USAGE } from "@/lib/extract/palette";
 import type { Color } from "culori";
 
@@ -193,20 +192,10 @@ export async function extractImagePalette(
     assignedHexes.add(accentCluster.hex);
   }
 
-  // Fill remaining required roles (muted, border) if needed
-  for (const role of COLOR_ROLES) {
-    if (swatches.some((s) => s.role === role)) continue;
-    const remaining = clusters.find((c) => !assignedHexes.has(c.hex)) ?? clusters[0];
-    swatches.push({
-      name: role,
-      role,
-      hex: remaining.hex,
-      usage: ROLE_USAGE[role],
-      areaWeight: Math.round(remaining.areaWeight * 1000) / 1000,
-      imageSourced: true,
-    });
-    assignedHexes.add(remaining.hex);
-  }
+  // Any role not assigned above (muted, border, on-primary, success, warning,
+  // danger) is omitted outright: pixel clusters carry no usage evidence for
+  // those roles, and "measured, never faked" forbids filling them from
+  // arbitrary leftovers (§P5-1 — assigned only on strong evidence).
 
   // Compute contrast pairs
   const contrast: ContrastPair[] = [];
