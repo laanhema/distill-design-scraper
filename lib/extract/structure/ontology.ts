@@ -16,7 +16,7 @@ export function assignOntologyTypes(
   );
 
   let provisionalType: OntologyType = "container";
-  let name = formatDefaultName(node, childrenTyped, insideFooter);
+  let name = formatDefaultName(node, childrenTyped, insideFooter, depth);
   let layoutAnnotation = node.layoutAnnotation;
 
   // 1. Landmarks -> region
@@ -25,10 +25,15 @@ export function assignOntologyTypes(
     (node.landmark || (node.tagName && ["header", "nav", "main", "footer"].includes(node.tagName)))
   ) {
     provisionalType = "region";
-    if (node.tagName === "header" || node.landmark === "banner") name = "SiteHeader";
-    else if (node.tagName === "footer" || node.landmark === "contentinfo") name = "SiteFooter";
-    else if (node.tagName === "nav" || node.landmark === "navigation") name = "Navbar";
-    else if (node.tagName === "main" || node.landmark === "main") name = "MainContent";
+    // The depth-0 root is the whole page (`document.body`, or whatever the
+    // pruner collapsed it into — possibly a landmark like <main>). It must
+    // stay "Page", never a landmark-specific or hero name.
+    if (depth > 0) {
+      if (node.tagName === "header" || node.landmark === "banner") name = "SiteHeader";
+      else if (node.tagName === "footer" || node.landmark === "contentinfo") name = "SiteFooter";
+      else if (node.tagName === "nav" || node.landmark === "navigation") name = "Navbar";
+      else if (node.tagName === "main" || node.landmark === "main") name = "MainContent";
+    }
 
     // Region heights give a rebuild vertical rhythm (header/footer bands,
     // hero height, etc.) that the flex/grid annotation alone doesn't convey.
@@ -72,7 +77,20 @@ export function assignOntologyTypes(
   // 3. Repeated units -> content-block
   else if (node.instanceCount && node.instanceCount >= 2) {
     provisionalType = "content-block";
-    name = `${formatDefaultName(node)}Card`;
+    if (isCardWorthy(node, childrenTyped)) {
+      name = `${formatDefaultName(node)}Card`;
+    } else if (
+      node.hasText &&
+      childrenTyped.length === 0 &&
+      node.tagName &&
+      ["span", "small", "p"].includes(node.tagName)
+    ) {
+      // Same collapse as the text-leaf cases below: a repeated bare span
+      // (e.g. animated counter digits) is "Text ×N", not "SpanCard ×N".
+      name = "Text";
+    }
+    // Otherwise keep the base default name — repetition alone doesn't make
+    // something a card.
   }
   // 3b. Text-bearing leaves (e.g. span/small labels) -> atom, never container
   else if (node.hasText && childrenTyped.length === 0) {
@@ -112,6 +130,14 @@ function isCtaRow(childrenTyped: PrunedNode[]): boolean {
   return hasButton && totalCount >= 2;
 }
 
+/** Only tags that plausibly wrap a card, with real card-like content
+ *  (children, or mixed text+image), earn the `*Card` suffix — a repeated
+ *  bare span/li (counter digits, plain list items) keeps its base name. */
+function isCardWorthy(node: PrunedNode, childrenTyped: PrunedNode[]): boolean {
+  if (!node.tagName || !["div", "section", "article", "li"].includes(node.tagName)) return false;
+  return childrenTyped.length > 0 || (node.hasText && node.isImageOrSvg);
+}
+
 /** A hero is expected to sit in the initial viewport, not further down the page. */
 const HERO_Y_THRESHOLD_PX = 900;
 
@@ -119,7 +145,12 @@ function formatDefaultName(
   node: PrunedNode,
   childrenTyped: PrunedNode[] = [],
   insideFooter: boolean = false,
+  depth: number = 1,
 ): string {
+  // The depth-0 root is the page itself — never a "Hero", whatever h1 it
+  // contains and wherever that h1 sits. Internal call sites that name
+  // non-root nodes omit `depth` and get the >0 default.
+  if (depth === 0) return "Page";
   // `<section>` always carries `landmark === "section"` (harvester.ts getLandmark),
   // so this structure-aware check must run before the generic landmark fallback below
   // — otherwise every section collapses to the literal capitalized landmark ("Section").
@@ -149,12 +180,15 @@ function isHeroSection(node: PrunedNode, childrenTyped: PrunedNode[]): boolean {
 
 /** A container whose only content is one repeated card-like block is a card
  *  grid, whatever its own tag/layout — a more transferable name than the
- *  generic layout-derived "GridSection" (§P5-3). */
+ *  generic layout-derived "GridSection" (§P5-3). The repeated child must
+ *  actually be a card (carry the `*Card` suffix) — a run of repeated text
+ *  spans (e.g. counter digits) doesn't make its wrapper a "CardGrid". */
 function isCardGrid(childrenTyped: PrunedNode[]): boolean {
   return (
     childrenTyped.length === 1 &&
     childrenTyped[0].provisionalType === "content-block" &&
-    (childrenTyped[0].instanceCount ?? 1) >= 2
+    (childrenTyped[0].instanceCount ?? 1) >= 2 &&
+    childrenTyped[0].componentName.endsWith("Card")
   );
 }
 
