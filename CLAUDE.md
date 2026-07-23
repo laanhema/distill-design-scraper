@@ -20,7 +20,7 @@ The prevailing design principle across the codebase: **measured, never faked**. 
 npm run dev             # Next.js dev server (http://localhost:3000)
 npm run build           # production build
 npm run typecheck       # tsc --noEmit — run this after any lib/ change
-npm run lint            # next lint — run after any change, alongside typecheck
+npm run lint            # eslint . — run after any change, alongside typecheck
 
 npm run eval            # regression gate over the measured extraction lane (see below)
 npm run eval:capture    # (re)capture eval/corpus/*/capture.json from live fixtures/URLs

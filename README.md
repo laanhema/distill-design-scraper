@@ -15,7 +15,7 @@ Distill operates via two parallel extraction tracks:
 - **AI Visual Interpretation** *(Optional)*: Vision model analysis producing brand identity/personality, aesthetic style tags, target audience framing, and Unsplash `imageMood` keywords.
 
 ### 🏗️ Track B: Structure Lane (Layout Architecture)
-- **8-Stage Extraction Pipeline**: `Render` → `Harvest` → `Prune` → `Wrapper Collapse` → `Repetition Detection` → `Ontological Mapping` → `AI Semantic Refinement` → `Structure Emitter`.
+- **Staged Extraction Pipeline**: `Render` → `Harvest` → `Prune` → `Wrapper Collapse/Squash` → `Repetition Detection` → `Ontological Mapping` → `AI Semantic Refinement` → `Responsive Diff` → `Region Metrics` → `Token Link` (in `both` mode) → `Section Digest` → `Structure Emitter`.
 - **Layout Mechanics**: Detailing page layout modes (CSS Grid, Flexbox), max-width constraints, sticky headers, and responsive breakpoint rules.
 - **Page Ontology & Regions**: Classifies structural regions (Header, Hero, Navigation, Sidebar, Main Content, Footer, Cards, Grids, Forms, Controls).
 - **Modularity & Hierarchies**: Maps nested UI component trees and repeating patterns.
@@ -197,7 +197,7 @@ whatever the client sent.
 | `npm run dev` | Starts Next.js development server at `http://localhost:3000`. |
 | `npm run build` | Builds the Next.js production application. |
 | `npm run start` | Runs the production Next.js server. |
-| `npm run lint` | Runs `next lint` code checks. |
+| `npm run lint` | Runs ESLint (`eslint .`) code checks. |
 | `npm run typecheck` | Validates TypeScript types (`tsc --noEmit`). |
 | `npm run eval` | Evaluates extraction heuristics against corpus fixtures (`eval/corpus`) offline without a live browser. |
 | `npm run eval:ai` | Performs stability checks on AI interpretation outputs across multiple runs. |
