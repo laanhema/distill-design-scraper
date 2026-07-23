@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const imagesKeyPart = images.map((img) => img.data.slice(0, 100)).join("|");
+  const imagesKeyPart = images.map((img) => img.data).join("|");
   const cacheKey = createCacheKey(`${url || ""}:${imagesKeyPart}:${mode}`);
   if (!body.forceRefresh) {
     const cached = getCache<unknown>(cacheKey);
