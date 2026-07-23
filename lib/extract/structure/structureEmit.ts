@@ -36,6 +36,17 @@ export interface StructureEmitInput {
  * Stage 8 — Structure Emit (§3, family 2)
  * Formats the ASCII skeleton, component map, and machine JSON block into the target report.
  */
+
+/** Body skeleton renders depth-capped (#35 / DIST-029) — the full tree still
+ *  lives in the `skeletonAscii` field and the machine block; the body only
+ *  needs enough levels to orient the reader. Depth 1 = the root line. */
+const BODY_SKELETON_MAX_DEPTH = 3;
+
+/** Ontology types shown in the `## Components` body section (#35 / DIST-029) —
+ *  atoms and generic containers (`FlexContainerCard` etc.) stay
+ *  machine-block-only. */
+const BODY_COMPONENT_TYPES = new Set(["region", "content-block", "composite"]);
+
 export function emitStructureReport(input: StructureEmitInput): StructureReport {
   const {
     sourceUrl,
@@ -66,11 +77,17 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
       )
     : components;
 
-  // 1. Build ASCII Skeleton
+  // 1. Build ASCII Skeleton — the field keeps the full tree (`scoreStructure`
+  // greps it for region names); only the body rendering is depth-capped.
   const skeletonAscii = buildAsciiSkeleton(root);
+  const skeletonDetailAscii = buildAsciiSkeleton(root, BODY_SKELETON_MAX_DEPTH);
 
-  // 2. Build Component Map Text
+  // 2. Build Component Map Text (body-filtered to region/content-block/composite)
   const componentMapText = buildComponentMapText(mergedComponents);
+
+  // 2b. Format the digest once — the body section and the `sectionsText` field
+  // share this single artifact so the two can never drift.
+  const sectionsText = hasSections ? formatSectionDigests(sections!) : undefined;
 
   // 3. Build Machine Block JSON
   const treeNodes = buildMachineTreeNodes([root], fidelity);
@@ -110,6 +127,14 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
     ? `\n\n## Responsive\n\n${buildResponsiveSectionText(responsive!)}`
     : "";
 
+  // Conditional sections carry their own leading blank line and are omitted
+  // entirely (never rendered empty) when their input is absent — the project's
+  // `if (report.<field>)` convention.
+  const pageSectionsSection = sectionsText ? `\n\n## Page sections\n\n${sectionsText}` : "";
+  const componentsSection = componentMapText
+    ? `\n\n## Components\n\nEach component is defined once; the skeleton holds the instances.\n\n${componentMapText}`
+    : "";
+
   const markdown = `# Layout Structure — ${hostname}
 
 \`\`\`
@@ -118,19 +143,13 @@ viewport:  ${viewportStr}
 captured:  ${capturedAt.split("T")[0]}
 fidelity:  ${fidelity}
 naming:    ${naming}${contentMaxWidthLine}${viewportsLine}
+\`\`\`${pageSectionsSection}
+
+## Skeleton (detail)
+
 \`\`\`
-
-## Skeleton
-
-\`\`\`
-${skeletonAscii}
-\`\`\`
-
-## Components
-
-Each component is defined once; the skeleton holds the instances.
-
-${componentMapText}${responsiveSection}
+${skeletonDetailAscii}
+\`\`\`${componentsSection}${responsiveSection}
 
 ## Machine block
 
@@ -151,9 +170,9 @@ ${serializeMachineBlockCompact(machineBlock)}
     },
     skeletonAscii,
     componentMapText,
-    // Body placement of the digest (`## Page sections`) is DIST-029 — here we
-    // only carry the formatted text, derived from the same digest objects.
-    ...(hasSections ? { sectionsText: formatSectionDigests(sections!) } : {}),
+    // Same artifact as the body's `## Page sections` section — one source,
+    // no drift.
+    ...(sectionsText ? { sectionsText } : {}),
     machineBlock,
     markdown,
   };
@@ -230,7 +249,17 @@ function computeContentMaxWidth(root: PrunedNode, viewportWidth: number): number
   return best;
 }
 
-function buildAsciiSkeleton(node: PrunedNode, prefix = ""): string {
+/** ASCII tree rendering. `maxDepth` (1 = root line only) caps the recursion
+ *  for the body's `## Skeleton (detail)` section — a node at the cap that
+ *  still has children gets a single `…` line so the truncation is visible,
+ *  never silent. Omit `maxDepth` for the full tree (the `skeletonAscii`
+ *  field). */
+function buildAsciiSkeleton(
+  node: PrunedNode,
+  maxDepth?: number,
+  prefix = "",
+  depth = 1,
+): string {
   let line = node.componentName;
   if (node.layoutAnnotation) {
     line += ` [${node.layoutAnnotation}]`;
@@ -245,12 +274,19 @@ function buildAsciiSkeleton(node: PrunedNode, prefix = ""): string {
   let result = line;
 
   const children = node.children;
+  if (maxDepth !== undefined && depth >= maxDepth) {
+    if (children.length > 0) {
+      result += "\n" + prefix + "└─ …";
+    }
+    return result;
+  }
   for (let i = 0; i < children.length; i++) {
     const child = children[i];
     const childIsLast = i === children.length - 1;
     const connector = childIsLast ? "└─ " : "├─ ";
     const childPrefix = prefix + (childIsLast ? "   " : "│  ");
-    result += "\n" + prefix + connector + buildAsciiSkeleton(child, childPrefix);
+    result +=
+      "\n" + prefix + connector + buildAsciiSkeleton(child, maxDepth, childPrefix, depth + 1);
   }
 
   return result;
@@ -259,6 +295,9 @@ function buildAsciiSkeleton(node: PrunedNode, prefix = ""): string {
 function buildComponentMapText(components: Record<string, ComponentDef>): string {
   const lines: string[] = [];
   for (const [name, def] of Object.entries(components)) {
+    // Body shows intent-altitude entries only (#35 / DIST-029); atoms and
+    // generic containers remain machine-block-only.
+    if (!BODY_COMPONENT_TYPES.has(def.type)) continue;
     lines.push(`### ${name} \`${def.type}\``);
     if (def.role) {
       lines.push(`- role: ${def.role}`);
