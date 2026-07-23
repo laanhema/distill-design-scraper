@@ -7,6 +7,13 @@ import { promises as dns } from "dns";
  * can't slip a headless-browser navigation into an operator's internal network.
  * Fails closed: an unresolvable hostname is rejected, never handed to
  * Playwright's own resolver unchecked.
+ *
+ * Known limitation (TOCTOU / DNS rebinding): validation resolves via
+ * `dns.lookup` at submission time, but Chromium re-resolves independently when
+ * it navigates — a rebinding DNS name can answer public here and private
+ * there. That gap is out of scope for this in-process guard; the mitigation is
+ * network-layer egress filtering (README "Layer 2 — network-restrict the
+ * container").
  */
 
 /** Single error type for every rejection reason so callers can key off one `instanceof` check. */
@@ -47,17 +54,27 @@ const BLOCKED_IPV4_RANGES: Ipv4Range[] = [
   // Beyond the literal AC list: "this network" — same class of reserved
   // address as loopback/private, closing an obvious adjacent bypass.
   rangeToInt("0.0.0.0/8"),
+  // Carrier-grade NAT shared address space (RFC 6598) — private in practice.
+  rangeToInt("100.64.0.0/10"),
+  // Multicast (224.0.0.0–239.255.255.255) — never a legitimate scrape target.
+  rangeToInt("224.0.0.0/4"),
+  // Reserved/future-use (240.0.0.0–255.255.255.255), includes broadcast.
+  rangeToInt("240.0.0.0/4"),
 ];
 
-/** Checks a dotted-quad IPv4 address against the blocked-range list via 32-bit integer + mask arithmetic. */
-export function isBlockedIpv4(ip: string): boolean {
-  const ipInt = ipv4ToInt(ip);
-  if (ipInt === null) return false;
+function isBlockedIpv4Int(ipInt: number): boolean {
   for (const { base, maskBits } of BLOCKED_IPV4_RANGES) {
     const mask = maskBits === 0 ? 0 : (0xffffffff << (32 - maskBits)) >>> 0;
     if ((ipInt & mask) === (base & mask)) return true;
   }
   return false;
+}
+
+/** Checks a dotted-quad IPv4 address against the blocked-range list via 32-bit integer + mask arithmetic. */
+export function isBlockedIpv4(ip: string): boolean {
+  const ipInt = ipv4ToInt(ip);
+  if (ipInt === null) return false;
+  return isBlockedIpv4Int(ipInt);
 }
 
 function ipv6ToBigInt(ip: string): bigint | null {
@@ -92,9 +109,11 @@ function extractIpv4Mapped(ip: string): string | null {
 
 /** Checks an IPv6 address against loopback (`::1`), unique-local (`fc00::/7`), and
  *  link-local (`fe80::/10`) ranges via BigInt-based 128-bit parsing + mask.
- *  Also normalizes IPv4-mapped addresses (`::ffff:a.b.c.d`) by delegating to
- *  `isBlockedIpv4` on the embedded v4 address — otherwise `::ffff:127.0.0.1`
- *  would bypass the v6 checks entirely. */
+ *  Also normalizes IPv4-mapped addresses (`::ffff:0:0/96`) by delegating to
+ *  `isBlockedIpv4` on the embedded v4 address — in both the dotted form
+ *  (`::ffff:127.0.0.1`, via the regex shortcut) and the hex form
+ *  (`::ffff:7f00:1`, via the parsed 128-bit value) — otherwise a mapped
+ *  loopback/private target would bypass the v6 checks entirely. */
 export function isBlockedIpv6(ip: string): boolean {
   const mapped = extractIpv4Mapped(ip);
   if (mapped) return isBlockedIpv4(mapped);
@@ -103,6 +122,13 @@ export function isBlockedIpv6(ip: string): boolean {
 
   const ipInt = ipv6ToBigInt(ip);
   if (ipInt === null) return false;
+
+  // IPv4-mapped in hex form (`::ffff:7f00:1`) — the dotted-quad regex above
+  // can't see it, but the parsed value identifies `::ffff:0:0/96` regardless
+  // of textual spelling; check the embedded v4 address against the v4 ranges.
+  if (ipInt >> 32n === 0xffffn) {
+    return isBlockedIpv4Int(Number(ipInt & 0xffffffffn));
+  }
 
   // fc00::/7 — unique local addresses.
   const uniqueLocalBase = ipv6ToBigInt("fc00::")!;

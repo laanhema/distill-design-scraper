@@ -65,9 +65,11 @@ Distill includes a modern Next.js web application featuring:
 3. **SSRF guard** *(built in, no configuration required)*:
    Before navigating to any submitted URL, Distill resolves its hostname via DNS and
    rejects the request if the resolved address falls in a loopback, private, or
-   link-local range — `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
-   `169.254.0.0/16`, `0.0.0.0/8` (IPv4), and `::1`, `fc00::/7`, `fe80::/10` (IPv6,
-   including IPv4-mapped addresses like `::ffff:127.0.0.1`). Validation happens
+   otherwise reserved range — `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
+   `169.254.0.0/16`, `0.0.0.0/8`, `100.64.0.0/10` (CGNAT), `224.0.0.0/4` (multicast),
+   `240.0.0.0/4` (reserved/broadcast) for IPv4, and `::1`, `fc00::/7`, `fe80::/10` for IPv6 —
+   including IPv4-mapped IPv6 addresses in both their dotted (`::ffff:127.0.0.1`) and
+   hex (`::ffff:7f00:1`) spellings. Validation happens
    *after* DNS resolution, not against the literal hostname string, so a hostname
    that resolves to a private address is blocked even if it looks public. Non-`http(s)`
    schemes (`file://`, `ftp://`, etc.) are always rejected.
@@ -148,7 +150,14 @@ network sandboxing second, and auth/limits at the edge third.
 The built-in SSRF guard only validates the *initial* submitted URL. Once Chromium starts
 rendering, the page's own subresource requests, any HTTP redirects it follows, and JS-initiated
 `fetch`/`XHR` calls all ride the browser session and are **not** re-checked against the guard.
-Network-level egress restriction on the container is the layer that closes this gap.
+
+The guard is also subject to a TOCTOU / DNS-rebinding race: it resolves the hostname once via
+`dns.lookup` and validates *that* result, but Chromium performs its own, independent DNS
+resolution when it actually navigates. A rebinding DNS name can answer with a public address at
+check time and a private one (e.g. `169.254.169.254`) at navigation time, passing the guard while
+still reaching internal targets. No in-process check can close this race — network-level egress
+restriction on the container is the real mitigation, for this and for the subresource/redirect
+gap above.
 
 Example: block the container's route to cloud metadata and RFC1918 private ranges via the
 `DOCKER-USER` iptables chain on the Docker host (consulted for all traffic leaving Docker
