@@ -46,7 +46,9 @@ interface AnalyzeBody {
 }
 
 function stripDataUrlPrefix(image: string): string {
-  return image.replace(/^data:image\/[a-zA-Z]+;base64,/, "");
+  // Subtype must cover multi-token MIME types — `svg+xml` (the `+`) was the
+  // original gap, and dots/dashes appear in e.g. `vnd.microsoft.icon`.
+  return image.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
 }
 
 /** Reads the request body, enforcing MAX_REQUEST_BODY_BYTES. Returns null

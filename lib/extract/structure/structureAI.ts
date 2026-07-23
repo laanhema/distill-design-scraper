@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { PrunedNode, ComponentDef, OntologyType } from "../structureSchema";
 import { ONTOLOGY_TYPES } from "../structureSchema";
-import { AI_MODEL } from "@/lib/aiLane";
+import { AI_MODEL, aiLaneAvailable, retryOnce } from "@/lib/aiLane";
 
 export const aiStructureResponseSchema = z.object({
   nodeUpdates: z.array(
@@ -37,17 +37,12 @@ export interface StructureAIResult {
   naming: "ai" | "heuristic";
 }
 
-export async function runStructureAILabeller(root: PrunedNode): Promise<StructureAIResult> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  const fallback = buildFallbackComponentMap(root);
-
-  if (!apiKey) {
-    return { root, components: fallback, naming: "heuristic" };
-  }
-
-  const client = new Anthropic({ apiKey });
-  const compactTree = summarizeTreeForAI(root);
-
+/** One model round-trip → parsed, Zod-validated JSON (or null on failure) —
+ *  same null-gate shape as `interpret.ts`, so `retryOnce` can drive it. */
+async function requestOnce(
+  client: Anthropic,
+  compactTree: CompactTreeNode,
+): Promise<AiStructureResponse | null> {
   // Prompt-injection surface (issue #27 / review S6): the compact tree embeds
   // page-controlled strings — `textSnippet`, tag names, landmarks, and
   // heuristic component names all derive from the rendered page, so a hostile
@@ -85,47 +80,65 @@ Return strict JSON matching this Zod schema:
   }
 }`;
 
+  const message = await client.messages.create({
+    model: AI_MODEL,
+    max_tokens: 2000,
+    temperature: 0.1,
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const text = message.content[0].type === "text" ? message.content[0].text : "";
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  let raw: unknown;
   try {
-    const message = await client.messages.create({
-      model: AI_MODEL,
-      max_tokens: 2000,
-      temperature: 0.1,
-      messages: [{ role: "user", content: prompt }],
-    });
+    raw = JSON.parse(jsonMatch[0]);
+  } catch {
+    return null;
+  }
+  const parsed = aiStructureResponseSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
 
-    const text = message.content[0].type === "text" ? message.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return { root, components: fallback, naming: "heuristic" };
-    }
+export async function runStructureAILabeller(root: PrunedNode): Promise<StructureAIResult> {
+  const fallback = buildFallbackComponentMap(root);
 
-    const parsed = aiStructureResponseSchema.safeParse(JSON.parse(jsonMatch[0]));
-    if (!parsed.success) {
-      return { root, components: fallback, naming: "heuristic" };
-    }
-
-    // Apply updates to node tree
-    const updateMap = new Map(parsed.data.nodeUpdates.map((u) => [u.id, u]));
-    const updatedRoot = applyNodeUpdates(root, updateMap);
-
-    // Merge component definitions
-    const finalComponents: Record<string, ComponentDef> = {};
-    for (const [name, def] of Object.entries(parsed.data.componentDefinitions)) {
-      finalComponents[name] = {
-        type: def.type,
-        composition: def.composition,
-        role: def.role,
-      };
-    }
-
-    // Ensure all components used in the updated root have definitions
-    populateMissingComponentDefs(updatedRoot, finalComponents);
-
-    return { root: updatedRoot, components: finalComponents, naming: "ai" };
-  } catch (err) {
-    console.warn("AI Structure Labeller failed, using heuristic fallback:", err);
+  if (!aiLaneAvailable()) {
     return { root, components: fallback, naming: "heuristic" };
   }
+
+  const client = new Anthropic();
+  const compactTree = summarizeTreeForAI(root);
+
+  // Shared AI-lane policy (`lib/aiLane.ts`): one repair retry, then graceful
+  // fallback — here, heuristic naming instead of null.
+  const response = await retryOnce(
+    () => requestOnce(client, compactTree),
+    (err, attempt) => console.warn(`AI Structure Labeller failed (attempt ${attempt}):`, err),
+  );
+  if (!response) {
+    return { root, components: fallback, naming: "heuristic" };
+  }
+
+  // Apply updates to node tree
+  const updateMap = new Map(response.nodeUpdates.map((u) => [u.id, u]));
+  const updatedRoot = applyNodeUpdates(root, updateMap);
+
+  // Merge component definitions
+  const finalComponents: Record<string, ComponentDef> = {};
+  for (const [name, def] of Object.entries(response.componentDefinitions)) {
+    finalComponents[name] = {
+      type: def.type,
+      composition: def.composition,
+      role: def.role,
+    };
+  }
+
+  // Ensure all components used in the updated root have definitions
+  populateMissingComponentDefs(updatedRoot, finalComponents);
+
+  return { root: updatedRoot, components: finalComponents, naming: "ai" };
 }
 
 /** Compact JSON shape of the pruned tree sent to the model prompt. */

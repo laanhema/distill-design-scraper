@@ -128,9 +128,11 @@ async function requestOnce(
   return parsed.success ? parsed.data.root : null;
 }
 
-let idCounter = 0;
-function toPrunedNode(node: AiVisionNode): PrunedNode {
-  const id = `img-node-${idCounter++}`;
+/** `counter` is per-invocation state — a fresh `{ next: 0 }` per call to
+ *  `structureFromImages`, so concurrent requests never share ids and ids
+ *  don't grow unboundedly across a process's lifetime. */
+function toPrunedNode(node: AiVisionNode, counter: { next: number }): PrunedNode {
+  const id = `img-node-${counter.next++}`;
   return {
     id,
     // No DOM to read a tag or measure bounds from — left absent rather than
@@ -146,7 +148,7 @@ function toPrunedNode(node: AiVisionNode): PrunedNode {
     provisionalType: node.type,
     componentName: node.componentName,
     instanceCount: node.instanceCount,
-    children: (node.children ?? []).map(toPrunedNode),
+    children: (node.children ?? []).map((child) => toPrunedNode(child, counter)),
   };
 }
 
@@ -194,7 +196,7 @@ export async function structureFromImages(
   );
   if (!aiRoot) return null;
 
-  const root = toPrunedNode(aiRoot);
+  const root = toPrunedNode(aiRoot, { next: 0 });
   const components = buildFallbackComponentMap(root);
 
   // Each image's own pixel dimensions are real, measured data — unlike a

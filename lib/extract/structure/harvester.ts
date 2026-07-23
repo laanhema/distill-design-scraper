@@ -1,12 +1,16 @@
 import type { Page } from "playwright";
 import type { RawHarvestNode } from "../structureSchema";
 
+/** Hard cap on harvested nodes, to bound the payload handed back to Node —
+ *  mirrors `NODE_CAP` in `lib/extract/styleDump.ts`. */
+const NODE_CAP = 5000;
+
 /**
  * Stage 2 — Harvest (§5b)
  * Walks the rendered DOM via `page.evaluate` and returns a tree of RawHarvestNode.
  */
 export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
-  return page.evaluate(() => {
+  return page.evaluate((cap) => {
     let idCounter = 0;
 
     function getSignature(el: Element, w: number, h: number): string {
@@ -74,6 +78,10 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
     }
 
     function harvestNode(el: Element): RawHarvestNode | null {
+      // Cap reached — prune the rest of the tree so a pathological DOM can't
+      // grow the serialized payload unboundedly.
+      if (idCounter >= cap) return null;
+
       const style = window.getComputedStyle(el);
       if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") {
         return null;
@@ -86,8 +94,9 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
       }
 
       const tag = el.tagName.toLowerCase();
-      // Skip non-rendered metadata tags
-      if (["script", "style", "meta", "link", "noscript", "template", "svg"].includes(tag) && tag !== "svg") {
+      // Skip non-rendered metadata tags. `svg` is deliberately NOT skipped —
+      // it renders and feeds `isImageOrSvg` below.
+      if (["script", "style", "meta", "link", "noscript", "template"].includes(tag)) {
         return null;
       }
 
@@ -152,5 +161,5 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
       throw new Error("Failed to harvest document.body from DOM.");
     }
     return root;
-  });
+  }, NODE_CAP);
 }
