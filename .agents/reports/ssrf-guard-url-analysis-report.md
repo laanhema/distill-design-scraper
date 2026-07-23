@@ -1,6 +1,6 @@
 # Implementation Report
 
-**Plan**: `.agents/plans/ssrf-guard-url-analysis.plan.md`
+**Plan**: `.agents/plans/completed/ssrf-guard-url-analysis-plan.md`
 **Branch**: `feature/ssrf-guard-url-analysis`
 **Status**: COMPLETE
 

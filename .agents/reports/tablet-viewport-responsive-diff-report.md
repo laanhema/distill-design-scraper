@@ -1,6 +1,6 @@
 # Implementation Report
 
-**Plan**: `.agents/plans/tablet-viewport-responsive-diff.plan.md`
+**Plan**: `.agents/plans/completed/tablet-viewport-responsive-diff-plan.md`
 **Branch**: `feature/tablet-viewport-responsive-diff`
 **Status**: COMPLETE
 

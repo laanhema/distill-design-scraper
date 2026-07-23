@@ -1,6 +1,6 @@
 # Implementation Report
 
-**Plan**: `.agents/plans/deployment-hardening-docs.plan.md`
+**Plan**: `.agents/plans/completed/deployment-hardening-docs-plan.md`
 **Branch**: `feature/deployment-hardening-docs`
 **Status**: COMPLETE
 
