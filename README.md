@@ -9,14 +9,14 @@
 Distill operates via two parallel extraction tracks:
 
 ### 🎨 Track A: Token Lane (Design System)
-- **Palette Harvesting**: Area-weighted pixel analysis (via Sharp & Culori), DOM color clustering, OKLCH perception, APCA contrast calculations, and automatic role assignment (*primary*, *surface*, *text*, *border*, *status*).
+- **Palette Harvesting**: Area-weighted pixel analysis (via Sharp & Culori), DOM color clustering, OKLCH perception, WCAG contrast calculations, and automatic role assignment (*primary*, *surface*, *text*, *border*, *status*).
 - **Typography Scale**: Extracted font families, size hierarchy, font weights, line heights, and letter spacing.
 - **Spatial & Geometry Tokens**: Inferred spacing multiples/base units, corner radius scales, and normalized box-shadow elevation levels.
 - **AI Visual Interpretation** *(Optional)*: Vision model analysis producing brand identity/personality, aesthetic style tags, target audience framing, and Unsplash `imageMood` keywords.
 
 ### 🏗️ Track B: Structure Lane (Layout Architecture)
 - **8-Stage Extraction Pipeline**: `Render` → `Harvest` → `Prune` → `Wrapper Collapse` → `Repetition Detection` → `Ontological Mapping` → `AI Semantic Refinement` → `Structure Emitter`.
-- **Layout Mechanics**: Detailing page layout modes (CSS Grid, Flexbox, Container Queries), max-width constraints, sticky headers, and responsive breakpoint rules.
+- **Layout Mechanics**: Detailing page layout modes (CSS Grid, Flexbox), max-width constraints, sticky headers, and responsive breakpoint rules.
 - **Page Ontology & Regions**: Classifies structural regions (Header, Hero, Navigation, Sidebar, Main Content, Footer, Cards, Grids, Forms, Controls).
 - **Modularity & Hierarchies**: Maps nested UI component trees and repeating patterns.
 
@@ -25,15 +25,15 @@ Distill operates via two parallel extraction tracks:
 ## Input Modes & Reports
 
 - **URL Input**: Executes a headless Chromium browser instance via Playwright to capture computed styles, screenshot, and raw DOM node trees. Supports mode selection: `tokens`, `structure`, or `both`.
-- **Image Input**: Generates a lighter `palette-mood` report based on image palette extraction and AI vision interpretation (bypassing synthetic or faked typography/spacing tokens). **Palette & Mood only** — an uploaded image has no DOM to harvest, so there is no layout-structure report for image input, regardless of mode. Accepts one or more images of the same site/design (up to 6); their pixel clusters are merged into a single deduplicated palette rather than producing one report per image.
+- **Image Input**: Produces a measured palette + mood report from image pixel analysis and AI vision interpretation. Layout structure from an image is vision-inferred — stamped `fidelity: inferred` — and requires an API key (no DOM to walk, so no measured layout is possible). Accepts one or more images of the same site/design (up to 6); their pixel clusters are merged into a single deduplicated palette rather than producing one report per image.
 
 ---
 
 ## Interactive UI & API
 
 Distill includes a modern Next.js web application featuring:
-- **Interactive Workbench**: URL submission, mode toggles (`tokens`, `structure`, `both`) for URL input, and drag-and-drop multi-image upload (Palette & Mood only) with a thumbnail strip, plus forced cache refresh controls.
-- **Visual Swatches & Previews**: Live viewport rendering alongside visual color swatches and OKLCH/APCA contrast indicators.
+- **Interactive Workbench**: URL submission and drag-and-drop multi-image upload with a thumbnail strip (up to 6 images merge into a single palette). Structure from images is vision-inferred and requires an API key.
+- **Visual Swatches & Previews**: Live viewport rendering alongside visual color swatches and OKLCH/WCAG contrast indicators.
 - **Tabbed Markdown Output**: Quick tabs for Preview, Design System Tokens, and Structural Architecture, with 1-click Markdown copying and file downloading.
 - **REST Endpoint**: `POST /api/analyze` accepts JSON payloads containing `{ url, images, mode, forceRefresh }` (`images` is `{ data, name? }[]`; the legacy single-image `image`/`imageName` fields still work as a one-element alias) and returns fully formatted reports and metadata.
 
