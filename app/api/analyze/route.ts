@@ -235,10 +235,18 @@ export async function POST(request: Request) {
     if (err instanceof DegenerateImageError) {
       return NextResponse.json({ ok: false, error: err.message }, { status: 422 });
     }
-    // §9: surface a clear error, never fabricate results.
-    const message =
-      err instanceof Error ? err.message : "Unknown rendering error.";
-    return NextResponse.json({ ok: false, error: message }, { status: 502 });
+    // §9: surface a clear error, never fabricate results — but keep internals
+    // out of it. Raw error messages from the render/AI pipeline can carry
+    // internal details (Playwright/Chromium errors, file paths, upstream API
+    // responses), so the full error goes to server logs only and the client
+    // gets a fixed generic message (issue #27 / review S6). The typed
+    // branches above stay verbatim: those messages are deliberately
+    // client-facing and actionable.
+    console.error("Analyze pipeline error:", err);
+    return NextResponse.json(
+      { ok: false, error: "Analysis failed due to an internal error. Please try again." },
+      { status: 502 },
+    );
   }
 }
 

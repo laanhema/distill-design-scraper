@@ -173,6 +173,15 @@ export async function structureFromImages(
 
   const images = input.imagesPngBase64.slice(0, MAX_STRUCTURE_IMAGES);
   const mediaTypes = await Promise.all(images.map(detectImageMediaType));
+  // Prompt-injection surface (issue #27 / review S6): uploaded pixels are
+  // user-controlled — an image can contain adversarial rendered text ("ignore
+  // previous instructions…") that the vision model reads like any other
+  // prompt content. Impact is bounded by the Zod-gated response
+  // (`aiVisionStructureResponseSchema`, ontology types constrained to the
+  // ONTOLOGY_TYPES enum) plus the retry-then-null fallback, so injection can
+  // at worst skew the inferred skeleton's names/labels — never tool use or
+  // data exfiltration. Widening what this response can drive widens the
+  // injection blast radius.
   const imageBlocks = images.map((data, i) => ({
     type: "image" as const,
     source: { type: "base64" as const, media_type: mediaTypes[i], data },

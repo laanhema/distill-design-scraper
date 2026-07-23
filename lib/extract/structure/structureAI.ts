@@ -48,6 +48,16 @@ export async function runStructureAILabeller(root: PrunedNode): Promise<Structur
   const client = new Anthropic({ apiKey });
   const compactTree = summarizeTreeForAI(root);
 
+  // Prompt-injection surface (issue #27 / review S6): the compact tree embeds
+  // page-controlled strings — `textSnippet`, tag names, landmarks, and
+  // heuristic component names all derive from the rendered page, so a hostile
+  // page can address the model directly through its own content. The blast
+  // radius is bounded by construction: the response must parse as JSON and
+  // pass `aiStructureResponseSchema` (types constrained to the ONTOLOGY_TYPES
+  // enum), and any parse/validation failure falls back to heuristic naming —
+  // so the worst case is mislabeled component names/types in the report,
+  // never tool use, code execution, or data exfiltration. Keep it that way:
+  // widening what this response can drive widens the injection blast radius.
   const prompt = `You are a UI architecture assistant. You are given a measured DOM tree skeleton of a webpage.
 Assign semantic component names (e.g., SiteHeader, Hero, FeatureCard, Button, PricingTier, SiteFooter) and ontology types (region, container, content-block, atom, composite) to the tree nodes.
 Also provide composition strings for each defined component.
