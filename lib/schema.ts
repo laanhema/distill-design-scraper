@@ -14,7 +14,14 @@ import { z } from "zod";
 export const PROVENANCE = ["measured", "inferred", "ai"] as const;
 export const provenanceSchema = z.enum(PROVENANCE);
 
-export const COLOR_ROLES = [
+/**
+ * The 7 core roles the AI lane may permute in a role refinement (§6). The
+ * roles below in `COLOR_ROLES`' tail are evidence-gated — `on-primary` is
+ * derived, and the semantic states need measured usage context — so the model
+ * is never allowed to assign them. `OUTPUT_SCHEMA` in `lib/interpret.ts`
+ * derives its enum from this same const so the two can't drift.
+ */
+export const REFINABLE_COLOR_ROLES = [
   "background",
   "surface",
   "text",
@@ -22,6 +29,10 @@ export const COLOR_ROLES = [
   "accent",
   "muted",
   "border",
+] as const;
+
+export const COLOR_ROLES = [
+  ...REFINABLE_COLOR_ROLES,
   // Not a scored role (never assigned by `assignRoles`) — the modal text
   // color measured on primary-background elements, added directly as a
   // swatch (§P8-2). Kept in the same enum so it validates as a normal Swatch.
@@ -35,6 +46,7 @@ export const COLOR_ROLES = [
 ] as const;
 export type ColorRole = (typeof COLOR_ROLES)[number];
 export const colorRoleSchema = z.enum(COLOR_ROLES);
+export const refinableColorRoleSchema = z.enum(REFINABLE_COLOR_ROLES);
 
 export const swatchSchema = z.object({
   name: z.string(),
@@ -265,7 +277,8 @@ export const aiResponseSchema = z.object({
     .array(
       z.object({
         hex: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-        role: colorRoleSchema,
+        // Only the 7 core roles are AI-refinable — see REFINABLE_COLOR_ROLES.
+        role: refinableColorRoleSchema,
       }),
     )
     .default([]),

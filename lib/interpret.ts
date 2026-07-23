@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {
   aiResponseSchema,
+  REFINABLE_COLOR_ROLES,
   type AiResponse,
   type ColorRole,
   type Identity,
@@ -75,15 +76,8 @@ const OUTPUT_SCHEMA = {
           hex: { type: "string" },
           role: {
             type: "string",
-            enum: [
-              "background",
-              "surface",
-              "text",
-              "primary",
-              "accent",
-              "muted",
-              "border",
-            ],
+            // Derived from the same const as the Zod mirror so the two can't drift.
+            enum: [...REFINABLE_COLOR_ROLES],
           },
         },
         required: ["hex", "role"],
@@ -280,9 +274,7 @@ export function applyRoleRefinements(
 
   // Preserve the canonical role order for a stable, readable report.
   const order = new Map<ColorRole, number>(
-    (["background", "surface", "text", "primary", "accent", "muted", "border"] as ColorRole[]).map(
-      (r, i) => [r, i],
-    ),
+    REFINABLE_COLOR_ROLES.map((r, i) => [r, i]),
   );
   colors.sort((a, b) => (order.get(a.role) ?? 99) - (order.get(b.role) ?? 99));
 

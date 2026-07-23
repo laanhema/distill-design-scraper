@@ -45,7 +45,9 @@ export function detectRepetition(node: PrunedNode): PrunedNode {
         continue;
       }
     } else {
-      // Check if it's a near-match variance to an existing repeated group
+      // Near-match variance to an existing repeated group: tag, don't
+      // collapse — the variant stays in the tree as its own node, labelled
+      // as a variance of the repeated group it almost matches.
       for (const sig of Array.from(processedSignatures)) {
         if (isNearMatch(sig, key)) {
           child.varianceNote = `featured@${i + 1}`;
@@ -72,7 +74,21 @@ function getBaseSignature(node: PrunedNode): string {
   return `${node.tagName ?? node.componentName}[${childTags}]`;
 }
 
+/** True when base tags are equal AND ≥80% of the (positional) child tags
+ *  match. Two childless signatures with the same base tag trivially match. */
 function isNearMatch(sigA: string, sigB: string): boolean {
-  // If base tags and 80% of child tags match
-  return sigA.split("[")[0] === sigB.split("[")[0];
+  const [baseA, restA] = sigA.split("[");
+  const [baseB, restB] = sigB.split("[");
+  if (baseA !== baseB) return false;
+
+  const childrenA = (restA ?? "").replace(/\]$/, "").split(",").filter(Boolean);
+  const childrenB = (restB ?? "").replace(/\]$/, "").split(",").filter(Boolean);
+  const longest = Math.max(childrenA.length, childrenB.length);
+  if (longest === 0) return true;
+
+  let matches = 0;
+  for (let i = 0; i < longest; i++) {
+    if (childrenA[i] === childrenB[i] && childrenA[i] !== undefined) matches++;
+  }
+  return matches / longest >= 0.8;
 }
