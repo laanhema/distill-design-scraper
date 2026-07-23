@@ -21,6 +21,16 @@ import type { Color } from "culori";
 const SAMPLE_SIZE = 320;
 const MERGE_DELTA_E = 2.5;
 
+/**
+ * Thrown when no color clusters could be extracted from any supplied image —
+ * every image was either unreadable (sharp couldn't decode it) or carried no
+ * opaque pixels (e.g. a fully transparent PNG). The provenance contract
+ * ("measured, never faked") forbids inventing swatches for that case, and the
+ * report schema requires a palette, so the honest outcome is a typed error
+ * the API route can map to a clean 4xx (issue #22).
+ */
+export class DegenerateImageError extends Error {}
+
 interface ImageColorCluster {
   color: Color;
   hex: string;
@@ -122,12 +132,31 @@ export async function extractImagePalette(
 
   // Quantize each image independently, then merge across images by ΔE so a
   // color that recurs across screenshots is counted once, not once per image.
-  const perImage = await Promise.all(buffers.map(quantizeImage));
+  // A single unreadable image (sharp can't decode it) is skipped with a
+  // warning rather than failing the whole upload — the remaining images still
+  // contribute their clusters (issue #22).
+  const perImage = await Promise.all(
+    buffers.map((buffer) =>
+      quantizeImage(buffer).catch((err) => {
+        console.warn("Image palette: skipping unreadable image:", err);
+        return { clusters: [] as ImageColorCluster[], pixelCount: 0 };
+      }),
+    ),
+  );
   const clusters: ImageColorCluster[] = [];
   for (const { clusters: imageClusters } of perImage) {
     for (const c of imageClusters) {
       mergeInto(clusters, c.color, c.hex, c.count);
     }
+  }
+
+  // Zero clusters across every image (all transparent and/or unreadable):
+  // there is nothing measured to report, and fabricating swatches would
+  // violate the provenance contract — fail honestly instead.
+  if (clusters.length === 0) {
+    throw new DegenerateImageError(
+      "No colors could be extracted from the supplied image(s) — they may be fully transparent or not valid images.",
+    );
   }
 
   // Calculate area weights across the combined pixel pool
