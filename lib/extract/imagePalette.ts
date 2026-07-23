@@ -39,7 +39,24 @@ function mergeInto(clusters: ImageColorCluster[], color: Color, hexStr: string, 
   clusters.push({ color, hex: hexStr, count, areaWeight: 0 });
 }
 
-/** Quantize one image's pixels into perceptual color clusters (raw counts, not yet area-weighted). */
+/**
+ * Quantize one image's pixels into perceptual color clusters (raw counts, not
+ * yet area-weighted).
+ *
+ * Two bounded stages (issue #21): a per-pixel ΔE merge against a growing
+ * cluster list is O(pixels × clusters), and a noise/gradient image where
+ * nothing merges at ΔE ≤ 2.5 makes that unbounded. Instead:
+ *
+ *  1. Histogram pass — integer-only 4-bit-per-channel RGB bucketing (same
+ *     scheme as `palette.ts`'s `farBuckets`), capped at 4096 buckets by
+ *     construction; no color math inside the pixel loop.
+ *  2. Merge pass — ΔE-merge the bucket *centroids* (count-weighted mean color
+ *     per bucket), largest bucket first so dominant colors seed the clusters.
+ *
+ * Worst case is now 4096 centroids through the ΔE merge, regardless of image
+ * content. Cluster counts still sum to the number of opaque pixels, which
+ * `extractImagePalette`'s area-weighting relies on.
+ */
 async function quantizeImage(
   buffer: Buffer,
 ): Promise<{ clusters: ImageColorCluster[]; pixelCount: number }> {
@@ -50,7 +67,12 @@ async function quantizeImage(
     .toBuffer({ resolveWithObject: true });
 
   const pixelCount = info.width * info.height;
-  const clusters: ImageColorCluster[] = [];
+
+  // Stage 1: coarse 4-bit/channel histogram (≤ 4096 buckets), centroid sums.
+  const buckets = new Map<
+    number,
+    { count: number; rSum: number; gSum: number; bSum: number }
+  >();
 
   for (let i = 0; i < data.length; i += 4) {
     const r = data[i];
@@ -61,10 +83,30 @@ async function quantizeImage(
     // Ignore transparent or near-transparent pixels
     if (a < 180) continue;
 
+    const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+    const bucket = buckets.get(key);
+    if (bucket) {
+      bucket.count++;
+      bucket.rSum += r;
+      bucket.gSum += g;
+      bucket.bSum += b;
+    } else {
+      buckets.set(key, { count: 1, rSum: r, gSum: g, bSum: b });
+    }
+  }
+
+  // Stage 2: ΔE-merge bucket centroids, largest first.
+  const sorted = [...buckets.values()].sort((a, b) => b.count - a.count);
+  const clusters: ImageColorCluster[] = [];
+
+  for (const bucket of sorted) {
+    const r = Math.round(bucket.rSum / bucket.count);
+    const g = Math.round(bucket.gSum / bucket.count);
+    const b = Math.round(bucket.bSum / bucket.count);
     const parsed = parseColor(`rgb(${r}, ${g}, ${b})`);
     if (!parsed) continue;
 
-    mergeInto(clusters, parsed, hex(parsed), 1);
+    mergeInto(clusters, parsed, hex(parsed), bucket.count);
   }
 
   return { clusters, pixelCount };
