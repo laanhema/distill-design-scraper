@@ -70,7 +70,6 @@ The MVP goal: given a URL, produce token and structure reports faithful enough t
 - [ ] Authenticated/paywalled page capture (login flows)
 - [ ] Animation/motion token extraction (transitions, easings, keyframes)
 - [ ] Direct code generation (React/Tailwind components) from reports
-- [ ] Additional responsive viewports beyond 390×844 (e.g. 768px tablet)
 - [ ] Browser-extension or CLI-first distribution
 - [ ] Icon/asset extraction and export
 
@@ -251,7 +250,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 ### Phase 4 — Hardening & reach *(open, proposed)*
 - **Goal:** make Distill safe to deploy publicly and broader in coverage.
 - [x] Built-in SSRF guard (resolve-then-check, fail-closed) + `SSRF_ALLOWLIST_HOSTS`; per-client rate limiting; README deployment-hardening guide with egress-restriction example
-- [ ] Tablet viewport (768px) in `RESPONSIVE_VIEWPORTS` (capture-shape change → corpus refresh in same PR)
+- [x] Tablet viewport (768px) in `RESPONSIVE_VIEWPORTS` (capture-shape change → corpus refresh in same PR)
 - [ ] Motion/transition token exploration (spike)
 - [ ] Report-to-code spike: generate a starter Tailwind theme / CSS file from frontmatter
 - **Validation:** eval corpus refreshed once, deliberately; new lanes additive.

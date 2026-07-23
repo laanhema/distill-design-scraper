@@ -68,7 +68,9 @@ export async function extractFromCapture(
   const recipes = buildRecipes(capture.styleDump, { palette, typography });
   const states = buildStates(capture.styleDump, palette);
 
-  const mobileTypeSizes = capture.responsiveHarvests?.[0]?.typeSizesPx;
+  const mobileTypeSizes = capture.responsiveHarvests?.find(
+    (h) => h.viewport.width === 390,
+  )?.typeSizesPx;
   if (typography && mobileTypeSizes) {
     typography = applyMobileTypeSizes(typography, mobileTypeSizes);
   }
