@@ -107,17 +107,34 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       return v;
     }
 
-    function hasVisibleBorder(cs: CSSStyleDeclaration): boolean {
+    /**
+     * Color of the node's widest *visible* border side, or null when no side
+     * is actually painted. Reading always `border-top-color` would let a
+     * zero-width side's default border color (`currentColor`, often pure
+     * black) claim the border channel on nodes whose only real border is on
+     * another side (e.g. `border-bottom: 1px solid …` hairlines). `hidden`
+     * paints nothing, exactly like `none`.
+     */
+    function visibleBorderColor(cs: CSSStyleDeclaration): string | null {
       const sides = [
-        ["border-top-width", "border-top-style"],
-        ["border-right-width", "border-right-style"],
-        ["border-bottom-width", "border-bottom-style"],
-        ["border-left-width", "border-left-style"],
+        ["border-top-width", "border-top-style", "border-top-color"],
+        ["border-right-width", "border-right-style", "border-right-color"],
+        ["border-bottom-width", "border-bottom-style", "border-bottom-color"],
+        ["border-left-width", "border-left-style", "border-left-color"],
       ] as const;
-      return sides.some(([w, s]) => {
-        return parseFloat(cs.getPropertyValue(w)) > 0 &&
-          cs.getPropertyValue(s) !== "none";
-      });
+      let best: string | null = null;
+      let bestWidth = 0;
+      for (const [w, s, c] of sides) {
+        const width = parseFloat(cs.getPropertyValue(w));
+        const style = cs.getPropertyValue(s);
+        if (width <= 0 || style === "none" || style === "hidden") continue;
+        if (width <= bestWidth) continue;
+        const color = opaqueColor(cs.getPropertyValue(c));
+        if (!color) continue;
+        best = color;
+        bestWidth = width;
+      }
+      return best;
     }
 
     function hasDirectText(el: Element): boolean {
@@ -191,10 +208,8 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
         if (fg) colors.push({ channel: "text", value: fg });
       }
 
-      if (hasVisibleBorder(cs)) {
-        const bc = opaqueColor(cs.borderTopColor);
-        if (bc) colors.push({ channel: "border", value: bc });
-      }
+      const bc = visibleBorderColor(cs);
+      if (bc) colors.push({ channel: "border", value: bc });
 
       if (SVG_SHAPES.has(el.tagName)) {
         const fill = opaqueColor(cs.fill);
