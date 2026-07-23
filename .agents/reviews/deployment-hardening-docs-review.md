@@ -1,6 +1,6 @@
 # Code Review: Unstaged changes (deployment-hardening-docs)
 
-**Scope**: Unstaged changes on `feature/deployment-hardening-docs` — `README.md`, `.agents/PRDs/PRD.md` (modified), plus untracked `.agents/plans/completed/deployment-hardening-docs.plan.md` and `.agents/reports/deployment-hardening-docs-report.md`
+**Scope**: Unstaged changes on `feature/deployment-hardening-docs` — `README.md`, `.agents/PRDs/PRD.md` (modified), plus untracked `.agents/plans/completed/deployment-hardening-docs-plan.md` and `.agents/reports/deployment-hardening-docs-report.md`
 **Recommendation**: APPROVE
 
 ## Summary

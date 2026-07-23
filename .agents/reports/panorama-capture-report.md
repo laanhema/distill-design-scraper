@@ -1,6 +1,6 @@
 # Implementation Report
 
-**Plan**: `PANORAMA_CAPTURE_PLAN.md`
+**Plan**: `.agents/plans/completed/panorama-capture-plan.md`
 **Branch**: `feature/panorama-capture`
 **Status**: COMPLETE
 
@@ -17,22 +17,22 @@ pixel area-weight pass and the frontend gallery (reusing the existing
 
 ## Tasks Completed
 
-| # | Task | File | Status |
-|---|------|------|--------|
-| 1 | Replace `captureScrollShots` with `captureFullPageTiles`; thread `panoramaShot` through `capturePage`/`RenderResult`/`renderUrl`; comment `fullPageShot` as intentional non-panorama source | `lib/ingest.ts` | ✅ |
-| 2 | Add `panoramaShot` to `Capture`; route area-weight pixel pass through `panoramaShot`; add `subsampleEvenly` helper + use it in `analyzeUrl` AI-lane call | `lib/analyze.ts` | ✅ |
-| 4 | Add `panoramaShot` to the `Capture` literal in `captureEntry` | `eval/capture.ts` | ✅ |
-| 5 | Build `viewportShots` from `panoramaShot` instead of `scrollShots` in the URL-mode branch | `app/api/analyze/route.ts` | ✅ |
-| 6 | Frontend — confirmed no change needed (existing grid handles any array length) | `app/page.tsx` | ✅ (no edit) |
+| #   | Task                                                                                                                                                                                        | File                       | Status       |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- | ------------ |
+| 1   | Replace `captureScrollShots` with `captureFullPageTiles`; thread `panoramaShot` through `capturePage`/`RenderResult`/`renderUrl`; comment `fullPageShot` as intentional non-panorama source | `lib/ingest.ts`            | ✅           |
+| 2   | Add `panoramaShot` to `Capture`; route area-weight pixel pass through `panoramaShot`; add `subsampleEvenly` helper + use it in `analyzeUrl` AI-lane call                                    | `lib/analyze.ts`           | ✅           |
+| 4   | Add `panoramaShot` to the `Capture` literal in `captureEntry`                                                                                                                               | `eval/capture.ts`          | ✅           |
+| 5   | Build `viewportShots` from `panoramaShot` instead of `scrollShots` in the URL-mode branch                                                                                                   | `app/api/analyze/route.ts` | ✅           |
+| 6   | Frontend — confirmed no change needed (existing grid handles any array length)                                                                                                              | `app/page.tsx`             | ✅ (no edit) |
 
 ## Validation Results
 
-| Check | Result |
-|-------|--------|
-| Type check (`npm run typecheck`) | ✅ |
-| Lint (`npm run lint`) | ⚠️ Pre-existing — ESLint not configured in repo; `next lint` prompts for setup. Not introduced by this change. |
-| Eval regression gate (`npm run eval`) | ✅ both corpus sites 100%, all gates passed, baseline unchanged |
-| E2E scratch (synthetic tall pages) | ✅ all assertions passed (see below) |
+| Check                                 | Result                                                                                                         |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Type check (`npm run typecheck`)      | ✅                                                                                                             |
+| Lint (`npm run lint`)                 | ⚠️ Pre-existing — ESLint not configured in repo; `next lint` prompts for setup. Not introduced by this change. |
+| Eval regression gate (`npm run eval`) | ✅ both corpus sites 100%, all gates passed, baseline unchanged                                                |
+| E2E scratch (synthetic tall pages)    | ✅ all assertions passed (see below)                                                                           |
 
 ## E2E Verification
 
@@ -47,8 +47,7 @@ serving synthetic solid-color-band HTML, run via `npx tsx` from the project root
   viewport bands + 450px remainder). Asserted:
   - `scrollShots.length === 3` (two loop tiles + one cropped remainder). ✅
   - `panoramaShot` height === 3,150, width === 1,440. ✅
-  - Pixel rows read at every band boundary y (899↔900, 1799↔1800, 2699↔2700,
-    3149) show the correct adjacent band colors with no gap (white) and no
+  - Pixel rows read at every band boundary y (899↔900, 1799↔1800, 2699↔2700, 3149) show the correct adjacent band colors with no gap (white) and no
     duplication. ✅
 - **Test 3 — short page (fits one viewport)**: `panoramaShot` and `scrollShots`
   both omitted — "omit, don't fabricate" invariant preserved. ✅
@@ -57,12 +56,12 @@ serving synthetic solid-color-band HTML, run via `npx tsx` from the project root
 
 ## Files Changed
 
-| File | Action | Lines |
-|------|--------|-------|
-| `lib/ingest.ts` | UPDATE | +124 |
-| `lib/analyze.ts` | UPDATE | +31 / -1 |
-| `eval/capture.ts` | UPDATE | +2 |
-| `app/api/analyze/route.ts` | UPDATE | +3 |
+| File                       | Action | Lines    |
+| -------------------------- | ------ | -------- |
+| `lib/ingest.ts`            | UPDATE | +124     |
+| `lib/analyze.ts`           | UPDATE | +31 / -1 |
+| `eval/capture.ts`          | UPDATE | +2       |
+| `app/api/analyze/route.ts` | UPDATE | +3       |
 
 ## Deviations from Plan
 
@@ -74,17 +73,17 @@ were followed as written.
 
 One investigation note (not a deviation): during E2E verification the first
 assertion run showed apparent tile-shift in the stitched panorama. Root cause
-was a bug in the *scratch test's* pixel-reader (3-channel stride on a 4-channel
+was a bug in the _scratch test's_ pixel-reader (3-channel stride on a 4-channel
 PNG), not in the production code — `sharp.composite` with a `channels: 3` create
 canvas correctly places tiles at their `top` offsets. The test was fixed to read
 `meta.channels` for the stride and all assertions passed.
 
 ## Tests Written
 
-| Test File | Test Cases |
-|-----------|------------|
-| `scratch-panorama.ts` (temporary, deleted) | Truncation cap height + warning; non-multiple remainder crop math + band-boundary continuity (8 boundary pixels); short-page omission; `subsampleEvenly` selection |
-| `scratch-sharp-composite.ts` (temporary, deleted) | Isolated `sharp.composite` repro used to confirm the channel-stride test bug |
+| Test File                                         | Test Cases                                                                                                                                                         |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `scratch-panorama.ts` (temporary, deleted)        | Truncation cap height + warning; non-multiple remainder crop math + band-boundary continuity (8 boundary pixels); short-page omission; `subsampleEvenly` selection |
+| `scratch-sharp-composite.ts` (temporary, deleted) | Isolated `sharp.composite` repro used to confirm the channel-stride test bug                                                                                       |
 
 ## Notes
 

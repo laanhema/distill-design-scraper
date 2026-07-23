@@ -1,6 +1,6 @@
 # Implementation Report
 
-**Plan**: `.agents/plans/rate-limiter-bucket-eviction.plan.md`
+**Plan**: `.agents/plans/completed/rate-limiter-bucket-eviction-plan.md`
 **Branch**: `feature/rate-limit-analyze-endpoint`
 **Status**: COMPLETE
 

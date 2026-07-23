@@ -125,7 +125,7 @@ This return happens *before* either the images-branch or URL-branch expensive wo
 
 ### Manual verification (no unit-test framework in this repo)
 ```md
-<!-- SOURCE: CLAUDE.md, "Manually verifying extraction changes" + ssrf-guard-url-analysis.plan.md Task 5 -->
+<!-- SOURCE: CLAUDE.md, "Manually verifying extraction changes" + ssrf-guard-url-analysis-plan.md Task 5 -->
 Write a throwaway script under the scratchpad dir, run via `npx tsx <script>`
 from the project root, calling the limiter's exported functions directly
 (cheaper than spinning up `next dev` and issuing real HTTP requests). Delete

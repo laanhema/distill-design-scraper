@@ -251,7 +251,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 - **Goal:** make Distill safe to deploy publicly and broader in coverage.
 - [x] Built-in SSRF guard (resolve-then-check, fail-closed) + `SSRF_ALLOWLIST_HOSTS`; per-client rate limiting; README deployment-hardening guide with egress-restriction example
 - [x] Tablet viewport (768px) in `RESPONSIVE_VIEWPORTS` (capture-shape change → corpus refresh in same PR)
-- [ ] Motion/transition token exploration (spike)
+- [x] Motion/transition token exploration (spike) — `.agents/reports/motion-spike.md`, go recommendation
 - [ ] Report-to-code spike: generate a starter Tailwind theme / CSS file from frontmatter
 - **Validation:** eval corpus refreshed once, deliberately; new lanes additive.
 

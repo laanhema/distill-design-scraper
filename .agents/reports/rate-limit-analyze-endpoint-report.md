@@ -1,6 +1,6 @@
 # Implementation Report
 
-**Plan**: `.agents/plans/rate-limit-analyze-endpoint.plan.md`
+**Plan**: `.agents/plans/completed/rate-limit-analyze-endpoint-plan.md`
 **Branch**: `feature/rate-limit-analyze-endpoint`
 **Status**: COMPLETE
 
