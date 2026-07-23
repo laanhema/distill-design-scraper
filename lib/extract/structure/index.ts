@@ -1,6 +1,7 @@
 import type { Page } from "playwright";
 import { harvestDomTree } from "./harvester";
 import { pruneAndCollapse } from "./pruner";
+import { squashWrapperChains } from "./squash";
 import { detectRepetition } from "./repetition";
 import { assignOntologyTypes } from "./ontology";
 import { runStructureAILabeller } from "./structureAI";
@@ -71,8 +72,11 @@ export async function extractStructure(
     throw new Error("DOM tree was completely pruned; no structure nodes remained.");
   }
 
+  // Stage 4b: Squash single-child generic wrapper chains (#30)
+  const squashedRoot = squashWrapperChains(prunedRoot);
+
   // Stage 5: Detect Repetition
-  const repeatedRoot = detectRepetition(prunedRoot);
+  const repeatedRoot = detectRepetition(squashedRoot);
 
   // Stage 6: Type against Ontology
   const typedRoot = assignOntologyTypes(repeatedRoot);
