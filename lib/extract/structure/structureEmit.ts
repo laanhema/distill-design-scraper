@@ -2,11 +2,13 @@ import {
   structureMachineBlockSchema,
   type PrunedNode,
   type ComponentDef,
+  type SectionDigest,
   type StructureMachineBlock,
   type StructureTreeNode,
   type StructureReport,
 } from "../structureSchema";
 import type { ResponsiveDeltas } from "./responsive";
+import { formatSectionDigests } from "./sections";
 
 export interface StructureEmitInput {
   sourceUrl: string;
@@ -25,6 +27,9 @@ export interface StructureEmitInput {
   tokenHints?: Map<string, string>;
   /** Per-component layout deltas across captured viewports (§P5-2). */
   responsive?: ResponsiveDeltas;
+  /** Ordered Stage 9 section digests (#34 / DIST-028) — only present when the
+   *  measured pipeline produced at least one band. */
+  sections?: SectionDigest[];
 }
 
 /**
@@ -43,11 +48,13 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
     components,
     tokenHints,
     responsive,
+    sections,
   } = input;
   const viewportStr = `${viewport.width}×${viewport.height}`;
   const allViewports = [viewport, ...(secondaryViewports ?? [])];
   const viewportsStrs = allViewports.map((v) => `${v.width}×${v.height}`);
   const hasResponsive = Boolean(responsive && Object.keys(responsive).length > 0);
+  const hasSections = Boolean(sections && sections.length > 0);
   const contentMaxWidth = computeContentMaxWidth(root, viewport.width);
 
   const mergedComponents: Record<string, ComponentDef> = tokenHints
@@ -79,6 +86,7 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
     naming,
     ...(contentMaxWidth !== undefined ? { contentMaxWidth } : {}),
     ...(hasResponsive ? { responsive } : {}),
+    ...(hasSections ? { sections } : {}),
     tree: treeNodes,
     components: mergedComponents,
   };
@@ -143,6 +151,9 @@ ${serializeMachineBlockCompact(machineBlock)}
     },
     skeletonAscii,
     componentMapText,
+    // Body placement of the digest (`## Page sections`) is DIST-029 — here we
+    // only carry the formatted text, derived from the same digest objects.
+    ...(hasSections ? { sectionsText: formatSectionDigests(sections!) } : {}),
     machineBlock,
     markdown,
   };

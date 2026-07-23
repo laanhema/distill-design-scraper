@@ -57,6 +57,37 @@ export const structureTreeNodeSchema: z.ZodType<StructureTreeNode> = z.lazy(
 );
 
 /**
+ * One entry of the Stage 9 section digest (#34 / DIST-028) — an ordered,
+ * measured per-band summary of the page: `SiteHeader`, each direct child of
+ * `MainContent`, `SiteFooter`. Every field is joined from an already-measured
+ * upstream artifact; an absent input yields an omitted field, never a guess.
+ */
+export const sectionDigestSchema = z.object({
+  /** Final component name (AI or heuristic) of the band node. */
+  name: z.string(),
+  /** 1-based document order across the digest list. */
+  ordinal: z.number(),
+  /** Repetition count when the band is a collapsed repeated group (×N). */
+  instances: z.number().optional(),
+  /** Stage 8a band segments of the node's own annotation, e.g.
+   *  "sticky · h 64px", "h 100vh", "padY 64px". */
+  band: z.string().optional(),
+  /** First multi-child flex/grid structural annotation found descending into
+   *  the section — the real content grid, past squashed wrappers. */
+  layout: z.string().optional(),
+  /** Counted subtree summary, e.g.
+   *  "2 headings · 3 paragraphs · CtaRow (2 actions) · 7 images · SectionCard ×7". */
+  contents: z.string().optional(),
+  /** Joined Stage 8b token hints for component names in the subtree
+   *  ("SectionCard: bg=surface · radius=8px") — `both` mode only. */
+  tokens: z.string().optional(),
+  /** Joined Stage 7b deltas for component names in the subtree
+   *  ("CardGrid: 390px `grid · 1col` → 1440px `grid · 3col`"). */
+  responsive: z.string().optional(),
+});
+export type SectionDigest = z.infer<typeof sectionDigestSchema>;
+
+/**
  * Full layout-structure machine JSON block schema
  */
 export const structureMachineBlockSchema = z.object({
@@ -81,6 +112,10 @@ export const structureMachineBlockSchema = z.object({
    *  present when secondary-viewport harvests ran and produced at least one
    *  real delta. */
   responsive: z.record(z.string(), z.record(z.string(), z.string())).optional(),
+  /** Ordered Stage 9 section digests (#34 / DIST-028) — only present when the
+   *  measured pipeline produced at least one band; old captures and the
+   *  vision-inferred lane simply omit it. */
+  sections: z.array(sectionDigestSchema).optional(),
   tree: z.array(structureTreeNodeSchema),
   components: z.record(z.string(), componentDefSchema),
 });
@@ -103,6 +138,9 @@ export interface StructureReport {
   };
   skeletonAscii: string;
   componentMapText: string;
+  /** Formatted Stage 9 section-digest text (#34 / DIST-028) — populated only
+   *  when the machine block carries `sections`; body placement is DIST-029. */
+  sectionsText?: string;
   machineBlock: StructureMachineBlock;
   markdown: string;
 }

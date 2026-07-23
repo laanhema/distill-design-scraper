@@ -9,6 +9,7 @@ import { emitStructureReport } from "./structureEmit";
 import { linkComponentsToTokens } from "./tokenLink";
 import { annotateRegionMetrics } from "./regionMetrics";
 import { diffResponsive } from "./responsive";
+import { buildSectionDigests } from "./sections";
 import type { StructureReport, RawHarvestNode, ResponsiveHarvest } from "../structureSchema";
 import type { StyleDump } from "../styleDump";
 import type { Report } from "@/lib/schema";
@@ -27,7 +28,7 @@ export interface ExtractStructureOptions {
 
 /**
  * Structure Extraction Pipeline Orchestrator (§5b)
- * Executes Stages 1-8 to produce a `layout-structure` report.
+ * Executes Stages 1-9 to produce a `layout-structure` report.
  */
 export async function extractStructure(
   pageOrOptions: Page | ExtractStructureOptions,
@@ -109,7 +110,11 @@ export async function extractStructure(
   const tokenHints =
     dump && report ? linkComponentsToTokens(metricsRoot, dump, report) : undefined;
 
-  // Stage 8: Structure Emit
+  // Stage 9: Section Digest (#34 / DIST-028) — ordered measured per-band
+  // summary, joined from the Stage 7b/8a/8b artifacts above.
+  const sections = buildSectionDigests({ root: metricsRoot, tokenHints, responsive });
+
+  // Stage 10: Structure Emit
   return emitStructureReport({
     sourceUrl,
     viewport,
@@ -121,5 +126,6 @@ export async function extractStructure(
     components,
     tokenHints,
     responsive,
+    sections,
   });
 }
