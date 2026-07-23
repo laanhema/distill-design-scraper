@@ -5,7 +5,6 @@ import {
   deltaE,
   hex,
   isNeutral,
-  lightness,
   parseColor,
   wcagGrade,
 } from "@/lib/color";

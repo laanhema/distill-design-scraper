@@ -3,7 +3,7 @@ import { harvestDomTree } from "./harvester";
 import { pruneAndCollapse } from "./pruner";
 import { detectRepetition } from "./repetition";
 import { assignOntologyTypes } from "./ontology";
-import { runStructureAILabeller, buildFallbackComponentMap } from "./structureAI";
+import { runStructureAILabeller } from "./structureAI";
 import { emitStructureReport } from "./structureEmit";
 import { linkComponentsToTokens } from "./tokenLink";
 import { annotateRegionMetrics } from "./regionMetrics";

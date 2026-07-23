@@ -219,7 +219,7 @@ function computeContentMaxWidth(root: PrunedNode, viewportWidth: number): number
   return best;
 }
 
-function buildAsciiSkeleton(node: PrunedNode, prefix = "", isLast = true): string {
+function buildAsciiSkeleton(node: PrunedNode, prefix = ""): string {
   let line = node.componentName;
   if (node.layoutAnnotation) {
     line += ` [${node.layoutAnnotation}]`;
@@ -239,7 +239,7 @@ function buildAsciiSkeleton(node: PrunedNode, prefix = "", isLast = true): strin
     const childIsLast = i === children.length - 1;
     const connector = childIsLast ? "└─ " : "├─ ";
     const childPrefix = prefix + (childIsLast ? "   " : "│  ");
-    result += "\n" + prefix + connector + buildAsciiSkeleton(child, childPrefix, childIsLast);
+    result += "\n" + prefix + connector + buildAsciiSkeleton(child, childPrefix);
   }
 
   return result;

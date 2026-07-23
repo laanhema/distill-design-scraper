@@ -268,7 +268,7 @@ export default function Home() {
             <p className="text-xs text-neutral-500">
               Multiple images of the same site/design merge into one palette (up to {MAX_IMAGES}).
               Layout structure from an image is vision-inferred, not measured (no DOM to walk) —
-              it's stamped <code>fidelity: inferred</code> and requires an API key.
+              it&apos;s stamped <code>fidelity: inferred</code> and requires an API key.
             </p>
             <button
               type="submit"
