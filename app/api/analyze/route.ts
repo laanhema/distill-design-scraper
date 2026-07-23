@@ -186,6 +186,7 @@ export async function POST(request: Request) {
       await analyzeUrl(url!);
 
     let structureReport = null;
+    let structureUnavailableReason: string | undefined;
     if (mode === "structure" || mode === "both") {
       try {
         // `both` mode passes the already-built design report so the structure
@@ -197,6 +198,7 @@ export async function POST(request: Request) {
         );
       } catch (err) {
         console.warn("Structure extraction error:", err);
+        structureUnavailableReason = "Structure extraction failed for this page.";
       }
     }
 
@@ -205,6 +207,7 @@ export async function POST(request: Request) {
       report,
       markdown,
       structureReport,
+      structureUnavailableReason,
       refinements,
       meta: {
         ...meta,
@@ -216,7 +219,12 @@ export async function POST(request: Request) {
       },
     };
 
-    setCache(cacheKey, responsePayload);
+    // Don't cache a transient structure failure — replaying it verbatim for
+    // the full TTL would hide a one-off flake/timeout from a resubmission
+    // seconds later (mirrors the image path, § code review finding #3).
+    if (!structureUnavailableReason) {
+      setCache(cacheKey, responsePayload);
+    }
     return NextResponse.json(responsePayload);
   } catch (err) {
     if (err instanceof UnsafeUrlError) {
