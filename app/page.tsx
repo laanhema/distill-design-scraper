@@ -37,13 +37,29 @@ interface AnalyzeResponse {
 type Status = "idle" | "loading" | "done" | "error";
 type InputMode = "url" | "image";
 
+/** A selected file and its data-URL preview, kept in one entry so the pairing
+ *  can never drift — previews used to live in a separate array appended in
+ *  `FileReader.onload` completion order, which mismatched indexes (#23). */
+interface SelectedImage {
+  file: File;
+  preview: string;
+}
+
 const MAX_IMAGES = 6;
+
+function readFileAsDataURL(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error(`Failed to read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [url, setUrl] = useState("");
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [images, setImages] = useState<SelectedImage[]>([]);
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<Report | null>(null);
@@ -55,29 +71,35 @@ export default function Home() {
   const [tab, setTab] = useState<"preview" | "tokens" | "structure">("preview");
   const [copied, setCopied] = useState(false);
 
-  function handleFilesSelect(files: File[]) {
-    const room = MAX_IMAGES - selectedFiles.length;
+  async function handleFilesSelect(files: File[]) {
+    const room = MAX_IMAGES - images.length;
     if (room <= 0) return;
     const accepted = files.slice(0, room);
-    setSelectedFiles((prev) => [...prev, ...accepted]);
-    for (const file of accepted) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreviews((prev) => [...prev, e.target?.result as string]);
-      };
-      reader.readAsDataURL(file);
-    }
+    // Read every file first, then append file+preview pairs together in
+    // selection order — pairing is structural, so read-completion order
+    // can't mismatch previews, names, and remove targets (#23). A file
+    // whose read fails is skipped rather than guessed at.
+    const results = await Promise.allSettled(
+      accepted.map(async (file): Promise<SelectedImage> => ({
+        file,
+        preview: await readFileAsDataURL(file),
+      })),
+    );
+    const pairs = results
+      .filter((r): r is PromiseFulfilledResult<SelectedImage> => r.status === "fulfilled")
+      .map((r) => r.value);
+    if (pairs.length === 0) return;
+    setImages((prev) => [...prev, ...pairs].slice(0, MAX_IMAGES));
   }
 
   function removeImage(index: number) {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+    setImages((prev) => prev.filter((_, i) => i !== index));
   }
 
   async function analyze(e: React.FormEvent) {
     e.preventDefault();
     if (inputMode === "url" && !url.trim()) return;
-    if (inputMode === "image" && imagePreviews.length === 0) return;
+    if (inputMode === "image" && images.length === 0) return;
 
     setStatus("loading");
     setError(null);
@@ -95,9 +117,9 @@ export default function Home() {
       } else {
         // Image mode's structure lane is vision-inferred rather than DOM-measured
         // (§P6-2 step 2) — the API reports back if it couldn't run (no key).
-        bodyData.images = imagePreviews.map((data, i) => ({
-          data,
-          name: selectedFiles[i]?.name || `uploaded-image-${i + 1}`,
+        bodyData.images = images.map(({ file, preview }, i) => ({
+          data: preview,
+          name: file.name || `uploaded-image-${i + 1}`,
         }));
       }
 
@@ -113,6 +135,11 @@ export default function Home() {
       setReport(data.report);
       setMarkdown(data.markdown ?? "");
       setStructureReport(data.structureReport ?? null);
+      // A new analysis may have no structure report — never leave the active
+      // tab pointing at a pane that no longer exists (#23).
+      if (!data.structureReport) {
+        setTab((t) => (t === "structure" ? "preview" : t));
+      }
       setStructureUnavailableReason(data.structureUnavailableReason ?? null);
       setMeta(data.meta ?? null);
       setRefinements(data.refinements ?? []);
@@ -140,8 +167,8 @@ export default function Home() {
     try {
       host = new URL(meta?.finalUrl ?? url).hostname.replace(/^www\./, "");
     } catch {
-      if (inputMode === "image" && selectedFiles[0]) {
-        host = selectedFiles[0].name.replace(/\.[^/.]+$/, "");
+      if (inputMode === "image" && images[0]) {
+        host = images[0].file.name.replace(/\.[^/.]+$/, "");
       }
     }
     a.href = href;
@@ -237,9 +264,9 @@ export default function Home() {
                 htmlFor="image-input"
                 className="cursor-pointer text-sm font-medium text-neutral-700 dark:text-neutral-300"
               >
-                {selectedFiles.length > 0 ? (
+                {images.length > 0 ? (
                   <span>
-                    {selectedFiles.length} image{selectedFiles.length > 1 ? "s" : ""} selected —{" "}
+                    {images.length} image{images.length > 1 ? "s" : ""} selected —{" "}
                     <span className="underline">add more</span>
                   </span>
                 ) : (
@@ -247,12 +274,12 @@ export default function Home() {
                 )}
               </label>
             </div>
-            {imagePreviews.length > 0 && (
+            {images.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {imagePreviews.map((src, i) => (
+                {images.map((img, i) => (
                   <div key={i} className="group relative h-16 w-16 overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={src} alt={selectedFiles[i]?.name ?? `image ${i + 1}`} className="h-full w-full object-cover" />
+                    <img src={img.preview} alt={img.file.name || `image ${i + 1}`} className="h-full w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => removeImage(i)}
@@ -272,10 +299,10 @@ export default function Home() {
             </p>
             <button
               type="submit"
-              disabled={status === "loading" || imagePreviews.length === 0}
+              disabled={status === "loading" || images.length === 0}
               className="self-end rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
             >
-              {status === "loading" ? "Analyzing…" : `Analyze Image${imagePreviews.length > 1 ? "s" : ""}`}
+              {status === "loading" ? "Analyzing…" : `Analyze Image${images.length > 1 ? "s" : ""}`}
             </button>
           </div>
         )}
