@@ -46,11 +46,9 @@ export function detectRepetition(node: PrunedNode): PrunedNode {
       }
     } else {
       // Check if it's a near-match variance to an existing repeated group
-      let matchedVariance = false;
       for (const sig of Array.from(processedSignatures)) {
         if (isNearMatch(sig, key)) {
           child.varianceNote = `featured@${i + 1}`;
-          matchedVariance = true;
           break;
         }
       }

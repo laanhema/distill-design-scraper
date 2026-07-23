@@ -118,7 +118,20 @@ Return strict JSON matching this Zod schema:
   }
 }
 
-function summarizeTreeForAI(node: PrunedNode): any {
+/** Compact JSON shape of the pruned tree sent to the model prompt. */
+type CompactTreeNode = {
+  id: string;
+  tag?: string;
+  landmark?: string;
+  layout?: string;
+  provisionalType: OntologyType;
+  provisionalName: string;
+  textSnippet?: string;
+  instanceCount?: number;
+  children: CompactTreeNode[];
+};
+
+function summarizeTreeForAI(node: PrunedNode): CompactTreeNode {
   return {
     id: node.id,
     tag: node.tagName,
