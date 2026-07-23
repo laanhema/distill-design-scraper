@@ -25,8 +25,11 @@ const MIN_CLUSTER_SHARE = 0.15;
 /** Cap on recipe entries emitted per element class. */
 const MAX_VARIANTS_PER_ELEMENT = 3;
 
-/** Cluster key for the transparent / no-background variant — only ever a Map key, never emitted. */
+/** Cluster key for the transparent / no-background variant — surfaced as the
+ *  `transparent` variant label when the class kept multiple clusters. */
 const NO_BACKGROUND_KEY = "none";
+/** Human-facing variant label for the no-background cluster. */
+const NO_BACKGROUND_VARIANT_LABEL = "transparent";
 
 function classify(node: NodeStyle): RecipeElement | null {
   // <input type="submit"|"button"> renders and behaves like a Button (styleDump.ts
@@ -210,17 +213,26 @@ export function buildRecipes(
       else clusters.set(key, [node]);
     }
 
-    const kept = [...clusters.values()]
+    const kept = [...clusters.entries()]
       .filter(
-        (c) =>
+        ([, c]) =>
           c.length >= MIN_CLUSTER_INSTANCES || c.length / nodes.length >= MIN_CLUSTER_SHARE,
       )
       // Stable sort: ties keep first-seen (document-order) clusters first.
-      .sort((a, b) => b.length - a.length)
+      .sort(([, a], [, b]) => b.length - a.length)
       .slice(0, MAX_VARIANTS_PER_ELEMENT);
 
-    for (const cluster of kept) {
+    for (const [key, cluster] of kept) {
       const entry: RecipeEntry = { element, padding: modalPadding(cluster) };
+
+      // The label is the measured cluster key itself — a palette role, a raw
+      // hex, or the no-background sentinel surfaced as `transparent`. Only
+      // stamped when this class actually kept multiple variants; a lone
+      // cluster has nothing to distinguish, so the field stays omitted and
+      // the entry renders byte-identical to a pre-variant report.
+      if (kept.length > 1) {
+        entry.variant = key === NO_BACKGROUND_KEY ? NO_BACKGROUND_VARIANT_LABEL : key;
+      }
 
       const radius = modalRadius(cluster);
       if (radius) entry.radius = radius;
