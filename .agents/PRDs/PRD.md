@@ -166,13 +166,15 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 
 ## 9. Security & Configuration
 
-- **Authentication:** none — MVP is a local/self-hosted tool; the API route is unauthenticated by design. Anyone deploying publicly must add their own auth/rate-limiting in front.
+- **Authentication:** none — MVP is a local/self-hosted tool; the API route is unauthenticated by design. Anyone deploying publicly must add their own auth in front (see README "Deploying Publicly — Hardening Guide").
 - **Configuration:** single optional env var `ANTHROPIC_API_KEY` (`.env.local` or container env). Absence disables the AI lane cleanly; it never blocks measured extraction.
 - **In-scope security posture:**
   - AI-lane key read server-side only; never sent to the client.
   - Image uploads capped (`MAX_IMAGES = 6`); AI lane further caps at 4 images sent to the model.
   - No report/user data persisted beyond the local analysis cache.
-- **Out of scope:** SSRF hardening of arbitrary-URL fetching (headless browser will navigate wherever it's pointed — deployers must sandbox/network-restrict), rate limiting, user accounts, secrets management beyond env vars.
+  - SSRF guard on URL ingestion: hostname DNS-resolved and validated against loopback/private/link-local ranges before navigation, fail-closed, with an explicit `SSRF_ALLOWLIST_HOSTS` opt-out for trusted internal targets.
+  - Per-client rate limiting on `POST /api/analyze`: bounded token-bucket store (`RATE_LIMIT_*` env vars), capped at `RATE_LIMIT_MAX_BUCKETS` distinct client IDs to prevent unbounded memory growth.
+- **Out of scope:** user accounts, secrets management beyond env vars, a shared/global rate-limit store for multi-instance deployments (each process enforces its own independent limit), and post-navigation egress control (the SSRF guard validates the initial URL only — subresource requests, redirects, and JS-initiated fetches after navigation are not re-checked; mitigated via documented network sandboxing, not code).
 - **Deployment:** local dev (`npm run dev`), production Node server, or the provided multi-stage Docker image with Playwright system deps baked in.
 
 ## 10. API Specification
@@ -248,7 +250,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 
 ### Phase 4 — Hardening & reach *(open, proposed)*
 - **Goal:** make Distill safe to deploy publicly and broader in coverage.
-- [ ] SSRF/network sandboxing guidance or built-in URL allowlisting; basic rate limiting
+- [x] Built-in SSRF guard (resolve-then-check, fail-closed) + `SSRF_ALLOWLIST_HOSTS`; per-client rate limiting; README deployment-hardening guide with egress-restriction example
 - [ ] Tablet viewport (768px) in `RESPONSIVE_VIEWPORTS` (capture-shape change → corpus refresh in same PR)
 - [ ] Motion/transition token exploration (spike)
 - [ ] Report-to-code spike: generate a starter Tailwind theme / CSS file from frontmatter
@@ -270,7 +272,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 |---|---|---|
 | Heuristic changes silently regress extraction quality on real sites | Wrong reports, eroded trust | Offline eval harness with per-site floors + baseline gate; deliberate-only baseline refresh (`UPDATE_BASELINE=1`) |
 | AI lane drift/hallucination contaminates measured data | Violates core principle | Hard lane separation (`extractFromCapture` is network-free); AI output merged onto — never into — measured fields; provenance stamps; `eval:ai` stability check |
-| Open URL fetching enables SSRF on public deployments | Server compromise | Documented as out-of-scope for MVP (§9); Phase 4 hardening; deploy behind network-restricted sandbox |
+| Open URL fetching enables SSRF on public deployments | Server compromise | Built-in resolve-then-check guard + `SSRF_ALLOWLIST_HOSTS` (§9); README hardening guide documents network-restriction (egress-blocking) for post-navigation traffic the guard can't cover |
 | Site anti-bot / consent walls break capture | Empty or skewed reports | Consent-banner dismissal in ingest; best-effort second passes fail to absence; cache + forceRefresh for retries |
 | Capture-shape evolution invalidates frozen eval fixtures | Green-but-meaningless evals | Policy: fixtures refreshed only when capture shape itself changes, in the same PR, with baseline; new lanes must treat absent fields as "nothing observed" |
 | Playwright/Chromium footprint complicates deployment | Failed installs | postinstall auto-install; multi-stage Dockerfile with browser deps baked in |

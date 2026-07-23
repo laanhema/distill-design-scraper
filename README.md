@@ -122,6 +122,65 @@ docker run -p 3000:3000 -e ANTHROPIC_API_KEY="sk-ant-..." distill
 
 ---
 
+## Deploying Publicly — Hardening Guide
+
+### Threat model
+
+Distill navigates a real headless Chromium browser to arbitrary user-submitted URLs — the classic
+SSRF (server-side request forgery) surface. A malicious submission could aim that browser at the
+operator's internal network, or at a cloud metadata endpoint (`169.254.169.254` on AWS/GCP/Azure)
+that can leak instance credentials. Defending against this is layered: built-in protections first,
+network sandboxing second, and auth/limits at the edge third.
+
+### Layer 1 — built-in protections
+
+- **SSRF guard**: before navigating anywhere, Distill DNS-resolves the submitted hostname and
+  fails closed if the resolved address is loopback, private, or link-local — see Setup &
+  Configuration §3 above for the full range list and the `SSRF_ALLOWLIST_HOSTS` opt-out.
+- **Rate limiting**: `POST /api/analyze` enforces a per-client token bucket (`RATE_LIMIT_*` env
+  vars), returning `429` + `Retry-After` once exhausted — see Setup & Configuration §4 above.
+  Honestly: the bucket store is in-memory per process, so a horizontally-scaled deployment (N
+  instances behind a load balancer) enforces N independent limits, not one global cap. A shared
+  store (e.g. Redis) would be required to close that gap; it's not built in.
+
+### Layer 2 — network-restrict the container
+
+The built-in SSRF guard only validates the *initial* submitted URL. Once Chromium starts
+rendering, the page's own subresource requests, any HTTP redirects it follows, and JS-initiated
+`fetch`/`XHR` calls all ride the browser session and are **not** re-checked against the guard.
+Network-level egress restriction on the container is the layer that closes this gap.
+
+Example: block the container's route to cloud metadata and RFC1918 private ranges via the
+`DOCKER-USER` iptables chain on the Docker host (consulted for all traffic leaving Docker
+networks):
+
+```bash
+# Block container egress to cloud metadata + private ranges (DOCKER-USER
+# chain is consulted for all traffic leaving Docker networks):
+iptables -I DOCKER-USER -d 169.254.0.0/16 -j DROP   # link-local incl. 169.254.169.254 metadata
+iptables -I DOCKER-USER -d 10.0.0.0/8     -j DROP
+iptables -I DOCKER-USER -d 172.16.0.0/12  -j DROP
+iptables -I DOCKER-USER -d 192.168.0.0/16 -j DROP
+```
+
+An internal network + egress proxy, or a cloud-native egress firewall (security groups / VPC
+firewall rules), achieves the same result. Whichever mechanism you use, remember that any host
+you add to `SSRF_ALLOWLIST_HOSTS` needs a corresponding hole in the egress rules, or the guard
+will let the request through only for the network layer to drop it anyway.
+
+### Layer 3 — front the API
+
+`POST /api/analyze` is unauthenticated by design (see Setup & Configuration above) — that's an
+intentional MVP scope decision, not an oversight. Before exposing it publicly, put a reverse proxy
+(nginx, Caddy, Cloudflare, etc.) in front to provide TLS and auth (basic auth, an OAuth proxy, or
+API keys). This also matters for rate limiting: the limiter trusts the first `X-Forwarded-For`
+entry (falling back to `X-Real-IP`) as the client identity, so a direct-exposed deployment lets
+any client spoof that header and dodge its own limit. Accurate per-client limits require a
+trusted reverse proxy that sets or overwrites `X-Forwarded-For` itself, rather than passing through
+whatever the client sent.
+
+---
+
 ## Scripts & CLI Commands
 
 | Command | Description |
