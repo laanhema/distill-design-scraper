@@ -106,11 +106,11 @@ async function dismissConsentBanner(page: Page): Promise<boolean> {
   return false;
 }
 
-/** Secondary viewports for the responsive diff (§P5-2) — mobile only for now;
- *  the plan allows an optional tablet pass, added here if a second real delta
- *  case turns up. */
+/** Secondary viewports for the responsive diff (§P5-2) — mobile (390×844) and
+ *  tablet (768×1024), captured narrowest-first. */
 const RESPONSIVE_VIEWPORTS: Array<{ width: number; height: number }> = [
   { width: 390, height: 844 },
+  { width: 768, height: 1024 },
 ];
 
 /** Computed h1/h2 font sizes at the current viewport (§P5-2 item 4). */
