@@ -21,6 +21,31 @@ export type ColorChannel =
   | "fill"
   | "stroke";
 
+export interface KeyframeStep {
+  offset: string;
+  properties: string[];
+}
+
+export interface KeyframeDef {
+  name: string;
+  steps: KeyframeStep[];
+}
+
+export interface TransitionInfo {
+  property: string;
+  durationMs: number;
+  timingFunction: string;
+  delayMs?: number;
+}
+
+export interface AnimationInfo {
+  name: string;
+  durationMs: number;
+  timingFunction: string;
+  delayMs?: number;
+  iterationCount?: string;
+}
+
 export interface NodeStyle {
   tag: string;
   /** CSS-pixel bounding box in the viewport (rough presence signal only —
@@ -48,6 +73,11 @@ export interface NodeStyle {
     borderRadius: string;
     boxShadow: string;
   };
+  /** Motion properties (CSS transitions and animations). */
+  motion?: {
+    transitions?: TransitionInfo[];
+    animations?: AnimationInfo[];
+  };
   /** ARIA evidence for semantic (success/warning/danger) color roles (§P5-1) —
    *  ("alert"/"status" live regions, or an `aria-invalid` field) never inferred
    *  from color alone. */
@@ -70,6 +100,8 @@ export interface StyleDump {
   totalVisible: number;
   /** True if the walk hit its node cap and stopped collecting. */
   truncated: boolean;
+  /** Collected `@keyframes` definitions from the page stylesheets. */
+  keyframes?: KeyframeDef[];
 }
 
 /** Hard cap on collected nodes, to bound the payload handed back to Node. */
@@ -238,6 +270,33 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       const boxShadow =
         cs.boxShadow && cs.boxShadow !== "none" ? cs.boxShadow : "";
 
+      function splitCommaOutsideParens(str: string): string[] {
+        const parts: string[] = [];
+        let depth = 0;
+        let current = "";
+        for (let i = 0; i < str.length; i++) {
+          const char = str[i];
+          if (char === "(") depth++;
+          else if (char === ")") depth--;
+          if (char === "," && depth === 0) {
+            parts.push(current.trim());
+            current = "";
+          } else {
+            current += char;
+          }
+        }
+        if (current.trim()) parts.push(current.trim());
+        return parts;
+      }
+
+      function parseTimeMs(val: string): number {
+        if (!val) return 0;
+        const v = val.trim().toLowerCase();
+        if (v.endsWith("ms")) return parseFloat(v) || 0;
+        if (v.endsWith("s")) return (parseFloat(v) || 0) * 1000;
+        return parseFloat(v) || 0;
+      }
+
       const hasLayout =
         borderRadius !== "" ||
         boxShadow !== "" ||
@@ -245,7 +304,60 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
         paddingsPx.some((p) => p > 0) ||
         marginsPx.some((m) => m > 0);
 
-      if (colors.length === 0 && !hasText && !hasLayout) continue;
+      // Motion parsing (§P6 Motion Token Lane)
+      const transitions: { property: string; durationMs: number; timingFunction: string; delayMs?: number }[] = [];
+      if (cs.transitionDuration) {
+        const durStrs = splitCommaOutsideParens(cs.transitionDuration);
+        const propStrs = splitCommaOutsideParens(cs.transitionProperty || "all");
+        const tfStrs = splitCommaOutsideParens(cs.transitionTimingFunction || "ease");
+        const delayStrs = splitCommaOutsideParens(cs.transitionDelay || "0s");
+
+        durStrs.forEach((durStr, i) => {
+          const durationMs = parseTimeMs(durStr);
+          if (durationMs > 0) {
+            const property = propStrs[i] || propStrs[0] || "all";
+            const timingFunction = tfStrs[i] || tfStrs[0] || "ease";
+            const delayMs = parseTimeMs(delayStrs[i] || delayStrs[0] || "0s");
+            transitions.push({
+              property,
+              durationMs,
+              timingFunction,
+              ...(delayMs > 0 ? { delayMs } : {}),
+            });
+          }
+        });
+      }
+
+      const animations: { name: string; durationMs: number; timingFunction: string; delayMs?: number; iterationCount?: string }[] = [];
+      if (cs.animationName && cs.animationName !== "none") {
+        const animNames = splitCommaOutsideParens(cs.animationName);
+        const durStrs = splitCommaOutsideParens(cs.animationDuration || "0s");
+        const tfStrs = splitCommaOutsideParens(cs.animationTimingFunction || "ease");
+        const delayStrs = splitCommaOutsideParens(cs.animationDelay || "0s");
+        const iterStrs = splitCommaOutsideParens(cs.animationIterationCount || "1");
+
+        animNames.forEach((name, i) => {
+          if (name && name !== "none") {
+            const durationMs = parseTimeMs(durStrs[i] || durStrs[0] || "0s");
+            if (durationMs > 0) {
+              const timingFunction = tfStrs[i] || tfStrs[0] || "ease";
+              const delayMs = parseTimeMs(delayStrs[i] || delayStrs[0] || "0s");
+              const iterationCount = iterStrs[i] || iterStrs[0];
+              animations.push({
+                name,
+                durationMs,
+                timingFunction,
+                ...(delayMs > 0 ? { delayMs } : {}),
+                ...(iterationCount && iterationCount !== "1" ? { iterationCount } : {}),
+              });
+            }
+          }
+        });
+      }
+
+      const hasMotion = transitions.length > 0 || animations.length > 0;
+
+      if (colors.length === 0 && !hasText && !hasLayout && !hasMotion) continue;
 
       const record: Record<string, unknown> = {
         tag: el.tagName.toLowerCase(),
@@ -261,6 +373,13 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
           boxShadow,
         },
       };
+
+      if (hasMotion) {
+        record.motion = {
+          ...(transitions.length > 0 ? { transitions } : {}),
+          ...(animations.length > 0 ? { animations } : {}),
+        };
+      }
 
       if (hasText) {
         const fontSizePx = parseFloat(cs.fontSize);
@@ -388,6 +507,8 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       }
     }
 
+    const keyframes: { name: string; steps: { offset: string; properties: string[] }[] }[] = [];
+
     function scanRules(rules: CSSRuleList) {
       for (const rule of rules) {
         if (rule instanceof CSSMediaRule) {
@@ -395,6 +516,22 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
           continue;
         }
         if (rule instanceof CSSStyleRule) applyRule(rule);
+        if (typeof CSSKeyframesRule !== "undefined" && rule instanceof CSSKeyframesRule) {
+          const steps: { offset: string; properties: string[] }[] = [];
+          for (let i = 0; i < rule.cssRules.length; i++) {
+            const step = rule.cssRules[i];
+            if (typeof CSSKeyframeRule !== "undefined" && step instanceof CSSKeyframeRule) {
+              const props: string[] = [];
+              for (let j = 0; j < step.style.length; j++) {
+                props.push(step.style[j]);
+              }
+              steps.push({ offset: step.keyText, properties: props });
+            }
+          }
+          if (steps.length > 0 && !keyframes.some((k) => k.name === rule.name)) {
+            keyframes.push({ name: rule.name, steps });
+          }
+        }
       }
     }
 
@@ -408,6 +545,11 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       if (rules) scanRules(rules);
     }
 
-    return { nodes, totalVisible, truncated };
+    return {
+      nodes,
+      totalVisible,
+      truncated,
+      ...(keyframes.length > 0 ? { keyframes } : {}),
+    };
   }, NODE_CAP) as Promise<StyleDump>;
 }
