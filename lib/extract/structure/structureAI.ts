@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { PrunedNode, ComponentDef, OntologyType } from "../structureSchema";
 import { ONTOLOGY_TYPES } from "../structureSchema";
-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel } from "@/lib/aiLane";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
 import { findDigestBands } from "./sections";
 
 export const aiStructureResponseSchema = z.object({
@@ -203,7 +203,7 @@ export async function runStructureAILabeller(
   // fallback — here, heuristic naming instead of null.
   const response = await retryOnce(
     () => requestOnce(compactTree, digestList),
-    (err, attempt) => console.warn(`AI Structure Labeller failed (attempt ${attempt}):`, err),
+    (err, attempt) => warnAiFailure("AI Structure Labeller", attempt, err),
   );
   if (!response) {
     return { root, components: fallback, naming: "heuristic" };
