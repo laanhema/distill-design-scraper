@@ -4,6 +4,7 @@ import {
   type Elevation,
   type Identity,
   type ImageMood,
+  type Motion,
   type Palette,
   type Radius,
   type Recipes,
@@ -32,6 +33,7 @@ export interface BuildReportInput {
   elevation?: Elevation;
   recipes?: Recipes;
   states?: States;
+  motion?: Motion;
   identity?: Identity;
   imageMood?: ImageMood;
 }
@@ -49,6 +51,7 @@ export function buildReport(input: BuildReportInput): Report {
     ...(input.elevation ? { elevation: input.elevation } : {}),
     ...(input.recipes ? { recipes: input.recipes } : {}),
     ...(input.states ? { states: input.states } : {}),
+    ...(input.motion ? { motion: input.motion } : {}),
     ...(input.identity ? { identity: input.identity } : {}),
     ...(input.imageMood ? { imageMood: input.imageMood } : {}),
   };
@@ -76,6 +79,7 @@ function renderBody(report: Report): string {
   parts.push(renderPalette(report.palette));
   if (report.paletteDark) parts.push(renderPalette(report.paletteDark, "Palette (dark scheme)"));
   if (report.states) parts.push(renderStates(report.states));
+  if (report.motion) parts.push(renderMotion(report.motion));
   if (report.typography) parts.push(renderTypography(report.typography));
   if (report.spacing) parts.push(renderSpacing(report.spacing));
   if (report.radius) parts.push(renderRadius(report.radius));
@@ -254,6 +258,27 @@ function renderStates(states: States): string {
     for (const ch of e.changes) {
       const label = STATE_PROPERTY_LABEL[ch.property] ?? ch.property;
       lines.push(`- **${e.target}** ${e.state}: \`${ch.to}\` (${label})`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function renderMotion(motion: Motion): string {
+  const lines: string[] = [`## Motion${provenanceSuffix(motion.provenance)}`, ""];
+  for (const e of motion.entries) {
+    const delay = e.delayMs ? ` · delay ${e.delayMs}ms` : "";
+    const iter = e.iterationCount ? ` · repeat ${e.iterationCount}` : "";
+    lines.push(
+      `- **${e.target}** \`${e.kind}\`: ${e.property} ${e.durationMs}ms ${e.timingFunction}${delay}${iter}`,
+    );
+  }
+  if (motion.keyframes && motion.keyframes.length > 0) {
+    lines.push("", "**Keyframes**", "");
+    for (const k of motion.keyframes) {
+      const stepsStr = k.steps
+        .map((s) => `${s.offset} [${s.properties.join(", ")}]`)
+        .join(" → ");
+      lines.push(`- **@keyframes ${k.name}**: ${stepsStr}`);
     }
   }
   return lines.join("\n");

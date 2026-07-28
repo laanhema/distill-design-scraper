@@ -212,6 +212,40 @@ export const statesSchema = z.object({
 });
 export type States = z.infer<typeof statesSchema>;
 
+/** Motion / transition tokens (§P6): declared CSS transitions & animations. */
+export const MOTION_KINDS = ["transition", "animation"] as const;
+export type MotionKind = (typeof MOTION_KINDS)[number];
+
+export const motionEntrySchema = z.object({
+  target: recipeElementSchema,
+  kind: z.enum(MOTION_KINDS),
+  property: z.string(),
+  durationMs: z.number(),
+  timingFunction: z.string(),
+  delayMs: z.number().optional(),
+  iterationCount: z.string().optional(),
+});
+export type MotionEntry = z.infer<typeof motionEntrySchema>;
+
+export const keyframeStepSchema = z.object({
+  offset: z.string(),
+  properties: z.array(z.string()),
+});
+export type KeyframeStep = z.infer<typeof keyframeStepSchema>;
+
+export const keyframeDefSchema = z.object({
+  name: z.string(),
+  steps: z.array(keyframeStepSchema),
+});
+export type KeyframeDef = z.infer<typeof keyframeDefSchema>;
+
+export const motionSchema = z.object({
+  provenance: provenanceSchema,
+  entries: z.array(motionEntrySchema),
+  keyframes: z.array(keyframeDefSchema).optional(),
+});
+export type Motion = z.infer<typeof motionSchema>;
+
 // ── Interpretive lanes (§6, AI). Stamped `provenance: ai`; optional so a
 // measured-only report (or an API-key-less run) validates without faking them.
 
@@ -252,6 +286,7 @@ export const reportSchema = z.object({
   elevation: elevationSchema.optional(),
   recipes: recipesSchema.optional(),
   states: statesSchema.optional(),
+  motion: motionSchema.optional(),
   // Optional interpretive lanes (§6); present once the AI lane has run.
   identity: identitySchema.optional(),
   imageMood: imageMoodSchema.optional(),

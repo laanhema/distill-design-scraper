@@ -31,7 +31,7 @@ const NO_BACKGROUND_KEY = "none";
 /** Human-facing variant label for the no-background cluster. */
 const NO_BACKGROUND_VARIANT_LABEL = "transparent";
 
-function classify(node: NodeStyle): RecipeElement | null {
+export function classify(node: NodeStyle): RecipeElement | null {
   // <input type="submit"|"button"> renders and behaves like a Button (styleDump.ts
   // only marks `interactive` true for those two input types, never plain text fields).
   const isButtonLike = node.tag === "button" || (node.tag === "input" && node.interactive);

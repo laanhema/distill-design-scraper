@@ -4,6 +4,7 @@ import { extractTypography, applyMobileTypeSizes } from "@/lib/extract/typograph
 import { extractTokens } from "@/lib/extract/tokens";
 import { buildRecipes } from "@/lib/extract/recipes";
 import { buildStates } from "@/lib/extract/states";
+import { extractMotion } from "@/lib/extract/motion";
 import { extractImagePalette } from "@/lib/extract/imagePalette";
 import { extractStructure } from "@/lib/extract/structure";
 import { structureFromImages } from "@/lib/extract/structureFromImage";
@@ -67,6 +68,7 @@ export async function extractFromCapture(
   const tokens = extractTokens(capture.styleDump);
   const recipes = buildRecipes(capture.styleDump, { palette, typography });
   const states = buildStates(capture.styleDump, palette);
+  const motion = extractMotion(capture.styleDump);
 
   const mobileTypeSizes = capture.responsiveHarvests?.find(
     (h) => h.viewport.width === 390,
@@ -93,6 +95,7 @@ export async function extractFromCapture(
     elevation: tokens.elevation,
     recipes,
     states,
+    motion,
   });
 
   return { report, markdown: renderMarkdown(report) };
