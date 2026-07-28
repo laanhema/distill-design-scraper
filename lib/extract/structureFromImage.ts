@@ -1,11 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
 import sharp from "sharp";
 import { z } from "zod";
 import { ONTOLOGY_TYPES, type PrunedNode, type StructureReport } from "./structureSchema";
 import { buildFallbackComponentMap } from "./structure/structureAI";
 import { emitStructureReport } from "./structure/structureEmit";
-import { detectImageMediaType } from "./imageMediaType";
-import { AI_MODEL, aiLaneAvailable, retryOnce } from "@/lib/aiLane";
+import { detectImageMediaType, type ImageMediaType } from "./imageMediaType";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel } from "@/lib/aiLane";
 
 /**
  * §P6-2 step 2 — Vision structure lane. There is no DOM for an uploaded image,
@@ -14,7 +13,7 @@ import { AI_MODEL, aiLaneAvailable, retryOnce } from "@/lib/aiLane";
  * naming conventions so a `both`-mode-style skeleton reads the same whether it
  * came from a live render or an upload, but it is a one-shot generation (there
  * is no heuristic fallback possible without a DOM to walk), gated entirely on
- * `ANTHROPIC_API_KEY`, and always stamped `fidelity: "inferred"`.
+ * `GEMINI_API_KEY`, and always stamped `fidelity: "inferred"`.
  */
 
 const MAX_TOKENS = 4096;
@@ -89,41 +88,19 @@ Return ONLY strict JSON matching this shape (no prose, no markdown fences):
 }`;
 
 async function requestOnce(
-  client: Anthropic,
-  imageBlocks: {
-    type: "image";
-    source: { type: "base64"; media_type: "image/png" | "image/jpeg" | "image/webp" | "image/gif"; data: string };
-  }[],
+  images: { data: string; mediaType: ImageMediaType }[],
 ): Promise<AiVisionNode | null> {
-  const message = await client.messages.create({
-    model: AI_MODEL,
-    max_tokens: MAX_TOKENS,
-    temperature: 0.1,
+  const text = await callModel({
+    images,
     system: SYSTEM_PROMPT,
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...imageBlocks,
-          { type: "text", text: "Infer the layout skeleton for this design as strict JSON." },
-        ],
-      },
-    ],
+    user: "Infer the layout skeleton for this design as strict JSON.",
+    maxOutputTokens: MAX_TOKENS,
+    thinkingLevel: ThinkingLevel.MEDIUM,
   });
 
-  const text = message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return null;
+  const raw = parseJsonLoose(text);
+  if (raw === null) return null;
 
-  let raw: unknown;
-  try {
-    raw = JSON.parse(jsonMatch[0]);
-  } catch {
-    return null;
-  }
   const parsed = aiVisionStructureResponseSchema.safeParse(raw);
   return parsed.success ? parsed.data.root : null;
 }
@@ -173,8 +150,8 @@ export async function structureFromImages(
   if (!aiLaneAvailable()) return null;
   if (input.imagesPngBase64.length === 0) return null;
 
-  const images = input.imagesPngBase64.slice(0, MAX_STRUCTURE_IMAGES);
-  const mediaTypes = await Promise.all(images.map(detectImageMediaType));
+  const imagesBase64 = input.imagesPngBase64.slice(0, MAX_STRUCTURE_IMAGES);
+  const mediaTypes = await Promise.all(imagesBase64.map(detectImageMediaType));
   // Prompt-injection surface (issue #27 / review S6): uploaded pixels are
   // user-controlled — an image can contain adversarial rendered text ("ignore
   // previous instructions…") that the vision model reads like any other
@@ -184,14 +161,13 @@ export async function structureFromImages(
   // at worst skew the inferred skeleton's names/labels — never tool use or
   // data exfiltration. Widening what this response can drive widens the
   // injection blast radius.
-  const imageBlocks = images.map((data, i) => ({
-    type: "image" as const,
-    source: { type: "base64" as const, media_type: mediaTypes[i], data },
+  const imageBlocks = imagesBase64.map((data, i) => ({
+    data,
+    mediaType: mediaTypes[i],
   }));
 
-  const client = new Anthropic();
   const aiRoot = await retryOnce(
-    () => requestOnce(client, imageBlocks),
+    () => requestOnce(imageBlocks),
     (err, attempt) => console.warn(`Vision structure inference failed (attempt ${attempt}):`, err),
   );
   if (!aiRoot) return null;
@@ -207,7 +183,7 @@ export async function structureFromImages(
   // responsive-harvest pass uses) rather than silently dropping their sizes.
   const measuredViewports = (
     await Promise.all(
-      images.map(async (data) => {
+      imagesBase64.map(async (data: string) => {
         try {
           const metadata = await sharp(Buffer.from(data, "base64")).metadata();
           return metadata.width && metadata.height
@@ -218,7 +194,7 @@ export async function structureFromImages(
         }
       }),
     )
-  ).filter((v): v is { width: number; height: number } => v !== null);
+  ).filter((v: { width: number; height: number } | null): v is { width: number; height: number } => v !== null);
   const viewport = measuredViewports[0] ?? { width: 0, height: 0 };
   const secondaryViewports = measuredViewports.slice(1);
 
