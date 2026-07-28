@@ -1,4 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
 import {
   aiResponseSchema,
   REFINABLE_COLOR_ROLES,
@@ -11,7 +10,7 @@ import {
 } from "@/lib/schema";
 import { ROLE_USAGE } from "@/lib/extract/palette";
 import { detectImageMediaType } from "@/lib/extract/imageMediaType";
-import { AI_MODEL, aiLaneAvailable, retryOnce } from "@/lib/aiLane";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel } from "@/lib/aiLane";
 
 /**
  * Interpretation engine (§6, the AI lane). Only `identity`, `imageMood`, and
@@ -29,9 +28,12 @@ import { AI_MODEL, aiLaneAvailable, retryOnce } from "@/lib/aiLane";
  * report rather than a hard error or a faked interpretation.
  */
 
-// Low effort keeps this cheap and its read anchored on the measured tokens
-// rather than free-associating. No temperature knob on 4.8.
-const MAX_TOKENS = 1024;
+// This lane is grounded on tokens that were already measured, so its job is to
+// read the feel — not to reason hard — hence `ThinkingLevel.MINIMAL`. The old
+// 1024 was sized for a budget the answer had to itself; thinking tokens now
+// share `maxOutputTokens`, so it doubles to keep a thinking prelude from
+// truncating the JSON.
+const MAX_TOKENS = 2048;
 
 const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
 You are given a screenshot of a rendered page (or an image) plus a JSON summary of
@@ -139,7 +141,6 @@ export { aiLaneAvailable };
 
 /** One model round-trip → parsed, Zod-validated JSON (or null on failure). */
 async function requestOnce(
-  client: Anthropic,
   screenshotsPngBase64: string[],
   summary: string,
 ): Promise<AiResponse | null> {
@@ -152,54 +153,27 @@ async function requestOnce(
   // injection can at worst skew identity/imageMood text or a color-role
   // refinement — never tool use or data exfiltration. Widening what this
   // response can drive widens the injection blast radius.
-  const imageBlocks = screenshotsPngBase64.map((data, i) => ({
-    type: "image" as const,
-    source: { type: "base64" as const, media_type: mediaTypes[i], data },
-  }));
+  const images = screenshotsPngBase64.map((data, i) => ({ data, mediaType: mediaTypes[i] }));
   const promptNote =
     screenshotsPngBase64.length > 1
       ? `Measured tokens for this design (derived from ${screenshotsPngBase64.length} images of the same subject):`
       : "Measured tokens for this design:";
 
-  const response = await client.messages.create({
-    model: AI_MODEL,
-    max_tokens: MAX_TOKENS,
+  const text = await callModel({
+    images,
     system: SYSTEM_PROMPT,
-    output_config: {
-      effort: "low",
-      format: {
-        type: "json_schema",
-        schema: OUTPUT_SCHEMA,
-      },
-    },
-    messages: [
-      {
-        role: "user",
-        content: [
-          ...imageBlocks,
-          {
-            type: "text",
-            text: `${promptNote}\n\n${summary}\n\nInterpret its identity and imageMood, and refine any mislabelled color roles.`,
-          },
-        ],
-      },
-    ],
+    user: `${promptNote}\n\n${summary}\n\nInterpret its identity and imageMood, and refine any mislabelled color roles.`,
+    jsonSchema: OUTPUT_SCHEMA,
+    maxOutputTokens: MAX_TOKENS,
+    thinkingLevel: ThinkingLevel.MINIMAL,
   });
 
-  // Structured outputs / a refusal / truncation can still leave us without a
-  // clean JSON text block — Zod is the gate, not the model's word.
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  if (!text.trim()) return null;
+  // Native JSON mode should return clean JSON, but a fence or a refusal
+  // preamble is still possible — parse loosely, then let Zod, not the model's
+  // word, be the gate.
+  const raw = parseJsonLoose(text);
+  if (raw === null) return null;
 
-  let raw: unknown;
-  try {
-    raw = JSON.parse(text);
-  } catch {
-    return null;
-  }
   const parsed = aiResponseSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
@@ -214,12 +188,11 @@ export async function interpret(
   if (!aiLaneAvailable()) return null;
   if (input.screenshotsPngBase64.length === 0) return null;
 
-  const client = new Anthropic();
   const summary = groundingSummary(input.palette, input.typography);
   const screenshots = input.screenshotsPngBase64.slice(0, MAX_INTERPRET_IMAGES);
 
   // One repair retry (§6), then graceful fallback.
-  const ai = await retryOnce(() => requestOnce(client, screenshots, summary));
+  const ai = await retryOnce(() => requestOnce(screenshots, summary));
   if (!ai) return null;
 
   return {
