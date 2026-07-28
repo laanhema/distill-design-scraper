@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Report, StructureReport } from "@/lib/schema";
+import { emitTailwindTheme } from "@/lib/emit";
 
 interface Meta {
   finalUrl: string;
@@ -173,6 +174,26 @@ export default function Home() {
     }
     a.href = href;
     a.download = `distill-${isStruct ? "structure-" : ""}${host}.md`;
+    a.click();
+    URL.revokeObjectURL(href);
+  }
+
+  function downloadTailwindTheme() {
+    if (!report) return;
+    const themeCss = emitTailwindTheme(report);
+    const blob = new Blob([themeCss], { type: "text/css" });
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    let host = "theme";
+    try {
+      host = new URL(meta?.finalUrl ?? url).hostname.replace(/^www\./, "");
+    } catch {
+      if (inputMode === "image" && images[0]) {
+        host = images[0].file.name.replace(/\.[^/.]+$/, "");
+      }
+    }
+    a.href = href;
+    a.download = `distill-theme-${host}.css`;
     a.click();
     URL.revokeObjectURL(href);
   }
@@ -356,6 +377,12 @@ export default function Home() {
                 className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
               >
                 Download .md
+              </button>
+              <button
+                onClick={downloadTailwindTheme}
+                className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+              >
+                Download Tailwind @theme
               </button>
             </div>
           </div>
