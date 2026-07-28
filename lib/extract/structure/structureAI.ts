@@ -1,8 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { PrunedNode, ComponentDef, OntologyType } from "../structureSchema";
 import { ONTOLOGY_TYPES } from "../structureSchema";
-import { AI_MODEL, aiLaneAvailable, retryOnce } from "@/lib/aiLane";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel } from "@/lib/aiLane";
 import { findDigestBands } from "./sections";
 
 export const aiStructureResponseSchema = z.object({
@@ -28,9 +27,48 @@ export const aiStructureResponseSchema = z.object({
 
 export type AiStructureResponse = z.infer<typeof aiStructureResponseSchema>;
 
+/** JSON Schema mirror of `aiStructureResponseSchema` for structured outputs (§6). */
+const STRUCTURE_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    nodeUpdates: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          componentName: { type: "string" },
+          type: { type: "string", enum: [...ONTOLOGY_TYPES] },
+        },
+        required: ["id", "componentName", "type"],
+      },
+    },
+    componentDefinitions: {
+      type: "object",
+      additionalProperties: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          type: { type: "string", enum: [...ONTOLOGY_TYPES] },
+          composition: { type: "array", items: { type: "string" } },
+          role: { type: "string" },
+        },
+        required: ["type", "composition"],
+      },
+    },
+    sectionDescriptions: {
+      type: "object",
+      additionalProperties: { type: "string" },
+    },
+  },
+  required: ["nodeUpdates", "componentDefinitions"],
+} as const;
+
 /**
  * Stage 7 — AI Labelling Pass (§5b, §6)
- * Text-only Claude call to refine component names, ontology types, and composition strings.
+ * Text-only AI call to refine component names, ontology types, and composition strings.
  */
 export interface StructureAIResult {
   root: PrunedNode;
@@ -71,7 +109,6 @@ function summarizeDigestListForAI(root: PrunedNode): DigestListEntry[] {
 /** One model round-trip → parsed, Zod-validated JSON (or null on failure) —
  *  same null-gate shape as `interpret.ts`, so `retryOnce` can drive it. */
 async function requestOnce(
-  client: Anthropic,
   compactTree: CompactTreeNode,
   digestList: DigestListEntry[],
 ): Promise<AiStructureResponse | null> {
@@ -123,23 +160,16 @@ Return strict JSON matching this Zod schema:
   }
 }`;
 
-  const message = await client.messages.create({
-    model: AI_MODEL,
-    max_tokens: 3000,
-    temperature: 0.1,
-    messages: [{ role: "user", content: prompt }],
+  const text = await callModel({
+    user: prompt,
+    jsonSchema: STRUCTURE_SCHEMA,
+    maxOutputTokens: 4000,
+    thinkingLevel: ThinkingLevel.LOW,
   });
 
-  const text = message.content[0].type === "text" ? message.content[0].text : "";
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return null;
+  const raw = parseJsonLoose(text);
+  if (raw === null) return null;
 
-  let raw: unknown;
-  try {
-    raw = JSON.parse(jsonMatch[0]);
-  } catch {
-    return null;
-  }
   const parsed = aiStructureResponseSchema.safeParse(raw);
   return parsed.success ? parsed.data : null;
 }
@@ -149,10 +179,10 @@ export async function runStructureAILabeller(
   opts?: { forceHeuristicNaming?: boolean },
 ): Promise<StructureAIResult> {
   // Eval-harness short-circuit (DIST-013): when the caller forces heuristic
-  // naming, skip the AI path entirely — before `aiLaneAvailable()` so the
-  // `Anthropic` client is never constructed. Keeps `npm run eval` offline even
-  // when `ANTHROPIC_API_KEY` is set, and suppresses DIST-030's
-  // `sectionDescriptions` (only produced on the AI path).
+  // naming, skip the AI path entirely — before `aiLaneAvailable()` so no AI
+  // calls are made. Keeps `npm run eval` offline even when `GEMINI_API_KEY` is
+  // set, and suppresses DIST-030's `sectionDescriptions` (only produced on the
+  // AI path).
   if (opts?.forceHeuristicNaming) {
     return { root, components: buildFallbackComponentMap(root), naming: "heuristic" };
   }
@@ -163,7 +193,6 @@ export async function runStructureAILabeller(
     return { root, components: fallback, naming: "heuristic" };
   }
 
-  const client = new Anthropic();
   const compactTree = summarizeTreeForAI(root);
   // Section digest list for the same single call (#36 / DIST-030) — computed
   // from the same `findDigestBands` source Stage 9 uses, so the prompt and
@@ -173,7 +202,7 @@ export async function runStructureAILabeller(
   // Shared AI-lane policy (`lib/aiLane.ts`): one repair retry, then graceful
   // fallback — here, heuristic naming instead of null.
   const response = await retryOnce(
-    () => requestOnce(client, compactTree, digestList),
+    () => requestOnce(compactTree, digestList),
     (err, attempt) => console.warn(`AI Structure Labeller failed (attempt ${attempt}):`, err),
   );
   if (!response) {
