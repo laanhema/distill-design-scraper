@@ -32,6 +32,9 @@ as the first comment on each issue.
 | DIST-041 | [#75](https://github.com/laanhema/distill-design-scraper/issues/75) | Motion/transition token lane | `enhancement`, `extraction`, `tokens-lane`, `schema` |
 | DIST-042 | [#76](https://github.com/laanhema/distill-design-scraper/issues/76) | `emitTailwindTheme(report)` + download button | `enhancement`, `emit`, `codegen`, `frontend` |
 | DIST-043 | [#77](https://github.com/laanhema/distill-design-scraper/issues/77) | Cross-origin hover/focus state capture (Strategy A) | `enhancement`, `extraction`, `tokens-lane` |
+| DIST-044 | [#88](https://github.com/laanhema/distill-design-scraper/issues/88) | SSRF redirect hardening on HTTP 301/302 redirects | `bug`, `security`, `ingestion` |
+| DIST-045 | [#89](https://github.com/laanhema/distill-design-scraper/issues/89) | Dynamic contextual action labels & meta panel key hint in `app/page.tsx` | `enhancement`, `frontend`, `ui` |
+| DIST-046 | [#90](https://github.com/laanhema/distill-design-scraper/issues/90) | Automated GitHub Actions CI workflow (`.github/workflows/ci.yml`) | `technical`, `infra`, `ci` |
 
 ---
 
@@ -47,11 +50,20 @@ Phase 5 (sequential — the seam lands first, call sites follow, cleanup last)
       └──▶ DIST-040  AI-failure observability  (independent of 035–037)
                  │
    035+036+037 ──┴──▶ DIST-038  drop @anthropic-ai/sdk + doc sweep
-                              └──▶ DIST-039  first live end-to-end verification
+                               └──▶ DIST-039  first live end-to-end verification
+
+Audit & Infra Fixes (Phase 5 parallel)
+
+  DIST-044  SSRF redirect hardening
+  DIST-045  UI polish & meta key hint
+  DIST-046  GitHub Actions CI workflow
 
 Phase 6 (mutually independent; each has a completed GO spike)
 
   DIST-041  motion/transition lane
+  DIST-042  emitTailwindTheme
+  DIST-043  cross-origin state capture
+```n lane
   DIST-042  emitTailwindTheme
   DIST-043  cross-origin state capture
 ```
@@ -84,7 +96,7 @@ JSON extraction.
 ### Acceptance Criteria
 
 - [ ] Given `@google/genai` ^2.13.0 is added as a dependency (`@anthropic-ai/sdk` stays installed for now), when `npm run typecheck` runs, then it passes with no call-site changes yet.
-- [ ] Given `lib/aiLane.ts`, when it is inspected, then `AI_MODEL === "gemini-3.5-flash"` and `aiLaneAvailable()` returns `Boolean(process.env.GEMINI_API_KEY)`.
+- [ ] Given `lib/aiLane.ts`, when it is inspected, then `AI_MODEL === "gemini-2.5-flash"` (with optional `process.env.GEMINI_MODEL` fallback) and `aiLaneAvailable()` returns `Boolean(process.env.GEMINI_API_KEY)`.
 - [ ] Given `callModel(opts)` is exported, when it is called, then it accepts `{ images?, system?, user, jsonSchema?, maxOutputTokens, thinkingLevel? }` and returns `string | null`, constructing exactly one module-level `GoogleGenAI` client (lazily) rather than one per retry.
 - [ ] Given `jsonSchema` is supplied, when the request is built, then `config` carries both `responseMimeType: "application/json"` and `responseJsonSchema` (never `responseSchema`, and never both).
 - [ ] Given `parseJsonLoose(text)` is exported, when passed clean JSON, a fenced/preambled JSON blob, or `null`, then it returns the parsed object, the parsed object, and `null` respectively.
@@ -351,6 +363,108 @@ again.
 
 ---
 
+## [DIST-044] SSRF redirect hardening on HTTP 301/302 redirects
+
+**Type**: Bug
+**GitHub Label**: bug
+**Priority**: High
+**Complexity**: Medium
+**Phase**: 5 — Audit & Hardening
+**Labels**: `bug`, `security`, `ingestion`
+**PRD trace**: §4 Planned (SSRF redirect hardening), §9 (security posture), §12 Phase 5 scope (`lib/ingest.ts`), CODEBASE_ANALYSIS.md §3.1 issue 2
+
+### Description
+
+As a deployer of a public Distill instance, I want Playwright to validate the resolved IP of all HTTP 301/302 redirect targets against `assertSafeUrl`, so that malicious URLs cannot bypass SSRF validation via redirects to internal/private network targets.
+
+### Acceptance Criteria
+
+- [ ] Given a target URL that issues an HTTP 301/302 redirect, when `renderUrl` processes the navigation in `lib/ingest.ts`, then the target redirect URL is intercepted and validated via `assertSafeUrl(targetUrl)`.
+- [ ] Given a redirect pointing to a loopback (`127.0.0.1`, `::1`), RFC1918 private subnet, link-local, CGNAT, or reserved IP range, when encountered during render, then navigation is immediately aborted and an `UnsafeUrlError` is thrown before loading any redirect response body.
+- [ ] Given a redirect to an allowlisted hostname in `SSRF_ALLOWLIST_HOSTS`, when encountered, then the redirect is permitted.
+- [ ] Given `npm run eval`, when run, then offline eval captures pass unchanged.
+
+### Technical Notes
+
+- Intercept using Playwright's `page.on('response', ...)` or route handlers (`page.route('**/*', ...)`) in `lib/ingest.ts`.
+- Perform IP validation on `response.headers()['location']` or request redirect targets before full response body load.
+- Ensure no loopback or internal metadata endpoints (e.g. `http://169.254.169.254/`) can be read via redirect.
+
+### Dependencies
+
+- Blocked by: —
+- Blocks: —
+
+---
+
+## [DIST-045] Dynamic contextual action labels & meta panel key hint in `app/page.tsx`
+
+**Type**: Feature
+**GitHub Label**: enhancement
+**Priority**: Medium
+**Complexity**: Small
+**Phase**: 5 — UI Polish
+**Labels**: `enhancement`, `frontend`, `ui`
+**PRD trace**: §4 Planned (UI polish), §12 Phase 5 scope (`app/page.tsx`)
+
+### Description
+
+As a user of the Distill workbench, I want the "Copy" and "Download" button labels in `app/page.tsx` to dynamically adapt to whichever report tab is currently active (Design System vs Structure), and I want a clear setup hint for configuring `GEMINI_API_KEY` in the meta panel.
+
+### Acceptance Criteria
+
+- [ ] Given `activeTab === "design"`, when viewing the workbench action buttons, then the copy button reads `"Copy Design System .md"` and the download button reads `"Download Design System .md"`.
+- [ ] Given `activeTab === "structure"`, when viewing the workbench action buttons, then the copy button reads `"Copy Structure .md"` and the download button reads `"Download Structure .md"`.
+- [ ] Given line 162 in `app/page.tsx`, when inspected, then the legacy TODO comment is cleanly resolved.
+- [ ] Given the meta header panel in the UI, when rendered, then a concise, non-intrusive setup hint for enabling optional AI enrichment via `GEMINI_API_KEY` is present.
+- [ ] Given `npm run lint && npm run typecheck`, when run, then both pass with zero errors.
+
+### Technical Notes
+
+- Files: `app/page.tsx`.
+- Keep button styling and tab behavior identical, changing only button label text based on active tab state.
+- Meta panel key hint should mention free-tier keys at https://aistudio.google.com/apikey.
+
+### Dependencies
+
+- Blocked by: —
+- Blocks: —
+
+---
+
+## [DIST-046] Automated GitHub Actions CI workflow (`.github/workflows/ci.yml`)
+
+**Type**: Infra
+**GitHub Label**: technical
+**Priority**: High
+**Complexity**: Small
+**Phase**: 5 — CI/CD
+**Labels**: `technical`, `infra`, `ci`
+**PRD trace**: §4 Planned (Automated CI/CD), §12 Phase 5 scope (`.github/workflows/ci.yml`)
+
+### Description
+
+As a maintainer, I want a GitHub Actions CI workflow created at `.github/workflows/ci.yml` that runs type checking, linting, and offline eval regression tests on PRs and main pushes, so that breaking changes cannot land undetected.
+
+### Acceptance Criteria
+
+- [ ] Given `.github/workflows/ci.yml`, when created, then it triggers on `push` to `main` and `pull_request` targeting `main`.
+- [ ] Given a workflow run, when executed on GitHub Actions, then Node.js 20 is configured, dependencies are installed cleanly (`npm ci`), Playwright Chromium browser binaries are installed (`npx playwright install --with-deps chromium`), and `npm run typecheck`, `npm run lint`, and `npm run eval` are executed in order.
+- [ ] Given any failure in `typecheck`, `lint`, or `eval`, when executed in CI, then the job fails closed.
+- [ ] Given `eval/baseline.json`, when verified in CI, then the offline eval harness enforces the floor without network calls.
+
+### Technical Notes
+
+- File: `.github/workflows/ci.yml`.
+- Keep the workflow minimal and fast. Node caching (`actions/setup-node` with `cache: 'npm'`) is recommended.
+
+### Dependencies
+
+- Blocked by: —
+- Blocks: —
+
+---
+
 # Phase 6 — Spiked, GO'd, not yet built
 
 All three carry a completed spike report with evidence and a GO recommendation. Each is implementation
@@ -496,6 +610,9 @@ serving CSS from a CDN produce a real `## States` section instead of silently om
 | §12 P6: motion/transition lane | DIST-041 |
 | §12 P6: `emitTailwindTheme(report)` | DIST-042 |
 | §12 P6: cross-origin state capture | DIST-043 |
+| §4 Planned / §12 P5: SSRF redirect hardening (`lib/ingest.ts`) | DIST-044 |
+| §4 Planned / §12 P5: UI polish & active tab labels (`app/page.tsx`) | DIST-045 |
+| §4 Planned / §12 P5: Automated GitHub Actions CI workflow (`.github/workflows/ci.yml`) | DIST-046 |
 | §4 Out of Scope (deferred), §13 Future Considerations | *no story — deliberately deferred* |
 
 **Validation:** all Phase-1–4 PRD items are `[x]` delivered and already tracked by closed issues
