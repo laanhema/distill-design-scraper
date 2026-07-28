@@ -15,7 +15,6 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.112.4",
     "@google/genai": "^2.13.0",
     "culori": "^4.0.2",
     "js-yaml": "^5.2.1",

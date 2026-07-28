@@ -15,7 +15,7 @@ const SHARP_FORMAT_TO_MEDIA_TYPE: Partial<Record<string, ImageMediaType>> = {
  * preserved past `stripDataUrlPrefix`, so a declared type isn't available
  * here. Falls back to "image/png" (harmless for actual PNGs, and the closest
  * available guess otherwise) when the format can't be read or isn't one of
- * the four Claude's vision API accepts.
+ * the four Gemini's vision API accepts.
  */
 export async function detectImageMediaType(base64: string): Promise<ImageMediaType> {
   try {

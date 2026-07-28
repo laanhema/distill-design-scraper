@@ -58,8 +58,8 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
   if (capture.rawHarvestNode) {
     try {
       // Force the heuristic Stage 7 fallback (DIST-013) so the eval path
-      // never constructs the Anthropic client — keeps `npm run eval`
-      // offline and deterministic even when `ANTHROPIC_API_KEY` is set.
+      // never makes AI calls — keeps `npm run eval`
+      // offline and deterministic even when `GEMINI_API_KEY` is set.
       const structReport = await extractStructureFromCapture(
         capture,
         undefined,

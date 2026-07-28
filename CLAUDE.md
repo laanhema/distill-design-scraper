@@ -58,7 +58,7 @@ Because eval fixtures are frozen JSON, testing anything that depends on live pag
 
 This split (measured lane vs. AI lane) is intentional and load-bearing: **never** make `extractFromCapture` reach for the network or an API key. The measured lane must stay replayable offline for eval.
 
-Every Claude-backed lane (`lib/interpret.ts`, structure Stage 7 in `structureAI.ts`, and `structureFromImage.ts`) shares `lib/aiLane.ts` — one pinned `AI_MODEL`, one `aiLaneAvailable()` API-key check, one `retryOnce` retry-then-graceful-`null` policy. Don't inline a model id or availability check in a new AI call site.
+Every AI-backed lane (`lib/interpret.ts`, structure Stage 7 in `structureAI.ts`, and `structureFromImage.ts`) shares `lib/aiLane.ts` — one pinned `AI_MODEL`, one `aiLaneAvailable()` API-key check, one `callModel` primitive, and one `retryOnce` retry-then-graceful-`null` policy. Don't inline a model id, API call, or availability check in a new AI call site.
 
 ### Design-tokens lane (Track A)
 
@@ -77,7 +77,7 @@ A staged pipeline orchestrated by `lib/extract/structure/index.ts`: harvest DOM 
 
 `styleMatch.ts` is the shared bounds-overlap matcher ("which style-dump node _is_ this `PrunedNode`", within `BOUNDS_MATCH_TOLERANCE`) used by both `tokenLink.ts` and `regionMetrics.ts` — like `roleMatch.ts` in Track A, don't reintroduce an inline copy.
 
-**`lib/extract/structureFromImage.ts`** is the image-input counterpart: an upload has no DOM, so the skeleton is one-shot *inferred* by the vision model — gated entirely on `ANTHROPIC_API_KEY`, always stamped `fidelity: "inferred"`, with no heuristic fallback possible. It reuses the ontology vocabulary and `structureEmit.ts` so an image-derived skeleton reads the same as a URL-derived one. `lib/extract/imageMediaType.ts` sniffs each upload's real encoded format via `sharp` (uploads aren't necessarily PNG) before anything is sent to the vision API.
+**`lib/extract/structureFromImage.ts`** is the image-input counterpart: an upload has no DOM, so the skeleton is one-shot *inferred* by the vision model — gated entirely on `GEMINI_API_KEY`, always stamped `fidelity: "inferred"`, with no heuristic fallback possible. It reuses the ontology vocabulary and `structureEmit.ts` so an image-derived skeleton reads the same as a URL-derived one. `lib/extract/imageMediaType.ts` sniffs each upload's real encoded format via `sharp` (uploads aren't necessarily PNG) before anything is sent to the vision API.
 
 ### Schema (`lib/schema.ts` + `lib/extract/structureSchema.ts`)
 

@@ -13,7 +13,7 @@ import { CORPUS } from "./corpus";
  *
  * Unlike `npm run eval` (the measured lane, offline and CI-gated), this makes
  * live model calls, so it is opt-in: `npm run eval:ai`, and a no-op without an
- * ANTHROPIC_API_KEY. Screenshots come from the committed captures, so only the
+ * GEMINI_API_KEY. Screenshots come from the committed captures, so only the
  * AI lane varies between runs.
  */
 
@@ -90,7 +90,7 @@ async function scoreSite(slug: string): Promise<{
 async function main() {
   if (!aiLaneAvailable()) {
     console.log(
-      "AI-lane stability eval skipped: set ANTHROPIC_API_KEY to run it.",
+      "AI-lane stability eval skipped: set GEMINI_API_KEY to run it.",
     );
     return;
   }
