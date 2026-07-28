@@ -360,9 +360,36 @@ export async function renderUrl(
     });
     const page = await context.newPage();
 
+    let redirectSsrfError: Error | null = null;
+    page.on("response", async (response) => {
+      const status = response.status();
+      if (status >= 300 && status < 400) {
+        const location = response.headers()["location"];
+        if (location) {
+          try {
+            const targetUrl = new URL(location, response.url()).toString();
+            await assertSafeUrl(targetUrl);
+          } catch (err) {
+            redirectSsrfError = err instanceof Error ? err : new Error(String(err));
+            await page.close().catch(() => {});
+          }
+        }
+      }
+    });
+
     // `domcontentloaded` is the reliable gate; `networkidle` is best-effort on
     // top of it because chatty/analytics-heavy sites may never fully idle.
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: navTimeout });
+    try {
+      await page.goto(url, { waitUntil: "domcontentloaded", timeout: navTimeout });
+    } catch (err) {
+      if (redirectSsrfError) {
+        throw redirectSsrfError;
+      }
+      throw err;
+    }
+    if (redirectSsrfError) {
+      throw redirectSsrfError;
+    }
     try {
       await page.waitForLoadState("networkidle", { timeout: 8_000 });
     } catch {
