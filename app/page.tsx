@@ -370,13 +370,17 @@ export default function Home() {
                 onClick={copyActiveMarkdown}
                 className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
               >
-                {copied ? "Copied ✓" : "Copy .md"}
+                {copied
+                  ? "Copied ✓"
+                  : tab === "structure"
+                    ? "Copy Structure .md"
+                    : "Copy Design System .md"}
               </button>
               <button
                 onClick={downloadActiveMarkdown}
                 className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
               >
-                Download .md
+                {tab === "structure" ? "Download Structure .md" : "Download Design System .md"}
               </button>
               <button
                 onClick={downloadTailwindTheme}
@@ -428,6 +432,20 @@ function Preview({
           value={meta.aiApplied ? "applied" : "skipped (no key)"}
         />
       </dl>
+
+      {!meta.aiApplied && (
+        <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3.5 py-2 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/50 dark:text-neutral-400">
+          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-neutral-800 dark:text-neutral-200">GEMINI_API_KEY</code> in <code className="font-mono text-neutral-800 dark:text-neutral-200">.env.local</code> to enable optional AI vision enrichment (§7). Get a free key at{" "}
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noreferrer"
+            className="underline hover:text-neutral-900 dark:hover:text-neutral-200"
+          >
+            aistudio.google.com/apikey
+          </a>.
+        </p>
+      )}
 
       <section>
         <SectionTitle provenance={report.palette.provenance}>Palette</SectionTitle>
