@@ -620,3 +620,39 @@ serving CSS from a CDN produce a real `## States` section instead of silently om
 independently reviewable and mergeable with `npm run lint`, `npm run typecheck`, and `npm run eval`
 green — the last of these with `eval/baseline.json` **untouched** in every Phase-5 story, since the
 measured lane is provider-independent.
+
+---
+
+## [DIST-047] Add OpenRouter API support as an alternative vision AI model provider in `lib/aiLane.ts`
+
+**Type**: Technical
+**GitHub Label**: technical
+**Priority**: Medium
+**Complexity**: Medium
+**Phase**: Phase 5: AI Lane Enhancements & Fallbacks
+**Labels**: `technical`, `infra`
+
+### Description
+
+As a user or developer, I want `lib/aiLane.ts` to support OpenRouter API keys (`OPENROUTER_API_KEY`) as an alternative or fallback provider, so that AI vision analysis can run flexibly across multiple models (e.g. `google/gemini-2.5-flash`, `openai/gpt-4o-mini`, `anthropic/claude-3.5-sonnet`) without being blocked by Google AI Studio free-tier rate limits (429 Quota Exceeded).
+
+### Acceptance Criteria
+
+- [ ] Given `OPENROUTER_API_KEY` is set in environment variables, when `aiLaneAvailable()` is called, then it returns `true`.
+- [ ] Given `callModel(opts)` is invoked with an `OPENROUTER_API_KEY` set, when making the API call, then it sends an OpenAI-compatible Chat Completions request to `https://openrouter.ai/api/v1/chat/completions` with base64 data-URL image parts, system instructions, and JSON response format options.
+- [ ] Given `process.env.OPENROUTER_MODEL` is set, when `callModel` runs via OpenRouter, then it uses the specified model ID (defaulting to `google/gemini-2.5-flash`).
+- [ ] Given neither `OPENROUTER_API_KEY` nor `GEMINI_API_KEY` is set, when `aiLaneAvailable()` is called, then it returns `false` and gracefully degrades without throwing unhandled exceptions.
+- [ ] Given `npm run typecheck` and `npm run lint`, when run, then both pass with zero errors.
+
+### Technical Notes
+
+- Files to modify: `lib/aiLane.ts`
+- Implement `callModel` branching based on `OPENROUTER_API_KEY` vs `GEMINI_API_KEY`.
+- Format image inputs for OpenRouter as `{ type: "image_url", image_url: { url: "data:<mime>;base64,<data>" } }`.
+- Ensure native JSON schema / JSON mode options match OpenRouter's `{ type: "json_object" }` or schema parameters.
+
+### Dependencies
+
+- Blocked by: None
+- Blocks: None
+

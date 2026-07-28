@@ -22,7 +22,7 @@ export const AI_MODEL = "gemini-3.5-flash";
 
 /** True when a live AI lane call is possible (an API key is configured). */
 export function aiLaneAvailable(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY);
+  return Boolean(process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY);
 }
 
 /**
@@ -65,14 +65,76 @@ export interface ModelCall {
   thinkingLevel?: ThinkingLevel;
 }
 
-/**
- * The single model round-trip for every AI lane. Returns `null` only for the
- * "call succeeded but produced no usable text" case — SDK/network/auth errors
- * deliberately propagate, because `retryOnce`'s `onError` is the only place an
- * AI failure becomes visible, and a swallowed 401/429 would be
- * indistinguishable from a quality regression.
- */
-export async function callModel(opts: ModelCall): Promise<string | null> {
+async function callOpenRouterModel(opts: ModelCall): Promise<string | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENROUTER_API_KEY is not set — AI lane called without an available key.");
+  }
+
+  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+
+  const userContent: Array<
+    | { type: "image_url"; image_url: { url: string } }
+    | { type: "text"; text: string }
+  > = (opts.images ?? []).map((img) => ({
+    type: "image_url",
+    image_url: {
+      url: `data:${img.mediaType};base64,${img.data}`,
+    },
+  }));
+
+  userContent.push({
+    type: "text",
+    text: opts.user,
+  });
+
+  const messages: Array<{
+    role: "system" | "user";
+    content: string | typeof userContent;
+  }> = [];
+
+  if (opts.system) {
+    messages.push({
+      role: "system",
+      content: opts.system,
+    });
+  }
+
+  messages.push({
+    role: "user",
+    content: userContent,
+  });
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "https://github.com/laanhema/distill-design-scraper",
+      "X-Title": "Distill Design Scraper",
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      max_tokens: opts.maxOutputTokens,
+      ...(opts.jsonSchema ? { response_format: { type: "json_object" } } : {}),
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenRouter API error (${response.status} ${response.statusText}): ${errorText}`);
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string | null } }>;
+  };
+
+  const text = data.choices?.[0]?.message?.content;
+  return text && text.trim() ? text : null;
+}
+
+async function callGeminiModel(opts: ModelCall): Promise<string | null> {
   const imageParts = (opts.images ?? []).map((img) => ({
     // Raw base64 — no data-URL prefix.
     inlineData: { mimeType: img.mediaType, data: img.data },
@@ -97,6 +159,20 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
 
   const text = response.text;
   return text && text.trim() ? text : null;
+}
+
+/**
+ * The single model round-trip for every AI lane. Returns `null` only for the
+ * "call succeeded but produced no usable text" case — SDK/network/auth errors
+ * deliberately propagate, because `retryOnce`'s `onError` is the only place an
+ * AI failure becomes visible, and a swallowed 401/429 would be
+ * indistinguishable from a quality regression.
+ */
+export async function callModel(opts: ModelCall): Promise<string | null> {
+  if (process.env.OPENROUTER_API_KEY) {
+    return callOpenRouterModel(opts);
+  }
+  return callGeminiModel(opts);
 }
 
 /**
