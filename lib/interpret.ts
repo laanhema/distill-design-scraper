@@ -10,7 +10,7 @@ import {
 } from "@/lib/schema";
 import { ROLE_USAGE } from "@/lib/extract/palette";
 import { detectImageMediaType } from "@/lib/extract/imageMediaType";
-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel } from "@/lib/aiLane";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
 
 /**
  * Interpretation engine (§6, the AI lane). Only `identity`, `imageMood`, and
@@ -192,7 +192,10 @@ export async function interpret(
   const screenshots = input.screenshotsPngBase64.slice(0, MAX_INTERPRET_IMAGES);
 
   // One repair retry (§6), then graceful fallback.
-  const ai = await retryOnce(() => requestOnce(screenshots, summary));
+  const ai = await retryOnce(
+    () => requestOnce(screenshots, summary),
+    (err, attempt) => warnAiFailure("AI Interpretation lane", attempt, err),
+  );
   if (!ai) return null;
 
   return {

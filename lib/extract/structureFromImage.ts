@@ -4,7 +4,7 @@ import { ONTOLOGY_TYPES, type PrunedNode, type StructureReport } from "./structu
 import { buildFallbackComponentMap } from "./structure/structureAI";
 import { emitStructureReport } from "./structure/structureEmit";
 import { detectImageMediaType, type ImageMediaType } from "./imageMediaType";
-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel } from "@/lib/aiLane";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
 
 /**
  * §P6-2 step 2 — Vision structure lane. There is no DOM for an uploaded image,
@@ -168,7 +168,7 @@ export async function structureFromImages(
 
   const aiRoot = await retryOnce(
     () => requestOnce(imageBlocks),
-    (err, attempt) => console.warn(`Vision structure inference failed (attempt ${attempt}):`, err),
+    (err, attempt) => warnAiFailure("Vision structure inference", attempt, err),
   );
   if (!aiRoot) return null;
 

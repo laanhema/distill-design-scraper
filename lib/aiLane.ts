@@ -145,3 +145,27 @@ export async function retryOnce<T>(
   }
   return result;
 }
+
+/**
+ * Log a structured warning for AI-lane failures, distinguishing 429 rate limits
+ * from 400 bad requests or other errors.
+ */
+export function warnAiFailure(laneName: string, attempt: 1 | 2, err: unknown): void {
+  const msg = err instanceof Error ? err.message : String(err);
+  let detail = "error";
+  if (
+    msg.includes("429") ||
+    msg.includes("RESOURCE_EXHAUSTED") ||
+    msg.includes("Quota") ||
+    msg.includes("rate limit")
+  ) {
+    detail = "429 Rate Limit / Quota Exceeded";
+  } else if (
+    msg.includes("400") ||
+    msg.includes("INVALID_ARGUMENT") ||
+    msg.includes("BadRequest")
+  ) {
+    detail = "400 Bad Request";
+  }
+  console.warn(`${laneName} failed (${detail}, attempt ${attempt}):`, err);
+}
