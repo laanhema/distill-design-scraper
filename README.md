@@ -43,7 +43,7 @@ Distill includes a modern Next.js web application featuring:
 
 - **Node.js 18+** (Developed and tested on Node 20 / 22)
 - **Chromium** (Installed automatically by Playwright during `npm install`)
-- **Anthropic API Key** *(Optional)*: Required for the AI lane (`identity`, `imageMood`, and semantic structural refinement). Without a key, deterministic token extraction operates fully offline.
+- **Google Gemini API Key** *(Optional)*: Required for the AI lane (`identity`, `imageMood`, and semantic structural refinement). Without a key, deterministic token extraction operates fully offline. A free-tier key with no credit card required is available at https://aistudio.google.com/apikey.
 
 ---
 
@@ -59,7 +59,7 @@ Distill includes a modern Next.js web application featuring:
    Create a `.env.local` file in the project root to enable the AI interpretation lane:
    ```env
    # .env.local
-   ANTHROPIC_API_KEY=sk-ant-...
+   GEMINI_API_KEY=...
    ```
 
 3. **SSRF guard** *(built in, no configuration required)*:
@@ -119,7 +119,7 @@ npm run start
 Distill includes a multi-stage Dockerfile pre-configured with Playwright browser dependencies:
 ```bash
 docker build -t distill .
-docker run -p 3000:3000 -e ANTHROPIC_API_KEY="sk-ant-..." distill
+docker run -p 3000:3000 -e GEMINI_API_KEY="..." distill
 ```
 
 ---
