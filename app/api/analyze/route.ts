@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { analyzeImages, analyzeUrl, extractStructureFromCapture } from "@/lib/analyze";
+import { aiLaneAvailable } from "@/lib/aiLane";
 import { createCacheKey, getCache, setCache } from "@/lib/cache";
 import {
   assertWithinRateLimit,
@@ -176,8 +177,15 @@ export async function POST(request: Request) {
 
       // Don't cache a transient structure failure — replaying it verbatim for
       // the full TTL would hide a one-off vision-model flake/timeout from a
-      // resubmission seconds later (§ code review finding #3).
-      if (!structureUnavailableReason) {
+      // resubmission seconds later (§ code review finding #3). A missing AI
+      // key is different: it's a persistent condition (nothing about a retry
+      // fixes it without a config change), so it's safe — and cheap — to
+      // cache. `aiLaneAvailable()` is the same check `analyzeImages` used to
+      // choose the wording; re-running it here (env vars are static for the
+      // life of the process) is enough to tell the two reasons apart without
+      // adding a second field to the response just to carry this bit (DIST-050).
+      const structureFailureIsTransient = Boolean(structureUnavailableReason) && aiLaneAvailable();
+      if (!structureFailureIsTransient) {
         setCache(cacheKey, responsePayload);
       }
       return NextResponse.json(responsePayload);

@@ -230,7 +230,7 @@ export async function analyzeImages(
     typeof img.data === "string" ? img.data : img.data.toString("base64"),
   );
 
-  const wantsStructure = (mode === "structure" || mode === "both") && aiLaneAvailable();
+  const wantsStructure = mode === "structure" || mode === "both";
   // A "structure"-only caller has no use for the identity/imageMood AI pass
   // over the palette-mood report, so skip it rather than paying for both.
   const wantsTokenEnrichment = mode === "tokens" || mode === "both";
@@ -240,23 +240,35 @@ export async function analyzeImages(
       ? enrichWithAI(measuredResult, screenshotsBase64)
       : Promise.resolve({ ...measuredResult, refinements: [] as RefinementChange[] }),
     wantsStructure
-      ? structureFromImages({
-          imagesPngBase64: screenshotsBase64,
-          sourceRef: ref,
-          capturedAt,
-        })
-          .then((structureReport) => ({
-            structureReport: structureReport ?? undefined,
-            structureUnavailableReason: structureReport
-              ? undefined
-              : "Vision structure inference failed for this image.",
-          }))
-          .catch((err) => {
-            console.warn("Image structure extraction error:", err);
-            return {
-              structureReport: undefined,
-              structureUnavailableReason: "Vision structure inference failed for this image.",
-            };
+      ? aiLaneAvailable()
+        ? structureFromImages({
+            imagesPngBase64: screenshotsBase64,
+            sourceRef: ref,
+            capturedAt,
+          })
+            .then((structureReport) => ({
+              structureReport: structureReport ?? undefined,
+              structureUnavailableReason: structureReport
+                ? undefined
+                : "Vision structure inference failed for this image.",
+            }))
+            .catch((err) => {
+              console.warn("Image structure extraction error:", err);
+              return {
+                structureReport: undefined,
+                structureUnavailableReason: "Vision structure inference failed for this image.",
+              };
+            })
+        : Promise.resolve({
+            structureReport: undefined as StructureReport | undefined,
+            // Distinct from the vision-call failure above: this is a
+            // persistent condition (no retry will fix it without config
+            // changes), not a one-off flake — see the route.ts caching gate,
+            // which relies on that distinction (DIST-050).
+            structureUnavailableReason:
+              "Structure inference for images requires an AI key — set GEMINI_API_KEY or OPENROUTER_API_KEY." as
+                | string
+                | undefined,
           })
       : Promise.resolve({
           structureReport: undefined as StructureReport | undefined,
