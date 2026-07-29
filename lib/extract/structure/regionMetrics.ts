@@ -2,6 +2,7 @@ import type { PrunedNode } from "../structureSchema";
 import type { StyleDump } from "@/lib/extract/styleDump";
 import type { Report } from "@/lib/schema";
 import { findMatchingStyleNode } from "./styleMatch";
+import { nearestScaleValue } from "./scaleMatch";
 
 /**
  * Stage 8a — Region Metrics (§P7-2)
@@ -106,20 +107,7 @@ function derivePadY(
 
   const avg = (top + bottom) / 2;
   const snapped = report?.spacing?.scale.length
-    ? nearestScaleValue(avg, report.spacing.scale)
+    ? nearestScaleValue(avg, report.spacing.scale, PAD_SNAP_TOLERANCE)
     : null;
   return `padY ${snapped ?? Math.round(avg)}px`;
-}
-
-function nearestScaleValue(value: number, scale: number[]): number | null {
-  let best: number | null = null;
-  let bestDiff = Infinity;
-  for (const s of scale) {
-    const diff = Math.abs(s - value);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = s;
-    }
-  }
-  return best !== null && bestDiff <= PAD_SNAP_TOLERANCE ? best : null;
 }

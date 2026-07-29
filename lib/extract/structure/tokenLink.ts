@@ -13,6 +13,8 @@ import type { NodeStyle, StyleDump } from "@/lib/extract/styleDump";
  * simply gets no hint — this never guesses a token that isn't in the report.
  */
 
+import { nearestScaleValue } from "./scaleMatch";
+
 /** Max px difference for a measured gap to count as "the same" scale step. */
 const GAP_MATCH_TOLERANCE = 2;
 
@@ -24,19 +26,6 @@ function normalizeRadius(raw: string): string | null {
   if (trimmed === "50%" || trimmed.includes("999")) return "9999px";
   const parts = trimmed.split(/\s+/);
   return parts.every((p) => p === parts[0]) ? parts[0] : null;
-}
-
-function nearestScaleValue(value: number, scale: number[]): number | null {
-  let best: number | null = null;
-  let bestDiff = Infinity;
-  for (const s of scale) {
-    const diff = Math.abs(s - value);
-    if (diff < bestDiff) {
-      bestDiff = diff;
-      best = s;
-    }
-  }
-  return best !== null && bestDiff <= GAP_MATCH_TOLERANCE ? best : null;
 }
 
 function buildHint(styleNode: NodeStyle, report: Report): string | null {
@@ -57,7 +46,11 @@ function buildHint(styleNode: NodeStyle, report: Report): string | null {
 
   const gap = styleNode.layout?.gapsPx[0];
   if (gap && report.spacing) {
-    const matched = nearestScaleValue(Math.round(gap), report.spacing.scale);
+    const matched = nearestScaleValue(
+      Math.round(gap),
+      report.spacing.scale,
+      GAP_MATCH_TOLERANCE,
+    );
     if (matched !== null) parts.push(`gap=${matched}px`);
   }
 
