@@ -22,8 +22,6 @@ export interface RenderResult {
   title: string;
   /** Above-the-fold screenshot, PNG bytes as base64. */
   viewportShot: string;
-  /** Full scrollable page screenshot, PNG bytes as base64. */
-  fullPageShot: string;
   /** Viewport used for the capture. */
   viewport: { width: number; height: number };
   /** How long the render took, ms. */
@@ -48,12 +46,16 @@ export interface RenderResult {
   scrollShots?: string[];
   /** Single seamless full-page screenshot stitched from gapless viewport
    *  tiles captured toward the bottom, same session — feeds the area-weight
-   *  pixel pass and the frontend gallery. Not Playwright's native `fullPage`
-   *  screenshot (see `fullPageShot`): that internally scroll-and-stitches
-   *  too, which is known to duplicate `position: fixed`/sticky elements at
-   *  tile boundaries on tall pages — this manual tile-and-composite path
-   *  avoids that. Omitted when the page fits in one viewport, or on capture
-   *  failure. */
+   *  pixel pass and the frontend gallery. Deliberately NOT Playwright's
+   *  native `page.screenshot({ fullPage: true })`: that internally
+   *  scroll-and-stitches too, but is known to duplicate `position: fixed`/
+   *  sticky elements at tile boundaries on tall pages — this manual
+   *  tile-and-composite path avoids that. (An earlier revision of this file
+   *  also captured the native `fullPage` shot as a literal fallback; it was
+   *  removed because nothing ever read it — see DIST-051 — but the
+   *  duplication problem it would have reintroduced is still real, so don't
+   *  bring it back as a "simplification.") Omitted when the page fits in one
+   *  viewport, or on capture failure. */
   panoramaShot?: string;
 }
 
@@ -274,13 +276,13 @@ async function captureFullPageTiles(
 
 /**
  * Everything after navigation: dismiss banners, nudge lazy content, capture
- * both screenshots, and read the computed-style dump off the *same* settled
- * render (§9). Factored out so the eval harness can drive it against local
- * fixture pages without going through the http(s)-only `renderUrl` front door.
+ * the viewport screenshot, and read the computed-style dump off the *same*
+ * settled render (§9). Factored out so the eval harness can drive it against
+ * local fixture pages without going through the http(s)-only `renderUrl`
+ * front door.
  */
 export async function capturePage(page: Page): Promise<{
   viewportShot: string;
-  fullPageShot: string;
   bannerDismissed: boolean;
   styleDump: StyleDump;
   rawHarvestNode?: RawHarvestNode;
@@ -300,13 +302,6 @@ export async function capturePage(page: Page): Promise<{
   await page.waitForTimeout(300);
 
   const viewportShotBuf = await page.screenshot({ fullPage: false });
-  // Captured but intentionally NOT threaded into Capture — Playwright's native
-  // `fullPage` screenshot internally scroll-and-stitches too, which is known to
-  // duplicate `position: fixed`/sticky elements at tile boundaries on tall
-  // pages. The manual tile-and-composite path in `captureFullPageTiles` is the
-  // panorama source; this stays as a dead-code fallback so a future reader
-  // doesn't "simplify" by swapping it in.
-  const fullPageShotBuf = await page.screenshot({ fullPage: true });
   const styleDump = await collectStyleDump(page);
   let rawHarvestNode: RawHarvestNode | undefined;
   try {
@@ -325,7 +320,6 @@ export async function capturePage(page: Page): Promise<{
 
   return {
     viewportShot: viewportShotBuf.toString("base64"),
-    fullPageShot: fullPageShotBuf.toString("base64"),
     bannerDismissed,
     styleDump,
     rawHarvestNode,
@@ -453,7 +447,6 @@ export async function renderUrl(
       finalUrl: page.url(),
       title: await page.title(),
       viewportShot: captured.viewportShot,
-      fullPageShot: captured.fullPageShot,
       viewport,
       elapsedMs: Date.now() - startedAt,
       bannerDismissed: captured.bannerDismissed,
