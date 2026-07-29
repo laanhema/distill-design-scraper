@@ -193,7 +193,7 @@ export async function POST(request: Request) {
 
     // Single Playwright render yields capture containing styleDump + rawHarvestNode (§4).
     const { report, markdown, capture, meta, refinements } =
-      await analyzeUrl(url!);
+      await analyzeUrl(url!, mode);
 
     let structureReport = null;
     let structureUnavailableReason: string | undefined;
