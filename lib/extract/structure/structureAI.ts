@@ -224,7 +224,7 @@ export async function runStructureAILabeller(
   }
 
   // Ensure all components used in the updated root have definitions
-  populateMissingComponentDefs(updatedRoot, finalComponents);
+  walkComponentMap(updatedRoot, finalComponents);
 
   // Keep only descriptions keyed by band ids we actually asked about —
   // never trust model-invented keys.
@@ -326,8 +326,4 @@ export function buildFallbackComponentMap(node: PrunedNode): Record<string, Comp
   const map: Record<string, ComponentDef> = {};
   walkComponentMap(node, map);
   return map;
-}
-
-function populateMissingComponentDefs(node: PrunedNode, map: Record<string, ComponentDef>) {
-  walkComponentMap(node, map);
 }
