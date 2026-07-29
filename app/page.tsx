@@ -438,7 +438,7 @@ function Preview({
 
       {!meta.aiApplied && (
         <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3.5 py-2 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/50 dark:text-neutral-400">
-          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-neutral-800 dark:text-neutral-200">GEMINI_API_KEY</code> in <code className="font-mono text-neutral-800 dark:text-neutral-200">.env.local</code> to enable optional AI vision enrichment (§7). Get a free key at{" "}
+          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-neutral-800 dark:text-neutral-200">GEMINI_API_KEY</code> or <code className="font-mono text-neutral-800 dark:text-neutral-200">OPENROUTER_API_KEY</code> in <code className="font-mono text-neutral-800 dark:text-neutral-200">.env.local</code> to enable optional AI vision enrichment (§7). Get a free Gemini key at{" "}
           <a
             href="https://aistudio.google.com/apikey"
             target="_blank"
