@@ -57,6 +57,19 @@ function readFileAsDataURL(file: File): Promise<string> {
   });
 }
 
+/** Shared Blob → object URL → anchor → click → revoke sequence for the two
+ *  workbench download actions, so a future fix to this plumbing can't land
+ *  in one handler and silently miss the other (#101). */
+function downloadBlob(content: string, mimeType: string, filename: string): void {
+  const blob = new Blob([content], { type: mimeType });
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = href;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(href);
+}
+
 export default function Home() {
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [url, setUrl] = useState("");
@@ -158,13 +171,12 @@ export default function Home() {
     setTimeout(() => setCopied(false), 1500);
   }
 
-  function downloadActiveMarkdown() {
-    const textToDownload = tab === "structure" ? (structureReport?.markdown ?? "") : markdown;
-    const isStruct = tab === "structure";
-    const blob = new Blob([textToDownload], { type: "text/markdown" });
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    let host = "report";
+  /** Hostname derivation shared by both download handlers: prefer the
+   *  analyzed URL's hostname, then the first uploaded image's basename,
+   *  then the caller-supplied default — kept identical across both
+   *  handlers so a hostname-sanitizing fix can't miss one of them (#101). */
+  function deriveHost(defaultHost: string): string {
+    let host = defaultHost;
     try {
       host = new URL(meta?.finalUrl ?? url).hostname.replace(/^www\./, "");
     } catch {
@@ -172,30 +184,21 @@ export default function Home() {
         host = images[0].file.name.replace(/\.[^/.]+$/, "");
       }
     }
-    a.href = href;
-    a.download = `distill-${isStruct ? "structure-" : ""}${host}.md`;
-    a.click();
-    URL.revokeObjectURL(href);
+    return host;
+  }
+
+  function downloadActiveMarkdown() {
+    const textToDownload = tab === "structure" ? (structureReport?.markdown ?? "") : markdown;
+    const isStruct = tab === "structure";
+    const host = deriveHost("report");
+    downloadBlob(textToDownload, "text/markdown", `distill-${isStruct ? "structure-" : ""}${host}.md`);
   }
 
   function downloadTailwindTheme() {
     if (!report) return;
     const themeCss = emitTailwindTheme(report);
-    const blob = new Blob([themeCss], { type: "text/css" });
-    const href = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    let host = "theme";
-    try {
-      host = new URL(meta?.finalUrl ?? url).hostname.replace(/^www\./, "");
-    } catch {
-      if (inputMode === "image" && images[0]) {
-        host = images[0].file.name.replace(/\.[^/.]+$/, "");
-      }
-    }
-    a.href = href;
-    a.download = `distill-theme-${host}.css`;
-    a.click();
-    URL.revokeObjectURL(href);
+    const host = deriveHost("theme");
+    downloadBlob(themeCss, "text/css", `distill-theme-${host}.css`);
   }
 
   return (
