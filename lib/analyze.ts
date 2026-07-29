@@ -153,17 +153,13 @@ export async function enrichWithAI(
     interpretation.roleRefinements,
   );
 
+  // Spread the measured report rather than re-listing its fields: this pass
+  // only *adds* interpretive lanes and swaps in the refined palette, so every
+  // measured lane must survive it untouched. Enumerating them by hand silently
+  // dropped `motion` when that lane was added — a spread can't drift.
   const report = buildReport({
-    reportKind: measured.report.reportKind,
-    source: measured.report.source,
+    ...measured.report,
     palette,
-    paletteDark: measured.report.paletteDark,
-    typography: measured.report.typography,
-    spacing: measured.report.spacing,
-    radius: measured.report.radius,
-    elevation: measured.report.elevation,
-    recipes: measured.report.recipes,
-    states: measured.report.states,
     identity: interpretation.identity,
     imageMood: interpretation.imageMood,
   });

@@ -12,7 +12,9 @@ The product's differentiating principle is **"measured, never faked."** Every ex
 
 The MVP goal: given a URL, produce token and structure reports faithful enough to rebuild the page's visual system (palette with roles and contrast pairs, typography scale with fallback stacks, spacing/radius/elevation tokens, component recipes with variants, interactive states, responsive deltas across mobile + tablet, light+dark schemes, and a semantic component skeleton led by an ordered page-section digest) — with a lighter palette-and-mood path for image input.
 
-**Current standing (2026-07-29):** the measured lanes (Tracks A and B) are complete, regression-gated, and shipping. The **AI lane has never actually executed in this project** — no `ANTHROPIC_API_KEY` has ever been configured, and two of the three AI call sites additionally carry a latent `temperature: 0.1` parameter that current Claude models reject. Phase 5 (§12) exists to close both gaps by moving the AI lane to Google Gemini's free tier. Additionally, recent audit findings identified an unpinned model string in `aiLane.ts`, an SSRF redirect gap in `ingest.ts`, UI action button label ambiguity in `page.tsx`, and a missing GitHub Actions CI workflow.
+**Current standing (2026-07-29, post-audit):** the measured lanes (Tracks A and B) are complete, regression-gated, and shipping. **Phases 5 and 6 have both landed** — the AI lane was migrated off Anthropic to `@google/genai`, the latent `temperature: 0.1` that would have 400'd two of three call sites is deleted, and all three lanes were verified live end-to-end for the first time (DIST-039). The three spiked Phase-6 lanes — motion tokens, `emitTailwindTheme`, cross-origin state capture — are all built. CI, SSRF redirect interception, and dynamic UI action labels shipped alongside.
+
+A full-codebase audit on **2026-07-29** (§12 Phase 7) then found three correctness defects that every existing gate passes over: the AI enrichment pass silently drops the measured `motion` lane, cross-origin state capture discards 3 of its 4 properties through a camelCase/kebab-case mismatch, and the no-API-key path never sets the `structureUnavailableReason` its own docs promise. A subsequent OpenRouter provider addition (#94/#95) also reintroduced multi-provider divergence into what §6 calls a single seam. Phase 7 tracks the remediation; **§4, §7–§12 below were refreshed on 2026-07-29 to describe shipped state rather than planned state.**
 
 ## 2. Mission
 
@@ -60,7 +62,8 @@ The MVP goal: given a URL, produce token and structure reports faithful enough t
 - [x] **Structure lane included in the eval score** (weighted alongside palette/typography; a structure-lane error scores 0 rather than being skipped), replayed offline from `rawHarvestNode` with AI naming force-disabled
 - [x] Result caching keyed on URL/mode/**all** image payloads, with force-refresh, bounded entry cap + LRU eviction + idle sweep; transient structure failures are deliberately **not** cached
 - [x] Zod schemas as single source of truth (`lib/schema.ts`, `lib/extract/structureSchema.ts`)
-- [x] Single AI provider seam (`lib/aiLane.ts`): one pinned model id, one availability check, one retry-then-graceful-`null` policy shared by all three AI call sites
+- [x] Single AI provider seam (`lib/aiLane.ts`): one `callModel` primitive, one availability check, one `parseJsonLoose`, one retry-then-graceful-`null` policy shared by all three AI call sites — *no call site imports a provider SDK*
+- [ ] **Regression:** that seam is no longer single-provider. The OpenRouter addition (#94/#95) introduced a second model-selection path (`OPENROUTER_MODEL`) and a second request builder that silently ignores `thinkingLevel` and weakens JSON-schema enforcement — see §12 Phase 7 / P2-1
 
 ### In Scope — Integration & Deployment
 
@@ -70,28 +73,34 @@ The MVP goal: given a URL, produce token and structure reports faithful enough t
 - [x] Sanitized render-path error responses (no internal detail leakage to the client)
 - [x] Flat ESLint config so `npm run lint` (`eslint .`) runs non-interactively in CI
 
-### Planned — AI lane migration & Audit Fixes (Phase 5, in progress)
+### Delivered — AI lane migration & audit fixes (Phase 5)
 
-- [ ] Replace `@anthropic-ai/sdk` with `@google/genai`; use `AI_MODEL = "gemini-2.5-flash"` (with optional `GEMINI_MODEL` env override), gated on `GEMINI_API_KEY`
-- [ ] Add a `callModel` primitive + shared `parseJsonLoose` to `lib/aiLane.ts` so no call site touches the SDK or re-inlines brace-match JSON extraction
-- [ ] Adopt native JSON mode (`responseMimeType` + `responseJsonSchema`) across all three AI lanes
-- [ ] Delete the latent `temperature: 0.1` in `structureAI.ts` and `structureFromImage.ts` (rejected with a 400 by current Claude models; swallowed twice by `retryOnce` → silent heuristic fallback)
-- [ ] Retire the hand-written Anthropic media-type union in `structureFromImage.ts` so `imageMediaType.ts` is the only owner of MIME types
-- [ ] First-ever live verification of all three AI lanes end-to-end (§11)
-- [ ] **SSRF redirect hardening:** Add route-level response interceptor in `lib/ingest.ts` to re-validate IPs on HTTP 301/302 redirects
-- [ ] **UI polish:** Dynamicize "Copy .md" and "Download .md" button labels in `app/page.tsx` based on active tab, resolve line 162 TODO, and add an API key setup hint in the meta panel
-- [ ] **Automated CI/CD:** Create `.github/workflows/ci.yml` running `npm run typecheck`, `npm run lint`, and `npm run eval` on PRs MIME types
-- [ ] First-ever live verification of all three AI lanes end-to-end (§11)
+- [x] Replaced `@anthropic-ai/sdk` with `@google/genai`, gated on `GEMINI_API_KEY`. *Shipped as `AI_MODEL = "gemini-3.5-flash"`, not the specced `gemini-2.5-flash`; the planned `GEMINI_MODEL` env override was **not** implemented*
+- [x] `callModel` primitive + shared `parseJsonLoose` in `lib/aiLane.ts` — no call site touches an SDK or re-inlines brace-match JSON extraction
+- [x] Native JSON mode (`responseMimeType` + `responseJsonSchema`) across all three AI lanes *(Gemini path only — see the OpenRouter caveat in §4 Technical)*
+- [x] Deleted the latent `temperature: 0.1` in `structureAI.ts` and `structureFromImage.ts`
+- [x] Retired the hand-written Anthropic media-type union; `imageMediaType.ts` is the only owner of MIME types
+- [x] First-ever live verification of all three AI lanes end-to-end (DIST-039) — `npm run eval` confirmed still offline with a key set, `npm run eval:ai` executed for the first time
+- [x] AI-lane failures made distinguishable from an unconfigured key (`warnAiFailure`, DIST-040) — closes the §14 "graceful fallback hides breakage" risk for *call* failures
+- [x] **SSRF redirect hardening:** response interceptor in `lib/ingest.ts` re-validating 30x `Location` targets via `assertSafeUrl` *(best-effort — see §9 for the limits of this control)*
+- [x] **UI polish:** tab-aware Copy/Download labels and an API-key setup hint in `app/page.tsx`
+- [x] **Automated CI:** `.github/workflows/ci.yml` running `npm run typecheck`, `npm run lint`, `npm run eval` on PRs *(no `npm run build` step — §12 Phase 7 / P2-4)*
+
+### Delivered — spiked lanes (Phase 6)
+
+- [x] **Motion/transition token lane** — `transition-*`/`animation-*` + `@keyframes` off the existing style-dump walk, attributed per recipe element class (`lib/extract/motion.ts`)
+- [x] **`emitTailwindTheme(report)`** — Tailwind v4 `@theme` derived view + `prefers-color-scheme` dark override, with a UI download button; zero new schema surface
+- [x] **Cross-origin state capture** — Strategy A (`context.request` re-fetch + re-parse) in `styleDump.ts` *(shipped, but currently recovers only `color`; see §12 Phase 7 / P0-2)*
 
 ### Out of Scope (deferred)
 
 - [ ] Authentication, multi-tenancy, or persistent server-side storage of reports
 - [ ] Crawling beyond a single page (multi-page/site-wide aggregation)
 - [ ] Authenticated/paywalled page capture (login flows)
-- [ ] Direct code generation (React/Tailwind components) from reports — *the derivation is spiked and GO'd (§12 Phase 6), but shipping it is not in the MVP*
+- [ ] Direct code generation (React/Tailwind components) from reports — *`emitTailwindTheme` ships a **token-level** derived view (§12 Phase 6); component-level codegen remains out of scope*
 - [ ] Browser-extension or CLI-first distribution
 - [ ] Icon/asset extraction and export
-- [ ] Multi-provider AI abstraction — Phase 5 is a **replacement**, not an adapter layer; one provider, one code path
+- [x] ~~Multi-provider AI abstraction — Phase 5 is a **replacement**, not an adapter layer; one provider, one code path~~ — **superseded 2026-07-29.** #94/#95 added an OpenRouter path, so the codebase now has two providers behind one seam. This was a scope change, not an implementation of the above intent: the two paths are not feature-equivalent (§12 Phase 7 / P2-1). Either close the gap or restate this line as an accepted two-provider scope
 
 ## 5. User Stories
 
@@ -169,7 +178,9 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 | Typography | Family clusters w/ full fallback stacks, size/weight/line-height scale | Desktop h1 anchored to the real `h1`; `sizePxMobile` from the 390px harvest |
 | Spacing/radius/elevation | Frequency-ranked, base-unit-snapped scales; named shadow levels | Explicit `unit: "px"`; sections omitted when nothing was observed |
 | Recipes + variants | Cluster by bg role → per-cluster modal styles, role-referenced colors | `variant` label only when >1 cluster; falls back to raw hex, never fabricates a role |
-| States | CSSOM `:hover`/`:focus-visible` deltas per palette role | Cross-origin sheets skipped silently (spike GO'd, §12 Phase 6) |
+| States | CSSOM `:hover`/`:focus-visible` deltas per palette role | Cross-origin sheets re-fetched and re-parsed via `context.request` — but that path currently recovers only `color` (§12 Phase 7 / P0-2) |
+| Motion tokens | Declared `transition-*`/`animation-*` + referenced `@keyframes`, attributed per recipe element class | Read off the existing style-dump walk; JS-driven motion is a documented gap. **Currently dropped from the report whenever the AI lane runs** (§12 Phase 7 / P0-1) |
+| Tailwind `@theme` | Second derived view of the same report object, downloadable from the workbench | Zero new schema surface; `--spacing: <baseUnitPx>px`; emits a `prefers-color-scheme` dark block when `paletteDark` exists |
 | Dark palette | Dark-emulated second dump, emitted only on measured background shift | Single-scheme sites get nothing |
 | Structure skeleton | Pruned + wrapper-squashed semantic tree, repetition-collapsed, ASCII emit | Heuristic names always; AI names when keyed (`naming` flag) |
 | Page-sections digest | Ordered per-band summary leading the structure body | Measured fields joined from responsive/metrics/token-link; AI adds only the one-line `description` |
@@ -188,8 +199,8 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 | Image analysis | sharp ^0.35 | Pixel sampling for area weights, panorama stitching, image quantization |
 | Color science | culori ^4 | Lab/OKLCH conversion, ΔE |
 | Validation | Zod 4 | Single-source report contracts |
-| AI lane (optional) | **Today:** `@anthropic-ai/sdk` (`claude-opus-4-8`), gated on `ANTHROPIC_API_KEY`. **Phase 5:** `@google/genai` ^2.13 (`gemini-2.5-flash`), gated on `GEMINI_API_KEY` | Vision interpretation + semantic naming; fails open either way. Gemini's free tier removes the prepaid-credit barrier that has kept this lane dark, and its native JSON mode removes the brace-match JSON extraction |
-| Serialization | js-yaml | Frontmatter emit |
+| AI lane (optional) | `@google/genai` ^2.13, `AI_MODEL = "gemini-3.5-flash"`, gated on `GEMINI_API_KEY`. Alternatively OpenRouter via `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` (default `google/gemini-2.5-flash`), which takes precedence when set | Vision interpretation + semantic naming; fails open. Gemini's free tier removed the prepaid-credit barrier that kept this lane dark through Phases 1–4, and native JSON mode removed brace-match JSON extraction. **The two provider paths are not feature-equivalent** (§12 Phase 7 / P2-1) |
+| Serialization | js-yaml ^5.2 (ships its own types; the `@types/js-yaml@4` devDependency is redundant — §12 Phase 7 / P1-6) | Frontmatter emit |
 | Tooling | TypeScript 5.7, tsx (eval scripts), ESLint 9 flat config (`eslint .`) | No jest/vitest — the eval harness is the correctness gate |
 | Runtime | Node 18+ (developed on 20/22) | |
 
@@ -200,20 +211,24 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 
   | Env var | Purpose |
   |---|---|
-  | `ANTHROPIC_API_KEY` → **`GEMINI_API_KEY`** (Phase 5) | Enables the AI lane. Read server-side only |
+  | `GEMINI_API_KEY` | Enables the AI lane (Gemini path). Read server-side only |
+  | `OPENROUTER_API_KEY` | Enables the AI lane via OpenRouter instead; **takes precedence over `GEMINI_API_KEY` when both are set**. Undocumented in `README.md` — §12 Phase 7 / P2-2 |
+  | `OPENROUTER_MODEL` | Model id for the OpenRouter path (default `google/gemini-2.5-flash`). No equivalent override exists for the Gemini path |
   | `SSRF_ALLOWLIST_HOSTS` | Comma-separated exact hostnames exempt from the SSRF guard (staging/fixture hosts) |
   | `RATE_LIMIT_MAX_REQUESTS` / `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX_BUCKETS` / `RATE_LIMIT_DISABLED` | Per-client token bucket on `/api/analyze` |
   | `CACHE_MAX_ENTRIES` | Response-cache entry cap (LRU beyond it) |
+  | `UPDATE_BASELINE` | Eval-harness only: rewrites `eval/baseline.json` instead of gating against it |
 
 - **In-scope security posture:**
   - AI-lane key read server-side only; never sent to the client. Provider swap (Phase 5) changes the variable name, not this boundary.
   - Image uploads capped (`MAX_IMAGES = 6`, ≤8 MB each); AI lane further caps at 4 images sent to the model; the whole request body is size-limited while streaming, before parsing.
   - SSRF guard on URL ingestion: hostname DNS-resolved and validated against loopback/private/link-local/CGNAT/multicast/reserved ranges (IPv4, IPv6, and IPv4-mapped IPv6 in both spellings) before navigation, fail-closed, non-`http(s)` schemes rejected, with an explicit `SSRF_ALLOWLIST_HOSTS` opt-out for trusted internal targets.
+  - **Redirect interception (`lib/ingest.ts:364`) is a best-effort mitigation, not a pre-navigation block.** Two limits are inherent to the mechanism and should not be read as stronger than they are: (a) Playwright does not await async `page.on("response")` listeners, so the handler's DNS lookup races `page.goto()` resolving — the DIST-044 synthetic test passes because a literal IP resolves instantly, but a hostname requiring a real lookup may not trip the guard in time; and (b) by the time the 30x response event fires, **Chromium has already issued the request to the redirect target**. The control therefore prevents the *result* from reaching the client, not the internal request itself. Network-level egress filtering (README "Layer 2") remains the actual boundary. Tracked as §12 Phase 7 / P0-4.
   - Per-client rate limiting on `POST /api/analyze`: bounded token-bucket store capped at `RATE_LIMIT_MAX_BUCKETS` distinct client IDs to prevent unbounded memory growth via spoofed client identifiers.
   - Render-path errors sanitized before they reach the client; injection surfaces (page-controlled text reaching an AI prompt) annotated in-code.
   - No report/user data persisted beyond the bounded in-process analysis cache.
-- **Out of scope:** user accounts, secrets management beyond env vars, a shared/global rate-limit or cache store for multi-instance deployments (each process enforces its own independent limit), and post-navigation egress control (the initial SSRF guard validates the submitted URL; intermediate HTTP 301/302 redirects require route-level IP interceptors or network-level egress filtering).
-- **Data-handling note (Phase 5):** Google's **free tier uses submitted prompts for product improvement**; the paid tier does not. Distill's AI-lane inputs are screenshots of third-party sites. Operators pointing Distill at sensitive or internal properties should use a paid tier — this is a deployment decision, not a code change.
+- **Out of scope:** user accounts, secrets management beyond env vars, a shared/global rate-limit or cache store for multi-instance deployments (each process enforces its own independent limit), and post-navigation egress control for *subresources* the rendered page fetches (the SSRF guard validates the submitted URL; the redirect interceptor is best-effort per above — neither constrains what the page itself requests once loaded).
+- **Data-handling note:** Google's **free tier uses submitted prompts for product improvement**; the paid tier does not. Distill's AI-lane inputs are screenshots of third-party sites. Operators pointing Distill at sensitive or internal properties should use a paid tier — this is a deployment decision, not a code change. **Routing through OpenRouter adds a second data processor** with its own retention terms, and the request sends an identifying `HTTP-Referer`/`X-Title` pair; operators should evaluate that separately rather than assuming the Gemini analysis carries over.
 - **Deployment:** local dev (`npm run dev`), production Node server, or the provided multi-stage Docker image with Playwright system deps baked in and a non-root runner stage.
 
 ## 10. API Specification
@@ -232,23 +247,29 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 }
 ```
 
-**Response** (JSON):
+**Response** (JSON) — *corrected 2026-07-29; the previously documented `designMarkdown` / `structureMarkdown` / `cached` shape was never what the route returned:*
 
 ```jsonc
 {
-  "designMarkdown": "---\n…frontmatter…\n---\n…body…",   // when tokens lane ran
-  "structureMarkdown": "…",                               // when structure lane ran
-  "structureUnavailableReason": "…",                      // structure requested but not producible
-  "viewportShots": ["<base64>", "…"],                     // one preview per source image / URL viewport + panorama
-  "viewportShot": "<base64>",                             // legacy singular alias
-  "cached": true
+  "ok": true,
+  "report": { /* Report object — Zod-validated, frontmatter source */ },
+  "markdown": "---\n…frontmatter…\n---\n…body…",   // design-system report
+  "structureReport": { /* StructureReport | null — carries its own .markdown */ },
+  "structureUnavailableReason": "…",               // structure requested but not producible
+  "refinements": [{ "hex": "#…", "from": "accent", "to": "primary" }],  // AI role relabels applied
+  "meta": {
+    "finalUrl": "…", "title": "…", "elapsedMs": 1234,
+    "bannerDismissed": false, "aiApplied": true, "capturedAt": "…",
+    "viewportShot": "data:image/png;base64,…",     // legacy singular alias
+    "viewportShots": ["data:image/png;base64,…"]   // URL: viewport + panorama; images: one per source
+  }
 }
 ```
 
 - **Auth:** none (see §9).
-- **Caching:** key hashes url + mode + **every** image payload. Responses carrying a transient `structureUnavailableReason` are not cached, so a retry can succeed.
-- **Limits:** request body size-capped while streaming (413-style rejection before parse); rate limit applied *after* the cache lookup, so cache hits cost nothing.
-- **Errors:** 4xx on invalid/oversized payload (Zod-rejected), 429 with `Retry-After` when rate-limited, 5xx (sanitized) on render/extraction failure; AI-lane failure is *not* an error — the measured report returns untouched.
+- **Caching:** key hashes url + mode + **every** image payload. Responses carrying a transient `structureUnavailableReason` are not cached, so a retry can succeed. There is **no `cached` flag** — a cache hit replays the stored payload verbatim and is indistinguishable to the client.
+- **Limits:** request body size-capped while streaming (413 before `JSON.parse`); rate limit applied *after* the cache lookup, so cache hits cost nothing.
+- **Errors:** `413` oversized body; `400` non-JSON body, missing `url`/`images`, or `UnsafeUrlError`; `422` `DegenerateImageError` (unreadable/transparent upload — the input is at fault, not the pipeline); `429` with `Retry-After` when rate-limited; `502` sanitized catch-all on render/extraction failure. AI-lane failure is *not* an error — the measured report returns untouched. *Note: the request body is validated by hand, not by Zod — the earlier "Zod-rejected" claim was inaccurate.*
 
 ## 11. Success Criteria
 
@@ -262,14 +283,17 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 - [x] Frontmatter parses (Zod-validated) and body values match frontmatter (derived from one object)
 - [x] Single-scheme sites emit no dark palette; state-less sites emit no `## States`; unobserved spacing/radius emit nothing
 - [x] Image input never fabricates typography/spacing/bounds/semantic swatches
-- [ ] **AI lane verified live** (Phase 5): a keyed `both`-mode URL run produces `identity` + `imageMood` at `provenance: ai` **and** a structure report with `naming: "ai"` and section `description`s; a keyed image run in `structure` mode produces a `fidelity: "inferred"` skeleton rather than a `structureUnavailableReason`
-- [ ] **`npm run eval` remains fully offline with an AI key set** (Phase 5) — the `forceHeuristicNaming` short-circuit stays ahead of the availability check
+- [x] **AI lane verified live** (DIST-039): all three lanes exercised end-to-end against Gemini
+- [x] **`npm run eval` remains fully offline with an AI key set** — the `forceHeuristicNaming` short-circuit sits ahead of the availability check in `runStructureAILabeller`
+- [ ] **A measured lane cannot be lost by enabling the AI lane** — *currently failing:* `motion` is dropped whenever `enrichWithAI` runs (§12 Phase 7 / P0-1). No existing criterion covered this, which is why it shipped
+- [ ] **A shipped lane measures what it claims** — *currently failing:* cross-origin state capture silently recovers only `color` of its four properties (§12 Phase 7 / P0-2)
 
 **Quality indicators:**
 
-- Eval corpus scores at/above committed baseline (currently 1.0 on both sites); AI-lane stability across repeated runs (`npm run eval:ai` — Jaccard floors 0.5 adjectives / 0.3 archetype, which will run for the first time in Phase 5)
+- Eval corpus scores at/above committed baseline (currently 1.0 on both fixtures — but see §12 Phase 7 / P3-1 on how little that gate actually covers); AI-lane stability across repeated runs (`npm run eval:ai` — Jaccard floors 0.5 adjectives / 0.3 archetype, first executed in DIST-039)
 - Spacing scales are base-unit multiples, not noise; recipes match fixture CSS ground truth
 - Structure skeleton, section digest, and component map never contradict each other
+- **Gate honesty:** `typecheck`, `lint`, and `eval` all pass on `main` while three verified correctness defects are live. Passing gates is necessary, not sufficient — new lanes need coverage that actually exercises them (P0-1 and P0-2 are both invisible to the current harness by construction)
 
 **UX goals:** URL → report in one interaction; copy/download in one click; honest UI copy (image mode advertises exactly what it delivers).
 
@@ -303,29 +327,67 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 - [x] Three spikes concluded with GO recommendations: motion/transition tokens (`.agents/reports/motion-spike.md`), report-to-code Tailwind theme (`tailwind-theme-spike-report.md`), cross-origin state capture (`cross-origin-states-spike.md`)
 - **Validation:** eval corpus refreshed deliberately, once, alongside the capture-shape change; new lanes additive.
 
-### Phase 5 — AI lane migration & Codebase Audit Fixes *(planned, in progress)*
+### Phase 5 — AI lane migration & audit fixes *(delivered, DIST-034 → DIST-046)*
 
-- **Goal:** make the AI lane *actually run* — one provider, one code path, zero cost to start — and resolve critical audit findings. Source of truth: `from-claude-to-gemini-plan.md` + `CODEBASE_ANALYSIS.md`.
-- **Why now:** `ANTHROPIC_API_KEY` has never been set (an Anthropic key requires a prepaid credit purchase), so every AI lane has silently fallen back since day one. Google AI Studio issues a free-tier, vision-capable key with no credit card. A latent `temperature: 0.1` in two call sites would have 400'd even *with* a valid Anthropic key — `retryOnce` swallows it twice and returns `null` — so two of the three lanes could never have worked regardless of provider.
-- **Scope:**
-  - [ ] `lib/aiLane.ts` — swap the SDK, set `AI_MODEL = "gemini-2.5-flash"` (with `process.env.GEMINI_MODEL` fallback), `aiLaneAvailable()` on `GEMINI_API_KEY`; keep `retryOnce` as-is; add `callModel(opts)` (images / system / user / `jsonSchema` / `maxOutputTokens` / `thinkingLevel`) and a shared `parseJsonLoose` so no lane re-inlines the brace-match regex
-  - [ ] `lib/interpret.ts` — drop the SDK import; `OUTPUT_SCHEMA` passes through to `responseJsonSchema` unchanged; raise `MAX_TOKENS` 1024 → 2048 (thinking tokens share the budget) with `thinkingLevel: MINIMAL`; keep the prompt-injection comment block and the `aiLaneAvailable` re-export
-  - [ ] `lib/extract/structure/structureAI.ts` (Stage 7) — drop the SDK import and `temperature`, add a `STRUCTURE_SCHEMA` mirroring `aiStructureResponseSchema` (open key sets as `additionalProperties`), raise the token budget above 3000, replace `content[0]` + regex with `parseJsonLoose`; **the `forceHeuristicNaming` short-circuit must stay ahead of the availability check** so `npm run eval` stays offline
-  - [ ] `lib/extract/structureFromImage.ts` — drop the SDK import, `temperature`, and the hand-written media-type union; recursive `$defs`/`$ref` schema attempted, falling back to JSON-mode-without-schema if the API rejects it (Zod is the real gate); `thinkingLevel: MEDIUM`
-  - [ ] `lib/extract/imageMediaType.ts` — comment-only provider rename; the four MIME values are already valid Gemini types
-  - [ ] `lib/ingest.ts` — add Playwright route-level response interceptor (`page.route("**/*", ...)` or `page.on("response", ...)`) to validate IPs on HTTP 301/302 redirects against `assertSafeUrl`
-  - [ ] `app/page.tsx` — update Copy/Download button labels based on active tab (`Copy Design System .md` vs `Copy Structure .md`), resolve line 162 TODO, and add an API key setup hint in the meta header
-  - [ ] Dependencies & docs — remove `@anthropic-ai/sdk`, add `@google/genai` ^2.13; update `README.md`, `CLAUDE.md`, `eval/stability.ts`, `eval/run.ts` comments; create `.github/workflows/ci.yml`
-  - [ ] Retire `.agents/temp/AI-LANE-NOTES.md` (gitignored scratch) once this lands
-- **Validation:** `lint` + `typecheck` clean; **`npm run eval` passes with the baseline untouched** (the measured lane is provider-independent — *any* score movement means something leaked across the measured/AI split, and `UPDATE_BASELINE=1` must not be run); eval stays offline with a key set; `npm run eval:ai` executes for the first time and meets its stability floors; live `both`-mode URL run and image `structure` run exercise all three lanes with a clean server console.
+- **Goal:** make the AI lane *actually run* — one provider, one code path, zero cost to start — and resolve critical audit findings.
+- **Why it mattered:** `ANTHROPIC_API_KEY` was never set (an Anthropic key requires a prepaid credit purchase), so every AI lane silently fell back from day one. A latent `temperature: 0.1` in two call sites would have 400'd even *with* a valid key — `retryOnce` swallowed it twice and returned `null` — so two of three lanes could never have worked regardless of provider.
+- **Delivered:**
+  - [x] `lib/aiLane.ts` rebuilt on `@google/genai` with `callModel(opts)` + shared `parseJsonLoose`; `retryOnce` kept as-is *(shipped as `gemini-3.5-flash`; the specced `GEMINI_MODEL` override was dropped — the Gemini path has no model override, while the later OpenRouter path does)*
+  - [x] `lib/interpret.ts` on `callModel` + native JSON mode; `MAX_TOKENS` 1024 → 2048 with `thinkingLevel: MINIMAL`
+  - [x] `structureAI.ts` (Stage 7) — `temperature` deleted, `STRUCTURE_SCHEMA` added, `parseJsonLoose` replaces `content[0]` + regex; `forceHeuristicNaming` short-circuit verified ahead of the availability check
+  - [x] `structureFromImage.ts` — SDK import, `temperature`, and hand-written media-type union all retired; `thinkingLevel: MEDIUM`
+  - [x] `lib/ingest.ts` redirect interceptor *(with the caveats now recorded in §9)*
+  - [x] `app/page.tsx` tab-aware action labels + API-key hint
+  - [x] `@anthropic-ai/sdk` removed, `@google/genai` ^2.13 added; `.github/workflows/ci.yml` created
+- **Outcome:** `npm run eval` passed with `eval/baseline.json` untouched, confirming nothing leaked across the measured/AI split; `npm run eval:ai` executed for the first time.
+- **Not delivered as specced:** the `GEMINI_MODEL` env override, and the model id landed a generation ahead of the plan (`3.5` vs `2.5`) — worth a deliberate confirmation rather than leaving it as undocumented drift.
 
-### Phase 6 — Spiked, GO'd, not yet built *(open, proposed)*
+### Phase 6 — Spiked lanes *(delivered, DIST-041 → DIST-043)*
 
-Each item below already has a completed spike with evidence and a delivery recommendation; the remaining work is implementation under the existing optional-lane contract.
+All three spikes shipped under the existing optional-lane contract.
 
-- [ ] **Motion/transition token lane** — declared `transition-*`/`animation-*` + `@keyframes` read off the existing style-dump walk (one new record-skip condition), attributed per recipe element class. JS-driven motion is an honest, documented gap.
-- [ ] **`emitTailwindTheme(report)`** — a second derived view (Tailwind v4 `@theme` + `prefers-color-scheme` dark override) plus a download button; zero new schema surface, `--spacing: <baseUnitPx>px` rather than positional spacing vars.
-- [ ] **Cross-origin state capture** — Strategy A (`context.request` re-fetch + re-parse) recovers `:hover`/`:focus-visible` deltas from cross-origin stylesheets while leaving semantics, schema, and capture shape byte-identical.
+- [x] **Motion/transition token lane** (DIST-041) — `lib/extract/motion.ts`; JS-driven motion remains an honest, documented gap. *Regression: dropped by the AI lane, §12 Phase 7 / P0-1.*
+- [x] **`emitTailwindTheme(report)`** (DIST-042) — Tailwind v4 `@theme` + `prefers-color-scheme` dark override, download button wired; `--spacing: <baseUnitPx>px` as specced.
+- [x] **Cross-origin state capture** (DIST-043) — Strategy A shipped with schema and capture shape byte-identical as designed. *Regression: recovers only `color`, §12 Phase 7 / P0-2.*
+
+### Phase 7 — Codebase health audit remediation *(open, 2026-07-29 sweep)*
+
+> **Document status note:** this phase records a full-codebase audit performed **after** Phases 5 and 6 landed. `npm run typecheck`, `npm run lint`, and `npm run eval` are all green on `main` at `40341cd` — none of the findings below are caught by the existing gates, which is itself part of the finding. **Sections §1, §4, §7–§12, §14, and §15 were refreshed on 2026-07-29** to describe shipped rather than planned state (item P2-6, now closed); the remediation items below are open.
+
+- **Goal:** close three verified correctness defects, remove duplicated/dead code that caused one of them, and re-align documentation with shipped behavior.
+- **Source:** full-codebase sweep, 2026-07-29. Every item below was verified against the code (and, where noted, empirically against Chromium), not inferred.
+
+#### P0 — Correctness defects
+
+- [ ] **The AI lane silently deletes the entire motion lane.** `lib/analyze.ts:156` — `extractFromCapture` measures `motion` and passes it to `buildReport` (line 98), but `enrichWithAI` rebuilds the report from scratch and its `buildReport` call omits `motion`. Because `buildReport` drops any field it isn't handed, `motion` disappears from both the frontmatter and the `## Motion` body section on **every URL analysis where an API key is set**. Invisible to `npm run eval`, which only exercises `extractFromCapture` — a direct instance of the §14 "graceful AI fallback hides real breakage" risk, this time as silent data loss rather than silent no-op. *Fix: pass `motion: measured.report.motion` (and audit the call for any future lane added to `extractFromCapture` but not mirrored here).*
+- [ ] **Cross-origin hover/focus capture drops 3 of its 4 properties.** `lib/extract/styleDump.ts:570` — the cross-origin `STATE_PROPS` map uses camelCase computed-property names (`backgroundColor`, `borderColor`, `boxShadow`) but reads them via `cs.getPropertyValue()`, which only accepts kebab-case. Verified in Chromium: `getPropertyValue("backgroundColor")` → `""`, `getPropertyValue("background-color")` → `"rgb(1, 2, 3)"`. `from` is therefore always empty, the `if (!from || from === to) continue` guard fires, and background/border/shadow deltas from cross-origin stylesheets are **always** discarded. Only `color` survives, because its key is identical in both spellings. The same-origin copy 100 lines above is correct (`"border-color": "border-top-color"`). This silently halves the value of the Phase-6 cross-origin state lane. *Fix as part of P1-1, not in place.*
+- [ ] **The SSRF redirect interceptor can be outrun, and doesn't prevent the request.** `lib/ingest.ts:364` — the handler is `async` and Playwright does not await `page.on("response")` listeners, so its `assertSafeUrl` DNS lookup races `page.goto()` resolving; the post-`goto` `if (redirectSsrfError) throw` check can run before the lookup finishes. The DIST-044 synthetic test passes because a literal IP (`169.254.169.254`) resolves instantly — a redirect to a *hostname* that resolves privately is the untested case. Independently, by the time the 30x event fires Chromium has already issued the request to the target, so the control gates the *result*, not the request. The DIST-044 report's "navigation is aborted immediately … before loading response bodies" overstates both. *Fix: await the redirect validation on the navigation path (or pre-resolve via `request.route`) and correct the claim; treat network egress filtering as the real boundary either way.*
+- [ ] **`structureUnavailableReason` is never set for the no-API-key case.** `lib/analyze.ts:237` — `wantsStructure` ANDs in `aiLaneAvailable()`, so a keyless image request returns `undefined` for both the structure report *and* the reason. Its own doc comment (`lib/analyze.ts:193`) promises "no API key, or the vision model failed", and the frontend type (`app/page.tsx:30`) says "image mode without an API key". Keyless users get a silently absent structure pane instead of the explanation both docs advertise — and §11's Phase-5 exit criterion is written against this exact behavior.
+
+#### P1 — Redundancy, waste, and dead code
+
+- [ ] **Two drifted copies of the CSSOM scanner.** `lib/extract/styleDump.ts:454-538` vs `607-688` — `applyRule`, `scanRules`, `resolveVarRefs`, and `STATE_PROPS` are duplicated between the same-origin and cross-origin passes and have *already* diverged: different `STATE_PROPS` values (the P0-2 bug) and different `resolveVarRefs` implementations (3 passes / one regex vs 5 passes / another). This violates the §6 "one seam per concern" principle that `roleMatch.ts` and `styleMatch.ts` exist to enforce. The duplication is the root cause of P0-2; deduplicate rather than patching the constant, or a third divergence is a matter of time.
+- [ ] **A full-page screenshot is captured on every render and thrown away.** `lib/ingest.ts:309` — `fullPageShot` flows through `capturePage` → `RenderResult` but `captureFromRender` never copies it into `Capture`, and nothing outside `ingest.ts` reads it. On tall pages `screenshot({ fullPage: true })` is among the most expensive calls in the pipeline, and the result is held as base64 for the rest of the request. The in-code comment justifies it as a "dead-code fallback so a future reader doesn't simplify by swapping it in" — that intent is served by the comment alone, at zero runtime cost.
+- [ ] **Dead export:** `analyzeUrlStructure` (`lib/analyze.ts:358`) is exported but called from nowhere in `lib`, `app`, or `eval`.
+- [ ] **Duplicated download plumbing** in `app/page.tsx:161-199` — `downloadActiveMarkdown` and `downloadTailwindTheme` share a verbatim hostname-derivation block plus identical blob/anchor/revoke boilerplate.
+- [ ] **`populateMissingComponentDefs` is a pure alias** for `walkComponentMap` (`lib/extract/structure/structureAI.ts:331`), and the name misleads: it also mutates existing entries' `composition` and `instances`.
+- [ ] **Redundant, version-mismatched type dependency:** the project runs `js-yaml@5.2.1`, which ships its own types; `--traceResolution` confirms TS resolves the bundled v5 `.d.ts` for the import, while `@types/js-yaml@4.0.9` is still pulled in as a global type-reference directive describing a different major version.
+
+#### P2 — Documentation and configuration drift
+
+- [ ] **The OpenRouter path broke the "one pinned model" invariant.** §6 and `CLAUDE.md` both state `lib/aiLane.ts` holds *one* pinned `AI_MODEL`. Since the OpenRouter PR (#94/#95) there are two selection paths: `AI_MODEL = "gemini-3.5-flash"` (Gemini only) and `OPENROUTER_MODEL`, defaulting to `"google/gemini-2.5-flash"` — a different model generation. Worse, `callOpenRouterModel` (`lib/aiLane.ts:68`) **ignores `thinkingLevel` entirely** and downgrades structured output from a real JSON schema to bare `response_format: { type: "json_object" }`. Every lane that pins a thinking level for budget reasons behaves differently on OpenRouter — `interpret.ts` pins `MINIMAL` specifically so thinking tokens don't truncate its 2048-token JSON. Either honor both parameters on the OpenRouter path or document it as a deliberately degraded fallback; the §4 "Out of Scope — multi-provider AI abstraction: one provider, one code path" line now contradicts shipped code.
+- [ ] **`OPENROUTER_API_KEY` and `OPENROUTER_MODEL` are undocumented** — absent from `README.md` and from the §9 configuration table.
+- [ ] **Setup hint names only `GEMINI_API_KEY`** (`app/page.tsx:438`), shown whenever the AI lane didn't apply, though `OPENROUTER_API_KEY` now enables it equally.
+- [ ] **CI never builds.** `.github/workflows/ci.yml` — the job is named "Build, Lint & Eval" and runs typecheck, lint, and eval; there is no `npm run build`. A Next.js-specific failure (client/server boundary, route config) ships green.
+- [ ] **Stale `Anthropic` reference** in `lib/extract/structure/index.ts:23` ("without ever constructing the `Anthropic` client") — the SDK was removed in `dist-038`.
+- [x] ~~**Refresh the stale PRD sections**~~ — **done 2026-07-29.** §1 standing paragraph, §4 scope lists, §7 feature table (states row corrected; motion + Tailwind rows added), §8 stack row, §9 config table + redirect posture + OpenRouter data-handling note, §10 response shape and error codes, §11 criteria, §12 Phases 5–6, §14 risk rows, §15 appendix. Two spec-vs-shipped deltas surfaced while doing it and are now recorded rather than silently normalized: the `GEMINI_MODEL` override was specced but never built, and `AI_MODEL` shipped as `gemini-3.5-flash` rather than the planned `gemini-2.5-flash`.
+
+#### P3 — Gate coverage
+
+- [ ] **The eval gate is weaker than the documentation implies.** §11 and `CLAUDE.md` present `npm run eval` as *the* correctness gate for extraction logic, but it currently scores **two synthetic fixtures, both pinned at exactly 1.0**, and silently skips `stripe`, `linear`, and `vercel` (their captures are git-ignored by design, per `eval/corpus.ts`). With a `SITE_FLOOR` of 0.7 and a baseline of `{1, 1}`, there is little room to detect a real-world regression, and a missing corpus entry is a log line rather than a failure. This is a deliberate MVP posture, not a defect — but the gap between "the correctness gate" and "two perfect-scoring fixtures" should be named. *Options: commit sanitized captures for at least one real site, or fail rather than skip when a `CORPUS` entry has no capture.*
+- [ ] **Latent viewport coupling:** `Capture` carries no viewport, so `extractStructureFromCapture` always lets the structure lane fall back to its 1440×900 default (`lib/extract/structure/index.ts:44`). Correct today only because `renderUrl` is never called with a custom `RenderOptions.viewport`; if it ever is, `regionMetrics` silently measures against the wrong viewport height.
+
+- **Validation:** `lint` + `typecheck` clean; **`npm run eval` passes with `eval/baseline.json` untouched** — every P0/P1 item is either outside the measured lane (P0-1, P0-3) or a pure dedup/removal, so *any* score movement means the change leaked into measured extraction and must be investigated, not baselined away. P0-2 additionally needs a live cross-origin verification against a synthetic two-server fixture (per `CLAUDE.md` "Manually verifying extraction changes"), since no committed capture exercises cross-origin stylesheets. P0-1 needs a keyed `both`-mode URL run confirming `## Motion` survives AI enrichment.
 
 ## 13. Future Considerations
 
@@ -347,11 +409,15 @@ Each item below already has a completed spike with evidence and a delivery recom
 | **Gemini free-tier rate limits (≈10 RPM)** — a `both`-mode run fires two AI calls with up to four images | Bursty testing 429s; `retryOnce` treats a 429 as failure and falls back, so a rate-limited run *looks identical to a quality regression* | Response cache absorbs repeats; check the server console before concluding the model is bad; upgrade tier if it binds |
 | **Free-tier prompts used for Google product improvement** | Third-party screenshots leave the operator's control | Documented in §9; the fix is a paid tier, not a code change; operators decide before pointing Distill at sensitive properties |
 | Vision quality regression moving off a frontier model | Image-derived skeletons degrade | `thinkingLevel: MEDIUM` on the vision lane; explicit spot-check in Phase-5 validation; Zod remains the hard gate on shape |
-| Open URL fetching enables SSRF on public deployments | Server compromise | Initial resolve-then-check guard + `SSRF_ALLOWLIST_HOSTS` (§9); Phase 5 adds Playwright route-level HTTP redirect IP checking; README hardening guide documents egress-blocking for post-navigation subresources |
+| Open URL fetching enables SSRF on public deployments | Server compromise | Resolve-then-check guard on the submitted URL + `SSRF_ALLOWLIST_HOSTS` (§9); redirect interception shipped in DIST-044 but is **best-effort only** — it races the navigation and fires after Chromium has already made the request (§12 Phase 7 / P0-4). Network-level egress filtering (README "Layer 2") is the load-bearing control, not the in-process guard |
+| **A shipped security control is documented as stronger than it is** (proven: the DIST-044 report claims redirects are "aborted immediately … before loading response bodies"; neither holds) | Operators under-provision the real boundary because the in-process guard reads as sufficient | Validate security controls against the adversarial case, not the convenient one — DIST-044's synthetic test used a literal IP, which resolves instantly and hides the race; state the residual gap in the same document that claims the fix |
 | Site anti-bot / consent walls break capture | Empty or skewed reports | Consent-banner dismissal in ingest; best-effort second passes fail to absence; cache + forceRefresh for retries |
 | Capture-shape evolution invalidates frozen eval fixtures | Green-but-meaningless evals | Policy: fixtures refreshed only when capture shape itself changes, in the same PR, with baseline; new lanes must treat absent fields as "nothing observed" |
 | Playwright/Chromium footprint complicates deployment | Failed installs | postinstall auto-install; multi-stage Dockerfile with browser deps baked in, base image pinned to the `package.json` version |
 | Unauthenticated endpoint invites resource exhaustion | Cost/DoS on public deploys | Bounded cache, bounded rate-limiter store, request-body cap, image count/size caps; auth explicitly the deployer's responsibility |
+| **`enrichWithAI` re-assembles the report field-by-field, so any lane added to `extractFromCapture` but not mirrored there is silently dropped** (proven: the motion lane, §12 P0-1) | Measured data lost whenever the AI lane runs — and invisible to the eval harness, which never calls `enrichWithAI` | Treat the AI merge as *additive onto* the measured report rather than a rebuild from parts; failing that, any new optional lane must be added to both `buildReport` call sites in the same change |
+| **Duplicated logic drifts into divergent behavior** (proven: the two CSSOM scanner copies in `styleDump.ts`, whose `STATE_PROPS` divergence disabled 3 of 4 cross-origin state properties) | A lane reports as working while silently measuring less than it claims | §6 "one seam per concern" applies inside `page.evaluate` callbacks too; the self-contained-callback constraint argues for one parameterized copy, not two maintained ones |
+| **Provider-specific capability gaps in a "single seam" that no longer behaves as one** (`callOpenRouterModel` ignores `thinkingLevel` and weakens JSON-schema enforcement) | Identical code produces different output quality depending on which key is set; token-budget assumptions silently break | Honor the full `ModelCall` contract on every provider path, or document the fallback as explicitly degraded and assert it in `eval:ai` |
 
 ## 15. Appendix
 
@@ -359,8 +425,8 @@ Each item below already has a completed spike with evidence and a delivery recom
   - `README.md` — user-facing capabilities & setup
   - `CLAUDE.md` — authoritative agent/contributor architecture guide (`AGENTS.md` points to it)
   - `PLAN.md` — rounds 1–3 fix-plan history (the de-facto changelog of Phases 1–3)
-  - `from-claude-to-gemini-plan.md` — the Phase-5 migration plan (source of truth for §12 Phase 5)
+  - `.agents/plans/completed/from-claude-to-gemini-plan.md` — the Phase-5 migration plan (delivered; retained as the record of intent, including the two deltas noted in §12 Phase 5)
   - `.agents/plans/completed/`, `.agents/reports/`, `.agents/reviews/`, `.agents/stories/` — per-story plans, spike reports, code reviews, and backlog
-- **Key spike reports:** `motion-spike.md` (GO), `tailwind-theme-spike-report.md` (GO), `cross-origin-states-spike.md` (GO, Strategy A)
-- **Key dependencies:** [Playwright](https://playwright.dev), [sharp](https://sharp.pixelplumbing.com), [culori](https://culorijs.org), [Zod](https://zod.dev), and the AI SDK — [Anthropic](https://docs.anthropic.com) today, [Google Gen AI](https://ai.google.dev) after Phase 5 (free key: https://aistudio.google.com/apikey).
+- **Key spike reports:** `motion-spike.md` (GO → shipped DIST-041), `tailwind-theme-spike-report.md` (GO → shipped DIST-042), `cross-origin-states-spike.md` (GO, Strategy A → shipped DIST-043)
+- **Key dependencies:** [Playwright](https://playwright.dev), [sharp](https://sharp.pixelplumbing.com), [culori](https://culorijs.org), [Zod](https://zod.dev), and [Google Gen AI](https://ai.google.dev) for the AI lane (free key: https://aistudio.google.com/apikey), optionally routed via [OpenRouter](https://openrouter.ai).
 - **Repository structure:** see §6; eval harness under `eval/` (`run.ts`, `score.ts`, `scoreStructure.ts`, `stability.ts`, `corpus/{clean-light,dark-mode}/`, `baseline.json`).
