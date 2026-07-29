@@ -1,5 +1,6 @@
 import type { PrunedNode, SectionDigest } from "../structureSchema";
 import type { ResponsiveDeltas } from "./responsive";
+import { bandPart, structuralPart } from "./annotationSegments";
 
 /**
  * Stage 9 — Section Digest (#34 / DIST-028)
@@ -14,10 +15,6 @@ import type { ResponsiveDeltas } from "./responsive";
  * yields no digest at all.
  */
 
-/** Stage 8a band segments — the inverse split of responsive.ts's structural
- *  comparison (a pinned header's `· sticky` tag is band identity, not layout). */
-const BAND_SEGMENT = /^(sticky|fixed|h \d+px|h 100vh|padY \d+px)$/;
-
 const HEADING_TAGS = ["h1", "h2", "h3", "h4"];
 
 export interface BuildSectionDigestsInput {
@@ -31,18 +28,6 @@ export interface BuildSectionDigestsInput {
   /** Stage 7 AI one-line intent descriptions keyed by band node id
    *  (#36 / DIST-030) — only present when `naming: "ai"`. */
   descriptions?: Record<string, string>;
-}
-
-function bandPart(annotation: string | undefined): string | undefined {
-  if (!annotation) return undefined;
-  const kept = annotation.split(" · ").filter((seg) => BAND_SEGMENT.test(seg));
-  return kept.length > 0 ? kept.join(" · ") : undefined;
-}
-
-function structuralPart(annotation: string | undefined): string | undefined {
-  if (!annotation) return undefined;
-  const kept = annotation.split(" · ").filter((seg) => !BAND_SEGMENT.test(seg));
-  return kept.length > 0 ? kept.join(" · ") : undefined;
 }
 
 /** Band identity keys off measured landmark/tag first — the final

@@ -3,6 +3,7 @@ import { pruneAndCollapse } from "./pruner";
 import { squashWrapperChains } from "./squash";
 import { detectRepetition } from "./repetition";
 import { assignOntologyTypes } from "./ontology";
+import { structuralPart } from "./annotationSegments";
 
 /**
  * Stage 7b — Responsive diff (§P5-2)
@@ -19,16 +20,6 @@ import { assignOntologyTypes } from "./ontology";
 /** Per-component layout-annotation deltas, keyed by component name then by
  *  viewport width in px, e.g. `{"GridSection": {"1440": "grid · 3col", "390": "grid · 1col"}}`. */
 export type ResponsiveDeltas = Record<string, Record<string, string>>;
-
-const NON_STRUCTURAL_SEGMENT = /^(sticky|fixed|h \d+px|h 100vh|padY \d+px)$/;
-
-/** Strip sticky/fixed/height/padY notes so only the flex/grid shape itself is
- *  compared — a pinned header's `· sticky` tag isn't a responsive delta. */
-function structuralPart(annotation: string | undefined): string | undefined {
-  if (!annotation) return undefined;
-  const kept = annotation.split(" · ").filter((seg) => !NON_STRUCTURAL_SEGMENT.test(seg));
-  return kept.length > 0 ? kept.join(" · ") : undefined;
-}
 
 /** Greedy in-order alignment of two children arrays by (tagName, landmark),
  *  tolerant of nodes present on only one side — looks a short way ahead on
