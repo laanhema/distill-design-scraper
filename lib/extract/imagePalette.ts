@@ -216,7 +216,7 @@ export async function extractImagePalette(
       bestTextCluster = c;
     }
   }
-  if (!assignedHexes.has(bestTextCluster.hex) || swatches.length === 1) {
+  if (!assignedHexes.has(bestTextCluster.hex)) {
     swatches.push({
       name: "text",
       role: "text",
