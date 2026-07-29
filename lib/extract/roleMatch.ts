@@ -21,7 +21,7 @@ export function nearestPaletteRole(colorValue: string, palette: Palette): ColorR
     const swatchColor = parseColor(swatch.hex);
     if (!swatchColor) continue;
     const dist = deltaE(parsed, swatchColor);
-    if (dist < bestDist) {
+    if (dist < bestDist && swatch.role) {
       bestDist = dist;
       best = swatch.role;
     }

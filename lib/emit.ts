@@ -114,8 +114,10 @@ function renderPalette(palette: Palette, heading = "Palette"): string {
       .filter(Boolean)
       .join(" · ");
     const flagsSuffix = flags ? ` · ${flags}` : "";
+    const rolePrefix = c.role ? `- **${c.role}** \`${c.hex}\`` : `- \`${c.hex}\``;
+    const usageStr = c.usage ? ` — ${c.usage}` : "";
     lines.push(
-      `- **${c.role}** \`${c.hex}\` — ${c.usage} · area ${pct(c.areaWeight)}${flagsSuffix}`,
+      `${rolePrefix}${usageStr} · area ${pct(c.areaWeight)}${flagsSuffix}`,
     );
   }
   if (palette.contrast.length > 0) {
@@ -323,7 +325,9 @@ function renderCssVariables(report: Report): string {
   const lines: string[] = ["## CSS variables", "", "```css", ":root {"];
 
   for (const c of report.palette.colors) {
-    lines.push(`  --color-${c.role}: ${c.hex};`);
+    if (c.role) {
+      lines.push(`  --color-${c.role}: ${c.hex};`);
+    }
   }
 
   if (report.typography) {
@@ -384,7 +388,9 @@ export function emitTailwindTheme(report: Report): string {
   ];
 
   for (const c of report.palette.colors) {
-    lines.push(`  --color-${c.role}: ${c.hex};`);
+    if (c.role) {
+      lines.push(`  --color-${c.role}: ${c.hex};`);
+    }
   }
 
   if (report.typography) {
@@ -425,7 +431,9 @@ export function emitTailwindTheme(report: Report): string {
   if (report.paletteDark && report.paletteDark.colors.length > 0) {
     lines.push("", "@media (prefers-color-scheme: dark) {", "  :root {");
     for (const c of report.paletteDark.colors) {
-      lines.push(`    --color-${c.role}: ${c.hex};`);
+      if (c.role) {
+        lines.push(`    --color-${c.role}: ${c.hex};`);
+      }
     }
     lines.push("  }", "}");
   }
