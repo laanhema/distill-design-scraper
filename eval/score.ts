@@ -9,7 +9,7 @@ import type { ExpectedStructureSpec } from "./scoreStructure";
  */
 
 /** ΔE under which an extracted color counts as matching the expected one. */
-export const PALETTE_DELTA_E_TOLERANCE = 12;
+const PALETTE_DELTA_E_TOLERANCE = 12;
 
 export interface ExpectedSpec {
   name: string;

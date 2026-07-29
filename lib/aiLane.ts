@@ -17,7 +17,7 @@ import type { ImageMediaType } from "@/lib/extract/imageMediaType";
  */
 export { ThinkingLevel };
 
-/** Vision-capable; pinned everywhere an AI lane calls the model. */
+/** Vision-capable; pinned everywhere an AI lane calls the model. Exported as the canonical model pin declaration owned by lib/aiLane.ts (§6, DIST-073). */
 export const AI_MODEL = "gemini-3.5-flash";
 
 /** True when a live AI lane call is possible (an API key is configured). */
