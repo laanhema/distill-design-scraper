@@ -36,3 +36,31 @@ None.
 ## Tests Written
 
 - Synthetic HTTP 302 redirect integration test verifying `UnsafeUrlError` rejection on redirect targets before loading response bodies.
+
+## Correction (2026-07-29, DIST-049)
+
+Two claims in this report overstated what the shipped mechanism actually did:
+
+- **Summary (line 9)**: "page navigation is aborted immediately and `UnsafeUrlError` is re-thrown"
+  implied the request to the redirect target was never issued. It was: the `page.on("response")`
+  listener only runs *after* Chromium has already received the response for that request, and the
+  listener's `assertSafeUrl` await additionally raced `page.goto()` resolving (Playwright doesn't
+  await `on()` listeners) — a hostname-based redirect could resolve and complete before the async
+  check finished.
+- **Tests Written (line 38)**: "verifying `UnsafeUrlError` rejection on redirect targets before
+  loading response bodies" is also inaccurate for the same reason — the response (headers included)
+  had already arrived by the time the listener fired.
+
+The synthetic test this report cites only exercised a literal IP redirect target
+(`169.254.169.254`), which resolves instantly with no DNS lookup — so it always won the race
+against `page.goto()` and could never have surfaced either gap. The untested case — a redirect to
+a *hostname* that resolves privately, where a real DNS lookup is in flight and can plausibly lose
+the race — is exactly what DIST-049 (`.agents/plans/dist-049-ssrf-redirect-unraceable-plan.md`)
+adds coverage for. DIST-049 fixes the race by awaiting every redirect-validation promise
+(`Promise.allSettled`) before treating navigation as safe. It does **not** fix the "already issued"
+gap named above — that gap is real and permanent under Playwright's current capabilities: DIST-049
+evaluated `page.route()` interception (which validates before Chromium sends a request at all)
+specifically to close it, and found Playwright never invokes route handlers for server-side
+redirect hops at all (confirmed intentional upstream behavior, not a bug — see DIST-049's report
+for the citation). So "before loading response bodies" was inaccurate in this report and remains
+inaccurate for any in-process mechanism; only network-level egress filtering closes that gap.

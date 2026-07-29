@@ -360,19 +360,68 @@ export async function renderUrl(
     });
     const page = await context.newPage();
 
+    // Redirect-target guard, awaited (not fire-and-forget): a naive
+    // `page.on("response", async (response) => { ... })` listener races
+    // `page.goto()` resolving, because Playwright does not await `on()`
+    // handlers — a fast-answering malicious hostname could complete
+    // navigation before the async `assertSafeUrl` check finished. We close
+    // that race by pushing every redirect-validation promise into
+    // `pendingRedirectValidations` and explicitly `Promise.allSettled`-ing
+    // all of them before ever treating the navigation as safe to capture —
+    // every redirect hop's response necessarily arrives (and so its listener
+    // fires) before `domcontentloaded` for the final destination, so this
+    // wait is guaranteed to cover every validation this navigation will ever
+    // trigger.
+    //
+    // `page.route()` interception — Playwright's own preferred, awaited
+    // mechanism for validating a request *before* it's sent — was evaluated
+    // here and rejected: Playwright's documentation states plainly that "the
+    // handler will only be called for the first url if the response is a
+    // redirect" (playwright-core `Page.route()` docs), confirmed as
+    // "working as designed" by a maintainer for the identical case on
+    // `context.route()` (microsoft/playwright#34994). A server-side redirect
+    // hop during `page.goto()` is Chromium's own browser-process-level
+    // auto-follow, which Playwright's CDP-based route() interception cannot
+    // see at all — so it could not have validated a redirect target before
+    // Chromium issued that request, and would have silently done nothing for
+    // the exact case this guard exists for. (A route()-based variant was
+    // prototyped and empirically confirmed to fire once for the initial URL
+    // and never again for the redirect hop, even though navigation completed
+    // via that hop.)
+    //
+    // Consequence: the request to a redirect target is always issued, and
+    // its response is received, before this check can act — same as before
+    // this fix, and the same as it would be under a route()-based mechanism
+    // too, since that mechanism cannot observe the request at all. What
+    // this fix changes is reliability of *detection*: we now always finish
+    // validating before deciding the render is safe to use, instead of
+    // racing that decision against navigation resolving. `page.close()`
+    // inside the handler is a best-effort early-abort — it makes an
+    // in-flight `page.goto()` reject sooner and limits how long a malicious
+    // page's JS gets to run, not a guarantee the request was never sent.
+    //
+    // Chromium's own independent DNS resolution at connect time (vs. our
+    // validation-time `dns.lookup`) remains a residual TOCTOU/DNS-rebinding
+    // gap, unrelated to the race and equally out of scope here — network-
+    // level egress filtering (README "Layer 2") is the load-bearing boundary
+    // for both this gap and that one.
     let redirectSsrfError: Error | null = null;
-    page.on("response", async (response) => {
+    const pendingRedirectValidations: Promise<void>[] = [];
+    page.on("response", (response) => {
       const status = response.status();
       if (status >= 300 && status < 400) {
         const location = response.headers()["location"];
         if (location) {
-          try {
-            const targetUrl = new URL(location, response.url()).toString();
-            await assertSafeUrl(targetUrl);
-          } catch (err) {
-            redirectSsrfError = err instanceof Error ? err : new Error(String(err));
-            await page.close().catch(() => {});
-          }
+          const validation = (async () => {
+            try {
+              const targetUrl = new URL(location, response.url()).toString();
+              await assertSafeUrl(targetUrl);
+            } catch (err) {
+              redirectSsrfError = err instanceof Error ? err : new Error(String(err));
+              await page.close().catch(() => {});
+            }
+          })();
+          pendingRedirectValidations.push(validation);
         }
       }
     });
@@ -382,11 +431,13 @@ export async function renderUrl(
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: navTimeout });
     } catch (err) {
+      await Promise.allSettled(pendingRedirectValidations);
       if (redirectSsrfError) {
         throw redirectSsrfError;
       }
       throw err;
     }
+    await Promise.allSettled(pendingRedirectValidations);
     if (redirectSsrfError) {
       throw redirectSsrfError;
     }
