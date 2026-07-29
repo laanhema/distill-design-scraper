@@ -108,6 +108,166 @@ export interface StyleDump {
 const NODE_CAP = 5000;
 
 /**
+ * The shared `:hover`/`:focus-visible` CSSOM scanner (`STATE_PROPS`,
+ * `resolveVarRefs`, `applyRule`, `scanRules`), used by *both* the
+ * same-origin walk (inside the main `page.evaluate` below) and the
+ * cross-origin re-fetch pass. It used to be two independently-maintained
+ * inline copies that drifted (DIST-048: the cross-origin copy's
+ * `STATE_PROPS` mapped to camelCase computed-property names, which
+ * `getComputedStyle().getPropertyValue()` silently never matches, so only
+ * `color` ever survived there). Because the two passes run as *separate*
+ * `page.evaluate` executions, they can't share a Node-side closure — so this
+ * function is defined once, here, at module scope, and its source is
+ * captured via `.toString()` and reconstructed in-page via
+ * `new Function("return (" + src + ")")()()`, exactly like the `__name`
+ * shim above already ships a snippet of Node-authored source into the page.
+ * It must stay completely self-contained (no closures over anything outside
+ * its own body, no imports) since only its serialized text crosses the
+ * page boundary — each call site supplies its own way of locating "the
+ * record for this element" via the `getRecord` callback (a live `Map` in
+ * the same-origin pass, a `data-distill-id`-keyed lookup in the
+ * cross-origin pass).
+ */
+function createStateScanner() {
+  const STATE_PROPS: Record<string, string> = {
+    "background-color": "background-color",
+    "color": "color",
+    "border-color": "border-top-color",
+    "box-shadow": "box-shadow",
+  };
+
+  /**
+   * Resolve `var(--name)` / `var(--name, fallback)` references in a raw
+   * CSSOM rule-text value against the element's own computed style. This is
+   * not fabrication — `--name` is a real, directly-queryable computed
+   * property on the element (custom properties cascade/inherit like any
+   * other), so reading it off the element being scanned is representative
+   * of the actual measured value, even though the `:hover`/`:focus-visible`
+   * rule isn't literally applied at read time. Multiple `var()` references
+   * can appear in one value (e.g. a multi-part `box-shadow`), and a
+   * fallback can itself nest another `var(...)`, so this runs a bounded
+   * number of passes, resolving the innermost (paren-free-fallback) refs
+   * each pass. Anything that can't be resolved and has no fallback is left
+   * as literal `var(...)` text rather than causing a crash.
+   */
+  function resolveVarRefs(value: string, cs: CSSStyleDeclaration): string {
+    let result = value;
+    for (let pass = 0; pass < 3 && result.includes("var("); pass++) {
+      const next = result.replace(
+        /var\(\s*(--[a-zA-Z0-9_-]+)\s*(?:,\s*([^()]*))?\)/g,
+        (match, name: string, fallback?: string) => {
+          const resolved = cs.getPropertyValue(name).trim();
+          if (resolved) return resolved;
+          if (fallback !== undefined) return fallback.trim();
+          return match;
+        },
+      );
+      if (next === result) break;
+      result = next;
+    }
+    return result;
+  }
+
+  type StateRecord = {
+    interactive?: boolean;
+    states?: {
+      state: "hover" | "focus";
+      changes: { property: string; from: string; to: string }[];
+    }[];
+  };
+
+  function applyRule(
+    rule: CSSStyleRule,
+    getRecord: (el: Element) => StateRecord | undefined,
+  ) {
+    const selectorText = rule.selectorText;
+    if (!selectorText) return;
+    for (const rawSelector of selectorText.split(",")) {
+      const selector = rawSelector.trim();
+      const state = selector.includes(":hover")
+        ? "hover"
+        : selector.includes(":focus-visible")
+          ? "focus"
+          : null;
+      if (!state) continue;
+      const baseSelector = selector
+        .replace(/:hover/g, "")
+        .replace(/:focus-visible/g, "")
+        .trim();
+      if (!baseSelector) continue;
+
+      let matched: NodeListOf<Element>;
+      try {
+        matched = document.querySelectorAll(baseSelector);
+      } catch {
+        continue;
+      }
+
+      for (const el of matched) {
+        const record = getRecord(el);
+        if (!record || !record.interactive) continue;
+
+        const cs = getComputedStyle(el);
+        const changes: { property: string; from: string; to: string }[] = [];
+        for (const [prop, computedProp] of Object.entries(STATE_PROPS)) {
+          const to = resolveVarRefs(rule.style.getPropertyValue(prop), cs);
+          if (!to) continue;
+          const from = cs.getPropertyValue(computedProp);
+          if (!from || from === to) continue;
+          changes.push({ property: prop, from, to });
+        }
+        if (changes.length === 0) continue;
+
+        const states = record.states ?? [];
+        const existing = states.find((s) => s.state === state);
+        if (existing) {
+          for (const ch of changes) {
+            if (!existing.changes.some((e) => e.property === ch.property)) {
+              existing.changes.push(ch);
+            }
+          }
+        } else {
+          states.push({ state, changes });
+        }
+        record.states = states;
+      }
+    }
+  }
+
+  function scanRules(
+    rules: CSSRuleList,
+    getRecord: (el: Element) => StateRecord | undefined,
+    onKeyframe: (kf: { name: string; steps: { offset: string; properties: string[] }[] }) => void,
+  ) {
+    for (const rule of rules) {
+      if (rule instanceof CSSMediaRule) {
+        scanRules(rule.cssRules, getRecord, onKeyframe);
+        continue;
+      }
+      if (rule instanceof CSSStyleRule) applyRule(rule, getRecord);
+      if (typeof CSSKeyframesRule !== "undefined" && rule instanceof CSSKeyframesRule) {
+        const steps: { offset: string; properties: string[] }[] = [];
+        for (let i = 0; i < rule.cssRules.length; i++) {
+          const step = rule.cssRules[i];
+          if (typeof CSSKeyframeRule !== "undefined" && step instanceof CSSKeyframeRule) {
+            const props: string[] = [];
+            for (let j = 0; j < step.style.length; j++) {
+              props.push(step.style[j]);
+            }
+            steps.push({ offset: step.keyText, properties: props });
+          }
+        }
+        if (steps.length > 0) {
+          onKeyframe({ name: rule.name, steps });
+        }
+      }
+    }
+  }
+
+  return { scanRules };
+}
+
+/**
  * Walk the rendered DOM and return the style dump. Runs on the live page after
  * it has settled (banners dismissed, lazy content nudged) so it reflects the
  * *rendered state only* — unused theme variants sitting in stylesheets never
@@ -125,7 +285,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
   });
 
   const dump = (await page.evaluate(
-    (cap) => {
+    ({ cap, scannerSrc }: { cap: number; scannerSrc: string }) => {
     /** Parse a computed color; return null for fully-transparent paints. */
     function opaqueColor(value: string): string | null {
       if (!value) return null;
@@ -412,131 +572,12 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
     // read straight from the CSSOM — never simulated by toggling the pseudo
     // class, so a rule guarded by JS (`.is-hovering`) is an honest miss, not a
     // wrong answer. Cross-origin stylesheets throw on `.cssRules`; skipped.
-    const STATE_PROPS: Record<string, string> = {
-      "background-color": "background-color",
-      "color": "color",
-      "border-color": "border-top-color",
-      "box-shadow": "box-shadow",
-    };
-
-    /**
-     * Resolve `var(--name)` / `var(--name, fallback)` references in a raw
-     * CSSOM rule-text value against the element's own computed style. This
-     * is not fabrication — `--name` is a real, directly-queryable computed
-     * property on the element (custom properties cascade/inherit like any
-     * other), so reading it off the element being scanned is representative
-     * of the actual measured value, even though the `:hover`/`:focus-visible`
-     * rule isn't literally applied at read time. Multiple `var()` references
-     * can appear in one value (e.g. a multi-part `box-shadow`), and a
-     * fallback can itself nest another `var(...)`, so this runs a bounded
-     * number of passes, resolving the innermost (paren-free-fallback) refs
-     * each pass. Anything that can't be resolved and has no fallback is left
-     * as literal `var(...)` text rather than causing a crash.
-     */
-    function resolveVarRefs(value: string, cs: CSSStyleDeclaration): string {
-      let result = value;
-      for (let pass = 0; pass < 3 && result.includes("var("); pass++) {
-        const next = result.replace(
-          /var\(\s*(--[a-zA-Z0-9_-]+)\s*(?:,\s*([^()]*))?\)/g,
-          (match, name: string, fallback?: string) => {
-            const resolved = cs.getPropertyValue(name).trim();
-            if (resolved) return resolved;
-            if (fallback !== undefined) return fallback.trim();
-            return match;
-          },
-        );
-        if (next === result) break;
-        result = next;
-      }
-      return result;
-    }
-
-    function applyRule(rule: CSSStyleRule) {
-      const selectorText = rule.selectorText;
-      if (!selectorText) return;
-      for (const rawSelector of selectorText.split(",")) {
-        const selector = rawSelector.trim();
-        const state = selector.includes(":hover")
-          ? "hover"
-          : selector.includes(":focus-visible")
-            ? "focus"
-            : null;
-        if (!state) continue;
-        const baseSelector = selector
-          .replace(/:hover/g, "")
-          .replace(/:focus-visible/g, "")
-          .trim();
-        if (!baseSelector) continue;
-
-        let matched: NodeListOf<Element>;
-        try {
-          matched = document.querySelectorAll(baseSelector);
-        } catch {
-          continue;
-        }
-
-        for (const el of matched) {
-          const record = elementRecords.get(el);
-          if (!record || !record.interactive) continue;
-
-          const cs = getComputedStyle(el);
-          const changes: { property: string; from: string; to: string }[] = [];
-          for (const [prop, computedProp] of Object.entries(STATE_PROPS)) {
-            const to = resolveVarRefs(rule.style.getPropertyValue(prop), cs);
-            if (!to) continue;
-            const from = cs.getPropertyValue(computedProp);
-            if (!from || from === to) continue;
-            changes.push({ property: prop, from, to });
-          }
-          if (changes.length === 0) continue;
-
-          const states = (record.states ?? []) as {
-            state: "hover" | "focus";
-            changes: { property: string; from: string; to: string }[];
-          }[];
-          const existing = states.find((s) => s.state === state);
-          if (existing) {
-            for (const ch of changes) {
-              if (!existing.changes.some((e) => e.property === ch.property)) {
-                existing.changes.push(ch);
-              }
-            }
-          } else {
-            states.push({ state, changes });
-          }
-          record.states = states;
-        }
-      }
-    }
-
+    // The scanner itself (STATE_PROPS/resolveVarRefs/applyRule/scanRules) is
+    // defined once, at module scope, in `createStateScanner` — its source is
+    // reconstructed here via `new Function` so both this pass and the
+    // cross-origin re-fetch pass below share exactly one implementation.
+    const { scanRules } = new Function("return (" + scannerSrc + ")")()();
     const keyframes: { name: string; steps: { offset: string; properties: string[] }[] }[] = [];
-
-    function scanRules(rules: CSSRuleList) {
-      for (const rule of rules) {
-        if (rule instanceof CSSMediaRule) {
-          scanRules(rule.cssRules);
-          continue;
-        }
-        if (rule instanceof CSSStyleRule) applyRule(rule);
-        if (typeof CSSKeyframesRule !== "undefined" && rule instanceof CSSKeyframesRule) {
-          const steps: { offset: string; properties: string[] }[] = [];
-          for (let i = 0; i < rule.cssRules.length; i++) {
-            const step = rule.cssRules[i];
-            if (typeof CSSKeyframeRule !== "undefined" && step instanceof CSSKeyframeRule) {
-              const props: string[] = [];
-              for (let j = 0; j < step.style.length; j++) {
-                props.push(step.style[j]);
-              }
-              steps.push({ offset: step.keyText, properties: props });
-            }
-          }
-          if (steps.length > 0 && !keyframes.some((k) => k.name === rule.name)) {
-            keyframes.push({ name: rule.name, steps });
-          }
-        }
-      }
-    }
-
     const crossOriginHrefs: string[] = [];
 
     for (const sheet of document.styleSheets) {
@@ -547,7 +588,15 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
         if (sheet.href) crossOriginHrefs.push(sheet.href);
         continue;
       }
-      if (rules) scanRules(rules);
+      if (rules) {
+        scanRules(
+          rules,
+          (el: Element) => elementRecords.get(el),
+          (kf: { name: string; steps: { offset: string; properties: string[] }[] }) => {
+            if (!keyframes.some((k) => k.name === kf.name)) keyframes.push(kf);
+          },
+        );
+      }
     }
 
     return {
@@ -557,141 +606,87 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       ...(keyframes.length > 0 ? { keyframes } : {}),
       ...(crossOriginHrefs.length > 0 ? { crossOriginHrefs } : {}),
     };
-  }, NODE_CAP)) as unknown as StyleDump & { crossOriginHrefs?: string[] };
+  }, { cap: NODE_CAP, scannerSrc: createStateScanner.toString() })) as unknown as StyleDump & { crossOriginHrefs?: string[] };
 
   if (dump.crossOriginHrefs && dump.crossOriginHrefs.length > 0) {
+    // Which node ids the same-origin pass already flagged interactive — the
+    // cross-origin pass has no `elementRecords` Map to consult (it's a
+    // separate `page.evaluate` execution against a detached stylesheet
+    // document), so it looks this up by id instead, computed once here from
+    // the already-returned `dump`.
+    const interactiveIds = new Set(
+      dump.nodes.flatMap((n, i) => (n.interactive ? [i] : [])),
+    );
     for (const href of dump.crossOriginHrefs) {
       try {
         const res = await page.context().request.get(href);
         if (res.ok()) {
           const cssText = await res.text();
           if (cssText && cssText.trim()) {
-            const extra = await page.evaluate((text) => {
-              const STATE_PROPS: Record<string, string> = {
-                "background-color": "backgroundColor",
-                color: "color",
-                "border-color": "borderColor",
-                "box-shadow": "boxShadow",
-              };
-
-              function resolveVarRefs(val: string, cs: CSSStyleDeclaration): string {
-                if (!val || !val.includes("var(")) return val;
-                let result = val;
-                for (let depth = 0; depth < 5; depth++) {
-                  if (!result.includes("var(")) break;
-                  const next = result.replace(
-                    /var\(\s*(--[\w-]+)(?:\s*,\s*([^()]+|\([^()]*\)))?\s*\)/g,
-                    (match, name, fallback) => {
-                      const resolved = cs.getPropertyValue(name).trim();
-                      if (resolved) return resolved;
-                      if (fallback !== undefined) return fallback.trim();
-                      return match;
-                    },
-                  );
-                  if (next === result) break;
-                  result = next;
+            const extra = await page.evaluate(
+              ({
+                text,
+                scannerSrc,
+                interactiveIds,
+              }: {
+                text: string;
+                scannerSrc: string;
+                interactiveIds: number[];
+              }) => {
+                const { scanRules } = new Function(
+                  "return (" + scannerSrc + ")",
+                )()();
+                const interactiveIdSet = new Set(interactiveIds);
+                const recordsById = new Map<
+                  number,
+                  {
+                    interactive: boolean;
+                    states: {
+                      state: "hover" | "focus";
+                      changes: { property: string; from: string; to: string }[];
+                    }[];
+                  }
+                >();
+                function getRecord(el: Element) {
+                  const idStr = el.getAttribute("data-distill-id");
+                  if (!idStr) return undefined;
+                  const id = parseInt(idStr, 10);
+                  let rec = recordsById.get(id);
+                  if (!rec) {
+                    rec = { interactive: interactiveIdSet.has(id), states: [] };
+                    recordsById.set(id, rec);
+                  }
+                  return rec;
                 }
-                return result;
-              }
 
-              const doc = document.implementation.createHTMLDocument("");
-              const style = doc.createElement("style");
-              style.textContent = text;
-              doc.head.appendChild(style);
-              const sheet = style.sheet;
-              if (!sheet || !sheet.cssRules) return null;
+                const keyframes: { name: string; steps: { offset: string; properties: string[] }[] }[] = [];
+                const doc = document.implementation.createHTMLDocument("");
+                const style = doc.createElement("style");
+                style.textContent = text;
+                doc.head.appendChild(style);
+                const sheet = style.sheet;
+                if (!sheet || !sheet.cssRules) return null;
 
-              const updates = new Map<number, { state: "hover" | "focus"; changes: { property: string; from: string; to: string }[] }[]>();
-              const keyframes: { name: string; steps: { offset: string; properties: string[] }[] }[] = [];
+                scanRules(
+                  sheet.cssRules,
+                  getRecord,
+                  (kf: { name: string; steps: { offset: string; properties: string[] }[] }) => {
+                    if (!keyframes.some((k) => k.name === kf.name)) keyframes.push(kf);
+                  },
+                );
 
-              function applyRule(rule: CSSStyleRule) {
-                const selectorText = rule.selectorText;
-                if (!selectorText) return;
-                for (const rawSelector of selectorText.split(",")) {
-                  const selector = rawSelector.trim();
-                  const state = selector.includes(":hover")
-                    ? "hover"
-                    : selector.includes(":focus-visible")
-                      ? "focus"
-                      : null;
-                  if (!state) continue;
-                  const baseSelector = selector
-                    .replace(/:hover/g, "")
-                    .replace(/:focus-visible/g, "")
-                    .trim();
-                  if (!baseSelector) continue;
+                const updates = Array.from(recordsById.entries())
+                  .filter(([, rec]) => rec.states.length > 0)
+                  .map(([id, rec]) => ({ id, states: rec.states }));
 
-                  let matched: NodeListOf<Element>;
-                  try {
-                    matched = document.querySelectorAll(baseSelector);
-                  } catch {
-                    continue;
-                  }
-
-                  for (const el of matched) {
-                    const idStr = el.getAttribute("data-distill-id");
-                    if (!idStr) continue;
-                    const id = parseInt(idStr, 10);
-                    const cs = getComputedStyle(el);
-                    const changes: { property: string; from: string; to: string }[] = [];
-                    for (const [prop, computedProp] of Object.entries(STATE_PROPS)) {
-                      const to = resolveVarRefs(rule.style.getPropertyValue(prop), cs);
-                      if (!to) continue;
-                      const from = cs.getPropertyValue(computedProp);
-                      if (!from || from === to) continue;
-                      changes.push({ property: prop, from, to });
-                    }
-                    if (changes.length === 0) continue;
-
-                    const states = updates.get(id) ?? [];
-                    const existing = states.find((s) => s.state === state);
-                    if (existing) {
-                      for (const ch of changes) {
-                        if (!existing.changes.some((e) => e.property === ch.property)) {
-                          existing.changes.push(ch);
-                        }
-                      }
-                    } else {
-                      states.push({ state, changes });
-                    }
-                    updates.set(id, states);
-                  }
-                }
-              }
-
-              function scanRules(rules: CSSRuleList) {
-                for (const rule of rules) {
-                  if (rule instanceof CSSMediaRule) {
-                    scanRules(rule.cssRules);
-                    continue;
-                  }
-                  if (rule instanceof CSSStyleRule) applyRule(rule);
-                  if (typeof CSSKeyframesRule !== "undefined" && rule instanceof CSSKeyframesRule) {
-                    const steps: { offset: string; properties: string[] }[] = [];
-                    for (let i = 0; i < rule.cssRules.length; i++) {
-                      const step = rule.cssRules[i];
-                      if (typeof CSSKeyframeRule !== "undefined" && step instanceof CSSKeyframeRule) {
-                        const props: string[] = [];
-                        for (let j = 0; j < step.style.length; j++) {
-                          props.push(step.style[j]);
-                        }
-                        steps.push({ offset: step.keyText, properties: props });
-                      }
-                    }
-                    if (steps.length > 0 && !keyframes.some((k) => k.name === rule.name)) {
-                      keyframes.push({ name: rule.name, steps });
-                    }
-                  }
-                }
-              }
-
-              scanRules(sheet.cssRules);
-
-              return {
-                updates: Array.from(updates.entries()).map(([id, states]) => ({ id, states })),
-                keyframes,
-              };
-            }, cssText);
+                return { updates, keyframes };
+              },
+              {
+                text: cssText,
+                scannerSrc: createStateScanner.toString(),
+                interactiveIds: [...interactiveIds],
+              },
+            );
 
             if (extra) {
               for (const { id, states } of extra.updates) {
