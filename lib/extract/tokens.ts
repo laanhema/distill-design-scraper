@@ -27,7 +27,7 @@ export function extractTokens(dump: StyleDump): ExtractedTokens {
   };
 }
 
-export function extractSpacing(dump: StyleDump): Spacing | undefined {
+function extractSpacing(dump: StyleDump): Spacing | undefined {
   const counts = new Map<number, number>();
 
   for (const node of dump.nodes) {
@@ -87,7 +87,7 @@ export function extractSpacing(dump: StyleDump): Spacing | undefined {
   };
 }
 
-export function extractRadius(dump: StyleDump): Radius | undefined {
+function extractRadius(dump: StyleDump): Radius | undefined {
   const counts = new Map<string, number>();
 
   for (const node of dump.nodes) {
@@ -136,7 +136,7 @@ export function extractRadius(dump: StyleDump): Radius | undefined {
   };
 }
 
-export function extractElevation(dump: StyleDump): Elevation {
+function extractElevation(dump: StyleDump): Elevation {
   const counts = new Map<string, number>();
 
   for (const node of dump.nodes) {

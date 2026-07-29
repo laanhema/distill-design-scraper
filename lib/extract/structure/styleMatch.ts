@@ -9,9 +9,9 @@ import type { Bounds } from "../structureSchema";
  */
 
 /** Max total px difference (x+y+w+h) for a style-dump node to "be" a PrunedNode. */
-export const BOUNDS_MATCH_TOLERANCE = 6;
+const BOUNDS_MATCH_TOLERANCE = 6;
 
-export function boundsDistance(a: Bounds, b: NodeStyle["rect"]): number {
+function boundsDistance(a: Bounds, b: NodeStyle["rect"]): number {
   return (
     Math.abs(a.x - b.x) +
     Math.abs(a.y - b.y) +

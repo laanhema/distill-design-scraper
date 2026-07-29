@@ -70,7 +70,8 @@ function isBlockedIpv4Int(ipInt: number): boolean {
   return false;
 }
 
-/** Checks a dotted-quad IPv4 address against the blocked-range list via 32-bit integer + mask arithmetic. */
+/** Checks a dotted-quad IPv4 address against the blocked-range list via 32-bit integer + mask arithmetic.
+ *  Exported as an independently-auditable security-predicate surface (DIST-073). */
 export function isBlockedIpv4(ip: string): boolean {
   const ipInt = ipv4ToInt(ip);
   if (ipInt === null) return false;
@@ -113,7 +114,8 @@ function extractIpv4Mapped(ip: string): string | null {
  *  `isBlockedIpv4` on the embedded v4 address — in both the dotted form
  *  (`::ffff:127.0.0.1`, via the regex shortcut) and the hex form
  *  (`::ffff:7f00:1`, via the parsed 128-bit value) — otherwise a mapped
- *  loopback/private target would bypass the v6 checks entirely. */
+ *  loopback/private target would bypass the v6 checks entirely.
+ *  Exported as an independently-auditable security-predicate surface (DIST-073). */
 export function isBlockedIpv6(ip: string): boolean {
   const mapped = extractIpv4Mapped(ip);
   if (mapped) return isBlockedIpv4(mapped);
@@ -146,7 +148,8 @@ export function isBlockedIpv6(ip: string): boolean {
 
 /** Reads `SSRF_ALLOWLIST_HOSTS` (comma-separated exact hostnames) into a
  *  lower-cased set — a deployer's explicit trust decision to permit an
- *  internal target (e.g. staging), documented behavior rather than a code fix. */
+ *  internal target (e.g. staging), documented behavior rather than a code fix.
+ *  Exported as an independently-auditable security-predicate surface (DIST-073). */
 export function parseAllowlist(): Set<string> {
   const raw = process.env.SSRF_ALLOWLIST_HOSTS ?? "";
   return new Set(
