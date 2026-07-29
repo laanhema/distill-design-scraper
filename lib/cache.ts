@@ -32,23 +32,14 @@ const DEFAULT_TTL_MS = 10 * 60 * 1000; // 10 minutes
 // MB of base64 screenshots, so 50 entries bounds the cache to the order of a
 // few hundred MB worst case instead of unbounded heap growth.
 const DEFAULT_MAX_ENTRIES = 50;
+import { parsePositiveInteger } from "@/lib/env";
+
 // How often the periodic sweep evicts expired entries that are never re-read.
 const SWEEP_INTERVAL_MS = 60_000;
 
 const cacheStore = new Map<string, CacheEntry<unknown>>();
 
 let sweepTimer: NodeJS.Timeout | null = null;
-
-function parsePositiveNumber(raw: string | undefined, fallback: number): number {
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) || parsed <= 0 ? fallback : parsed;
-}
-
-/** Like `parsePositiveNumber`, but floors to an integer and rejects the result if that floor is `< 1` — a fractional value below 1 (e.g. `0.5`) would otherwise floor to `0`, which defeats the entry cap instead of falling back to the default. */
-function parsePositiveInteger(raw: string | undefined, fallback: number): number {
-  const parsed = Math.floor(parsePositiveNumber(raw, fallback));
-  return parsed < 1 ? fallback : parsed;
-}
 
 /** Removes every expired entry, regardless of whether it is ever read again. */
 function sweepExpired(): void {

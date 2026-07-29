@@ -41,16 +41,7 @@ function isDisabled(): boolean {
   return raw === "true" || raw === "1";
 }
 
-function parsePositiveNumber(raw: string | undefined, fallback: number): number {
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) || parsed <= 0 ? fallback : parsed;
-}
-
-/** Like `parsePositiveNumber`, but floors to an integer and rejects the result if that floor is `< 1` — a fractional value below 1 (e.g. `0.5`) would otherwise floor to `0`, which defeats bucket capping instead of falling back to the default. */
-function parsePositiveInteger(raw: string | undefined, fallback: number): number {
-  const parsed = Math.floor(parsePositiveNumber(raw, fallback));
-  return parsed < 1 ? fallback : parsed;
-}
+import { parsePositiveInteger, parsePositiveNumber } from "@/lib/env";
 
 function evictIfAtCapacity(maxBuckets: number, windowMs: number): void {
   if (buckets.size < maxBuckets) return;
