@@ -330,7 +330,10 @@ function subsampleEvenly<T>(items: T[], maxCount: number): T[] {
 }
 
 /** Full URL path: render, extract (measured), then interpret (AI, §6). */
-export async function analyzeUrl(url: string): Promise<AnalyzeResult & {
+export async function analyzeUrl(
+  url: string,
+  mode: "tokens" | "structure" | "both" = "both",
+): Promise<AnalyzeResult & {
   capture: Capture;
   refinements: RefinementChange[];
   meta: {
@@ -345,10 +348,15 @@ export async function analyzeUrl(url: string): Promise<AnalyzeResult & {
   const render = await renderUrl(url);
   const capture = captureFromRender(render, url, capturedAt);
   const measured = await extractFromCapture(capture);
-  const enriched = await enrichWithAI(measured, [
-    capture.viewportShot,
-    ...subsampleEvenly(capture.scrollShots ?? [], 3),
-  ]);
+  // A "structure"-only caller has no use for the identity/imageMood AI pass
+  // over the palette-mood report, so skip it rather than paying for both.
+  const wantsTokenEnrichment = mode === "tokens" || mode === "both";
+  const enriched = wantsTokenEnrichment
+    ? await enrichWithAI(measured, [
+        capture.viewportShot,
+        ...subsampleEvenly(capture.scrollShots ?? [], 3),
+      ])
+    : { ...measured, refinements: [] as RefinementChange[] };
   return {
     report: enriched.report,
     markdown: enriched.markdown,
