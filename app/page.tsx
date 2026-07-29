@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Report, StructureReport } from "@/lib/schema";
-import { emitTailwindTheme } from "@/lib/emit";
+import { emitTailwindTheme } from "@/lib/emitTailwind";
 
 interface Meta {
   finalUrl: string;
