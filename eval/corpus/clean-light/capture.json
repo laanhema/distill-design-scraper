@@ -2,10 +2,14 @@
   "source": {
     "type": "url",
     "ref": "clean-light.html",
-    "capturedAt": "2026-07-23T18:23:25.211Z"
+    "capturedAt": "2026-07-29T20:14:13.757Z"
   },
   "finalUrl": "file:///home/lauri/github/distill-design-scraper/eval/fixtures/clean-light.html",
   "title": "Aperture — Clean Light Design System Fixture",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
   "styleDump": {
     "nodes": [
       {
