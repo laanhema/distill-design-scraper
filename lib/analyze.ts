@@ -362,11 +362,3 @@ export async function analyzeUrl(url: string): Promise<AnalyzeResult & {
   };
 }
 
-/** Full URL path for Track B structure extraction alone or combined. */
-export async function analyzeUrlStructure(url: string): Promise<StructureReport> {
-  const capturedAt = new Date().toISOString();
-  const render = await renderUrl(url);
-  const capture = captureFromRender(render, url, capturedAt);
-  return extractStructureFromCapture(capture);
-}
-
