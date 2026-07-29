@@ -1,0 +1,45 @@
+# Hand-authored ground truth for the adversarial-shell fixture (§10, DIST-062).
+#
+# This fixture's DOM is deliberately shaped to defeat the structure lane's
+# positional shortcuts: a root wrapper <div id="app-root"> survives Stage 4b
+# squash because it has a sibling (a skip-link <a>), pushing header/main/footer
+# to depth 2 — below ontology.ts's `depth <= 1` region-typing gate. As of this
+# writing (pre-DIST-063), that means the header/footer bands emit as the
+# generic-landmark fallback names `Header`/`Footer` instead of
+# `SiteHeader`/`SiteFooter`, and `MainContent` never appears in the skeleton.
+#
+# expectedSections/expectedRegions below assert the POST-DIST-063 CORRECT
+# names on purpose — this fixture is meant to score below 1.00 on `main`
+# today and hit 1.00 once DIST-063 fixes the depth gate. Do not "fix" this
+# file to match today's degraded output; that would defeat the fixture's
+# purpose. Hero/CardGrid names and all component counts are NOT depth-gated
+# (see the DIST-062 plan's root-cause section) — they were verified against
+# real `extractStructureFromCapture` output, not guessed.
+name: adversarial-shell
+bucket: hostile
+palette:
+  background: "#ffffff"
+  surface: "#f2f4f7"
+  text: "#12141c"
+  primary: "#6d28d9"
+  border: "#d8dce3"
+  muted: "#6b7280"
+typography:
+  bodyFamily: "Sora"
+  scale:
+    h1: 44
+    h2: 28
+    h3: 22
+    body: 16
+    small: 13
+structure:
+  expectedSections:
+    - { name: SiteHeader }
+    - { name: Hero }
+    - { name: CardGrid }
+    - { name: SiteFooter }
+  expectedRegions: [SiteHeader, MainContent, CardGrid, SiteFooter]
+  expectedComponents:
+    SectionCard: { count: 4 }
+    TextLink: { count: 5 }
+    Button: { count: 2 }

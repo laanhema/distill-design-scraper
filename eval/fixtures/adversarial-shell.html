@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Hostile Shell — Adversarial Structure Fixture</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #f2f4f7;
+        --text: #12141c;
+        --primary: #6d28d9;
+        --border: #d8dce3;
+        --muted: #6b7280;
+      }
+      * { box-sizing: border-box; margin: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Sora", system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
+        padding: 0;
+      }
+      /* Skip-link stays a real, laid-out node (nonzero bounds, not
+         display:none) so it survives Stage 3/4 pruning as a genuine sibling
+         of #app-root — that's what forces <body> to have 2 children. */
+      .skip-link {
+        position: absolute;
+        top: 8px;
+        left: 8px;
+        padding: 8px 16px;
+        background: var(--surface);
+        color: var(--primary);
+        border: 1px solid var(--border);
+      }
+      header { padding: 24px 48px; border-bottom: 1px solid var(--border); }
+      nav a { color: var(--primary); text-decoration: none; margin-right: 24px; }
+      .hero { padding: 96px 48px; }
+      h1 { font-size: 44px; font-weight: 700; line-height: 1.1; letter-spacing: -0.02em; }
+      h2 { font-size: 28px; font-weight: 700; line-height: 1.2; margin-top: 8px; }
+      h3 { font-size: 22px; font-weight: 600; line-height: 1.3; }
+      p { font-size: 16px; margin-top: 16px; max-width: 60ch; }
+      small { font-size: 13px; color: var(--muted); }
+      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; padding: 48px; }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+      }
+      .btn {
+        background: var(--primary);
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        padding: 12px 20px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 150ms ease;
+      }
+      .btn:hover {
+        background: #5b21b6;
+      }
+      footer { padding: 48px; color: var(--muted); border-top: 1px solid var(--border); }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <div id="app-root">
+      <header>
+        <nav>
+          <a href="#">Overview</a><a href="#">Pricing</a><a href="#">Docs</a><a href="#">Support</a>
+        </nav>
+      </header>
+
+      <main id="main-content">
+        <div class="hero">
+          <h1>Structure, stress-tested.</h1>
+          <h2>A shell shaped to defeat positional shortcuts</h2>
+          <p>
+            This fixture nests its landmarks one level deeper than a textbook
+            page and swaps the hero's `&lt;section&gt;` for a `&lt;div&gt;`, so any
+            heuristic keyed on tree depth or tag name has something real to
+            fail against.
+          </p>
+          <p>
+            <button class="btn">Get started</button>
+            <button class="btn">Read the docs</button>
+          </p>
+        </div>
+
+        <div class="grid">
+          <div class="card">
+            <h3>Depth-agnostic</h3>
+            <p>Region typing should key on landmark identity, not tree depth.</p>
+            <small>Verified offline.</small>
+          </div>
+          <div class="card">
+            <h3>Tag-agnostic</h3>
+            <p>A div-based hero should read the same as a section-based one.</p>
+            <small>Verified offline.</small>
+          </div>
+          <div class="card">
+            <h3>Motion-aware</h3>
+            <p>Declared transitions on recognized recipe elements should surface.</p>
+            <small>Verified offline.</small>
+          </div>
+          <div class="card">
+            <h3>State-aware</h3>
+            <p>CSSOM hover deltas should attribute back to the right role.</p>
+            <small>Verified offline.</small>
+          </div>
+        </div>
+      </main>
+
+      <footer>
+        <small>© 2026 Hostile Shell. A synthetic fixture for the Distill eval corpus.</small>
+      </footer>
+    </div>
+  </body>
+</html>

@@ -49,6 +49,7 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
       },
       finalUrl: page.url(),
       title: await page.title(),
+      viewport: VIEWPORT,
       styleDump: captured.styleDump,
       viewportShot: captured.viewportShot,
       rawHarvestNode: captured.rawHarvestNode,
