@@ -62,8 +62,7 @@ export async function extractFromCapture(
 ): Promise<AnalyzeResult> {
   const palette = await extractPalette({
     dump: capture.styleDump,
-    screenshotPngBase64: capture.viewportShot,
-    additionalScreenshotsPngBase64: capture.panoramaShot ? [capture.panoramaShot] : undefined,
+    screenshotPngBase64: capture.panoramaShot ?? capture.viewportShot,
   });
   let typography = extractTypography(capture.styleDump);
   const tokens = extractTokens(capture.styleDump);
