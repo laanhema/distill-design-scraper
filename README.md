@@ -180,9 +180,23 @@ network sandboxing second, and auth/limits at the edge third.
   fails closed if the resolved address is loopback, private, or link-local — see Setup &
   Configuration §3 above for the full range list and the `SSRF_ALLOWLIST_HOSTS` opt-out.
 - **Redirect re-validation**: the guard is re-applied to the `Location` target of every `3xx`
-  response Chromium receives during navigation, so an open redirect on a public host can't be
-  used to bounce the browser into a private range. A failing redirect aborts the render and
-  surfaces the same `UnsafeUrlError`.
+  response Chromium receives during navigation. The check is *awaited* before the render is ever
+  treated as safe to use — every redirect-validation promise is collected and `Promise.allSettled`
+  is run before `renderUrl` returns or hands the page to capture, closing the *race* a
+  fire-and-forget check would have (a fast-resolving malicious hostname can no longer complete
+  navigation before the check finishes). It does **not** prevent the request to the redirect
+  target from being sent: Playwright's `page.route()` interception — which would run *before*
+  Chromium issues a request — was evaluated and found not to see server-side redirect hops at all
+  (Playwright's own docs: route handlers are "only called for the first url if the response is a
+  redirect"; confirmed as intentional by a maintainer for the identical case, not a bug we could
+  work around). So the request to a redirect target is always issued and its response received
+  before this check can act, exactly as before — what changed is that detection is now reliable
+  every time instead of racing navigation. Nor does it close the underlying TOCTOU: our check
+  resolves the hostname once via `dns.lookup`, but Chromium performs its own independent DNS
+  resolution when it actually connects — a DNS-rebinding attacker whose second answer differs from
+  the first can still cause the request to reach a private target. Network-level egress filtering
+  (Layer 2, below) is what actually stops both of those cases; treat this control as a reliable
+  fast-fail for the common case, not a hard boundary.
 - **Rate limiting**: `POST /api/analyze` enforces a per-client token bucket (`RATE_LIMIT_*` env
   vars), returning `429` + `Retry-After` once exhausted — see Setup & Configuration §4 above.
   Honestly: the bucket store is in-memory per process, so a horizontally-scaled deployment (N
