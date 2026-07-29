@@ -56,12 +56,9 @@ export function pruneAndCollapse(
     ["header", "nav", "main", "footer", "section", "article", "aside", "form"].includes(root.tagName);
 
   if (cleanedChildren.length === 1 && !isMeaningfulContainer) {
-    const singleChild = cleanedChildren[0];
-    // Preserve landmark/annotation if wrapper had any
-    if (root.landmark && !singleChild.landmark) {
-      singleChild.landmark = root.landmark;
-    }
-    return singleChild;
+    // Note: landmark-carrying nodes are never collapsed here because
+    // `isMeaningfulContainer` includes `Boolean(root.landmark)`.
+    return cleanedChildren[0];
   }
 
   // If node has 0 children, no text, not image/svg, not interactive, drop it
