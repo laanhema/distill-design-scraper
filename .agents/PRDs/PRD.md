@@ -200,7 +200,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 | Color science | culori ^4 | Lab/OKLCH conversion, ΔE |
 | Validation | Zod 4 | Single-source report contracts |
 | AI lane (optional) | `@google/genai` ^2.13, `AI_MODEL = "gemini-3.5-flash"`, gated on `GEMINI_API_KEY`. Alternatively OpenRouter via `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` (default `google/gemini-2.5-flash`), which takes precedence when set | Vision interpretation + semantic naming; fails open. Gemini's free tier removed the prepaid-credit barrier that kept this lane dark through Phases 1–4, and native JSON mode removed brace-match JSON extraction. **The two provider paths are not feature-equivalent** (§12 Phase 7 / P2-1) |
-| Serialization | js-yaml ^5.2 (ships its own types; the `@types/js-yaml@4` devDependency is redundant — §12 Phase 7 / P1-6) | Frontmatter emit |
+| Serialization | js-yaml ^5.2 (ships its own types) | Frontmatter emit |
 | Tooling | TypeScript 5.7, tsx (eval scripts), ESLint 9 flat config (`eslint .`) | No jest/vitest — the eval harness is the correctness gate |
 | Runtime | Node 18+ (developed on 20/22) | |
 
@@ -371,7 +371,7 @@ All three spikes shipped under the existing optional-lane contract.
 - [ ] **Dead export:** `analyzeUrlStructure` (`lib/analyze.ts:358`) is exported but called from nowhere in `lib`, `app`, or `eval`.
 - [ ] **Duplicated download plumbing** in `app/page.tsx:161-199` — `downloadActiveMarkdown` and `downloadTailwindTheme` share a verbatim hostname-derivation block plus identical blob/anchor/revoke boilerplate.
 - [ ] **`populateMissingComponentDefs` is a pure alias** for `walkComponentMap` (`lib/extract/structure/structureAI.ts:331`), and the name misleads: it also mutates existing entries' `composition` and `instances`.
-- [ ] **Redundant, version-mismatched type dependency:** the project runs `js-yaml@5.2.1`, which ships its own types; `--traceResolution` confirms TS resolves the bundled v5 `.d.ts` for the import, while `@types/js-yaml@4.0.9` is still pulled in as a global type-reference directive describing a different major version.
+- [x] ~~**Redundant, version-mismatched type dependency:** the project runs `js-yaml@5.2.1`, which ships its own types; `--traceResolution` confirms TS resolves the bundled v5 `.d.ts` for the import, while `@types/js-yaml@4.0.9` is still pulled in as a global type-reference directive describing a different major version.~~ — **done 2026-07-29.** `@types/js-yaml` dropped from `devDependencies`; `--traceResolution` now resolves only the bundled v5 `.d.ts`.
 
 #### P2 — Documentation and configuration drift
 
