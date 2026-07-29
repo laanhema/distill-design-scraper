@@ -8,22 +8,32 @@ export function assignOntologyTypes(
   node: PrunedNode,
   depth: number = 0,
   insideFooter: boolean = false,
+  insideRegion: boolean = false,
 ): PrunedNode {
   const childInsideFooter =
     insideFooter || node.tagName === "footer" || node.landmark === "contentinfo";
+  // Identity predicate for "is this node itself a landmark of any of the four
+  // kinds" — reused both to thread `insideRegion` to children and as the gate
+  // condition itself, so there's exactly one definition of "landmark-like".
+  const isLandmarkNode = Boolean(
+    node.landmark || (node.tagName && ["header", "nav", "main", "footer"].includes(node.tagName)),
+  );
+  const childInsideRegion = insideRegion || isLandmarkNode;
   const childrenTyped = node.children.map((c) =>
-    assignOntologyTypes(c, depth + 1, childInsideFooter),
+    assignOntologyTypes(c, depth + 1, childInsideFooter, childInsideRegion),
   );
 
   let provisionalType: OntologyType = "container";
   let name = formatDefaultName(node, childrenTyped, insideFooter, depth);
   let layoutAnnotation = node.layoutAnnotation;
 
-  // 1. Landmarks -> region
-  if (
-    depth <= 1 &&
-    (node.landmark || (node.tagName && ["header", "nav", "main", "footer"].includes(node.tagName)))
-  ) {
+  // 1. Landmarks -> region. Gated on ancestor identity, not tree depth: a
+  // depth threshold (`depth <= 1`) is only a proxy for "already squashed to
+  // a page band" — it breaks the moment a wrapper div has a sibling that
+  // keeps Stage 4b squash from collapsing it away (DIST-063). Testing
+  // "no strict ancestor already matched this predicate" instead generalizes
+  // to any wrapper depth, mirroring how `insideFooter` is threaded above.
+  if (!insideRegion && isLandmarkNode) {
     provisionalType = "region";
     // The depth-0 root is the whole page (`document.body`, or whatever the
     // pruner collapsed it into — possibly a landmark like <main>). It must
@@ -175,6 +185,10 @@ function formatDefaultName(
  *  Bails without bounds (a vision-inferred node) rather than guessing. */
 function isHeroSection(node: PrunedNode, childrenTyped: PrunedNode[]): boolean {
   if (!node.bounds || node.bounds.y >= HERO_Y_THRESHOLD_PX) return false;
+  // A container that itself wraps a page-level region (header/main/footer)
+  // is a page shell, not hero content, even if an h1 happens to live
+  // somewhere inside it (e.g. an unsquashable wrapper div, DIST-063).
+  if (childrenTyped.some((c) => c.provisionalType === "region")) return false;
   return containsTag(childrenTyped, "h1");
 }
 
