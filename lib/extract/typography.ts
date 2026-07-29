@@ -5,6 +5,7 @@ import type {
   TypeScaleStep,
   TypeToken,
 } from "@/lib/schema";
+import { mode } from "./mode";
 
 /**
  * Typography extraction — measured from computed styles (§5). We resolve font
@@ -63,21 +64,7 @@ interface SizeSample {
   family: string;
 }
 
-/** Most frequent value in a list, with a fallback for the empty case. */
-function mode<T>(values: T[], fallback: T): T {
-  const counts = new Map<T, number>();
-  let best = fallback;
-  let bestN = 0;
-  for (const v of values) {
-    const n = (counts.get(v) ?? 0) + 1;
-    counts.set(v, n);
-    if (n > bestN) {
-      bestN = n;
-      best = v;
-    }
-  }
-  return best;
-}
+
 
 /** Convert a computed px letter-spacing to an em value relative to the size. */
 function letterSpacingEm(raw: string, sizePx: number): string {

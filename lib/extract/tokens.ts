@@ -1,22 +1,7 @@
 import { ELEVATION_LEVELS } from "@/lib/schema";
 import type { Elevation, ElevationShadow, Radius, Spacing } from "@/lib/schema";
 import type { StyleDump } from "@/lib/extract/styleDump";
-
-/** Most frequent value in a list (ties keep the first-seen value). */
-function mode<T>(values: T[]): T {
-  const counts = new Map<T, number>();
-  let best = values[0];
-  let bestN = 0;
-  for (const v of values) {
-    const n = (counts.get(v) ?? 0) + 1;
-    counts.set(v, n);
-    if (n > bestN) {
-      bestN = n;
-      best = v;
-    }
-  }
-  return best;
-}
+import { mode } from "./mode";
 
 /** Combined offset+blur+spread magnitude, used to rank shadows by depth. */
 function shadowMagnitude(raw: string): number {
