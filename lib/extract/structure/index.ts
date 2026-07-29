@@ -20,7 +20,7 @@ export interface ExtractStructureOptions {
   viewport?: { width: number; height: number };
   rawHarvestNode?: RawHarvestNode; // For offline replay in eval harness
   /** Force the Stage 7 AI labeller to its heuristic fallback without ever
-   *  constructing the `Anthropic` client — used by the eval harness to keep
+   *  constructing a model client — used by the eval harness to keep
    *  `npm run eval` offline and deterministic even when an API key is set
    *  (DIST-013). Default false → AI path runs when a key is present. */
   forceHeuristicNaming?: boolean;
