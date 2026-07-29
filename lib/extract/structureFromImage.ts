@@ -95,6 +95,7 @@ async function requestOnce(
     system: SYSTEM_PROMPT,
     user: "Infer the layout skeleton for this design as strict JSON.",
     maxOutputTokens: MAX_TOKENS,
+    // Gemini-only pin — has no effect over OpenRouter (logged once by aiLane.ts).
     thinkingLevel: ThinkingLevel.MEDIUM,
   });
 

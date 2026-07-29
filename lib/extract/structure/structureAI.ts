@@ -164,6 +164,7 @@ Return strict JSON matching this Zod schema:
     user: prompt,
     jsonSchema: STRUCTURE_SCHEMA,
     maxOutputTokens: 4000,
+    // Gemini-only pin — has no effect over OpenRouter (logged once by aiLane.ts).
     thinkingLevel: ThinkingLevel.LOW,
   });
 

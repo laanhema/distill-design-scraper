@@ -32,6 +32,14 @@ export function aiLaneAvailable(): boolean {
  */
 let client: GoogleGenAI | null = null;
 
+/**
+ * One-time (not per-call) process-lifetime flag: `thinkingLevel` is a
+ * Gemini-only knob (see `callOpenRouterModel` below), and a hot path (e.g.
+ * repeated structure-AI calls) shouldn't spam the log every time a lane sends
+ * one over OpenRouter.
+ */
+let warnedThinkingLevelIgnored = false;
+
 function getClient(): GoogleGenAI {
   if (client) return client;
   const apiKey = process.env.GEMINI_API_KEY;
@@ -65,13 +73,28 @@ export interface ModelCall {
   thinkingLevel?: ThinkingLevel;
 }
 
+/**
+ * Support for `response_format: json_schema` varies by the routed model — a
+ * custom `OPENROUTER_MODEL` override that doesn't support it will surface as
+ * a call failure through the existing `retryOnce`/`warnAiFailure` path, not a
+ * silent quality regression, which is the accepted trade-off named in issue
+ * #104's technical-notes comment.
+ */
 async function callOpenRouterModel(opts: ModelCall): Promise<string | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is not set — AI lane called without an available key.");
   }
 
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash";
+  const model = process.env.OPENROUTER_MODEL || "google/gemini-3.5-flash";
+
+  if (opts.thinkingLevel && !warnedThinkingLevelIgnored) {
+    warnedThinkingLevelIgnored = true;
+    console.warn(
+      "aiLane: thinkingLevel is a Gemini-only knob and has no effect over OpenRouter — " +
+        "token budgets sized for a capped thinking prelude may behave differently on this path.",
+    );
+  }
 
   const userContent: Array<
     | { type: "image_url"; image_url: { url: string } }
@@ -117,7 +140,23 @@ async function callOpenRouterModel(opts: ModelCall): Promise<string | null> {
       model,
       messages,
       max_tokens: opts.maxOutputTokens,
-      ...(opts.jsonSchema ? { response_format: { type: "json_object" } } : {}),
+      ...(opts.jsonSchema
+        ? {
+            response_format: {
+              type: "json_schema",
+              // Not `strict: true`: structureAI's STRUCTURE_SCHEMA types open-ended
+              // dictionaries via `additionalProperties: { type: "string" }`
+              // (componentDefinitions/sectionDescriptions keyed by node id) — a
+              // shape strict JSON-schema mode can't express (every property must
+              // be enumerated, additionalProperties must be exactly false).
+              // Non-strict still upgrades the request from a shapeless
+              // json_object to schema-guided output on providers that honor it,
+              // and Zod remains the real gate either way (parseJsonLoose never
+              // validates shape — see its doc comment below).
+              json_schema: { name: "distill_ai_response", schema: opts.jsonSchema },
+            },
+          }
+        : {}),
     }),
   });
 
@@ -141,7 +180,8 @@ async function callGeminiModel(opts: ModelCall): Promise<string | null> {
   }));
 
   const response = await getClient().models.generateContent({
-    model: AI_MODEL,
+    // Restores the Phase-5-specced override that was never built; AI_MODEL stays the default.
+    model: process.env.GEMINI_MODEL || AI_MODEL,
     contents: [{ role: "user", parts: [...imageParts, { text: opts.user }] }],
     config: {
       maxOutputTokens: opts.maxOutputTokens,
