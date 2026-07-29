@@ -122,14 +122,20 @@ function fmtPct(n: number): string {
 async function main() {
   const results: SiteResult[] = [];
   const skipped: string[] = [];
+  const missingRequired: string[] = [];
 
   for (const entry of CORPUS) {
     const r = await scoreSite(entry.slug);
-    if (r) results.push(r);
-    else skipped.push(entry.slug);
+    if (r) {
+      results.push(r);
+    } else if (entry.optional) {
+      skipped.push(entry.slug);
+    } else {
+      missingRequired.push(entry.slug);
+    }
   }
 
-  if (results.length === 0) {
+  if (results.length === 0 && missingRequired.length === 0) {
     console.error(
       "No scorable sites (need both capture.json and expected.yaml).\n" +
         "Run `npm run eval:capture` first.",
@@ -151,7 +157,9 @@ async function main() {
   }
 
   const aggregate =
-    results.reduce((s, r) => s + r.combined, 0) / results.length;
+    results.length > 0
+      ? results.reduce((s, r) => s + r.combined, 0) / results.length
+      : 0;
   console.log(`\n  aggregate combined: ${fmtPct(aggregate)}`);
   if (skipped.length) {
     console.log(`  skipped (no capture/expected): ${skipped.join(", ")}`);
@@ -179,6 +187,12 @@ async function main() {
   );
 
   let failed = false;
+  if (missingRequired.length) {
+    failed = true;
+    console.error(
+      `\n  ✗ missing required corpus capture (expected capture.json and expected.yaml): ${missingRequired.join(", ")}`,
+    );
+  }
   if (belowFloor.length) {
     failed = true;
     console.error(

@@ -31,7 +31,7 @@ There is no unit test framework (no jest/vitest) — `npm run eval` is the corre
 
 ### The eval harness (`eval/`) — read before touching any `lib/extract/*`
 
-`npm run eval` replays committed captures in `eval/corpus/<slug>/capture.json` (produced once via `npm run eval:capture`, then git-committed) against hand-authored `eval/corpus/<slug>/expected.yaml`, entirely offline — no browser, no network. It's wired as a two-part gate:
+`npm run eval` replays committed captures in `eval/corpus/<slug>/capture.json` (produced once via `npm run eval:capture`, then git-committed) against hand-authored `eval/corpus/<slug>/expected.yaml`, entirely offline — no browser, no network. **Coverage scope:** The eval runner scores committed required fixtures (`clean-light`, `dark-mode`) and fails if any required corpus entry is missing its capture or expected spec. Live reference entries without committed captures (`stripe`, `linear`, `vercel`) are explicitly marked `optional: true` in `eval/corpus.ts` and logged as skipped. The harness covers offline measured token extraction and heuristic structure extraction; it does not cover live third-party site renders or AI-lane enrichment passes. It's wired as a two-part gate:
 
 - an absolute floor per site (`SITE_FLOOR` in `eval/run.ts`), and
 - no site's combined score may drop below `eval/baseline.json`.

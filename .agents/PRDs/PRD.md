@@ -294,7 +294,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 - Eval corpus scores at/above committed baseline (currently 1.0 on both fixtures — but see §12 Phase 7 / P3-1 on how little that gate actually covers); AI-lane stability across repeated runs (`npm run eval:ai` — Jaccard floors 0.5 adjectives / 0.3 archetype, first executed in DIST-039)
 - Spacing scales are base-unit multiples, not noise; recipes match fixture CSS ground truth
 - Structure skeleton, section digest, and component map never contradict each other
-- **Gate honesty:** `typecheck`, `lint`, and `eval` all pass on `main` while three verified correctness defects are live. Passing gates is necessary, not sufficient — new lanes need coverage that actually exercises them (P0-1 and P0-2 are both invisible to the current harness by construction)
+- **Gate honesty:** `typecheck`, `lint`, and `eval` all pass on `main`. `npm run eval` enforces strict failure on missing non-optional corpus captures (DIST-060); uncommitted live entries carry explicit `optional: true`. Passing gates is necessary, not sufficient — new lanes need coverage that actually exercises them (P0-1 and P0-2 are both invisible to the current harness by construction)
 
 **UX goals:** URL → report in one interaction; copy/download in one click; honest UI copy (image mode advertises exactly what it delivers).
 
