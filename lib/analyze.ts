@@ -29,6 +29,7 @@ export interface Capture {
   source: { type: "url"; ref: string; capturedAt: string };
   finalUrl: string;
   title: string;
+  viewport?: { width: number; height: number };
   styleDump: StyleDump;
   /** Base64 PNG of the viewport screenshot (area-weight pixel pass). */
   viewportShot: string;
@@ -119,6 +120,7 @@ export async function extractStructureFromCapture(
   return extractStructure({
     sourceUrl: capture.source.ref,
     capturedAt: capture.source.capturedAt,
+    viewport: capture.viewport,
     rawHarvestNode: capture.rawHarvestNode,
     dump: report ? capture.styleDump : undefined,
     report,
@@ -304,6 +306,7 @@ export function captureFromRender(
     source: { type: "url", ref, capturedAt },
     finalUrl: render.finalUrl,
     title: render.title,
+    viewport: render.viewport,
     styleDump: render.styleDump,
     viewportShot: render.viewportShot,
     rawHarvestNode: render.rawHarvestNode,

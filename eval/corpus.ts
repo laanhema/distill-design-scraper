@@ -24,6 +24,8 @@ export interface CorpusEntry {
   fixture?: string;
   /** Live reference URL (captured on demand; capture git-ignored). */
   url?: string;
+  /** If true, missing capture.json / expected.yaml is logged as a skip rather than failing the run. */
+  optional?: boolean;
 }
 
 export const CORPUS: CorpusEntry[] = [
@@ -32,7 +34,7 @@ export const CORPUS: CorpusEntry[] = [
   { slug: "dark-mode", bucket: "dark-mode", fixture: "dark-mode.html" },
 
   // Live references — capture + author expected.yaml to bring these online.
-  { slug: "stripe", bucket: "clean-design-system", url: "https://stripe.com" },
-  { slug: "linear", bucket: "clean-design-system", url: "https://linear.app" },
-  { slug: "vercel", bucket: "clean-design-system", url: "https://vercel.com" },
+  { slug: "stripe", bucket: "clean-design-system", url: "https://stripe.com", optional: true },
+  { slug: "linear", bucket: "clean-design-system", url: "https://linear.app", optional: true },
+  { slug: "vercel", bucket: "clean-design-system", url: "https://vercel.com", optional: true },
 ];
