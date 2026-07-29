@@ -210,7 +210,7 @@ export async function interpret(
 
 export interface RefinementChange {
   hex: string;
-  from: ColorRole;
+  from?: ColorRole;
   to: ColorRole;
 }
 
@@ -237,16 +237,47 @@ export function applyRoleRefinements(
     target.usage = ROLE_USAGE[role];
   };
 
+  const dropRole = (target: (typeof colors)[number]) => {
+    delete target.role;
+    delete target.name;
+    delete target.usage;
+  };
+
+  const isRefinableRole = (
+    role?: ColorRole,
+  ): role is (typeof REFINABLE_COLOR_ROLES)[number] =>
+    Boolean(role && (REFINABLE_COLOR_ROLES as readonly string[]).includes(role));
+
   for (const { hex, role } of refinements) {
-    const target = colors.find(
+    const matches = colors.filter(
       (c) => c.hex.toLowerCase() === hex.toLowerCase(),
     );
-    // Ignore a hex the model didn't measure, or a no-op relabel.
+    if (matches.length === 0) continue;
+
+    let target: (typeof colors)[number] | undefined;
+    if (matches.length === 1) {
+      target = matches[0];
+    } else {
+      const refinableMatches = matches.filter((c) => isRefinableRole(c.role));
+      if (refinableMatches.length === 1) {
+        target = refinableMatches[0];
+      } else {
+        continue;
+      }
+    }
+
+    // Ignore a no-op relabel.
     if (!target || target.role === role) continue;
 
     const from = target.role;
     const holder = colors.find((c) => c !== target && c.role === role);
-    if (holder) relabel(from, holder); // swap the displaced role onto the holder
+    if (holder) {
+      if (isRefinableRole(from)) {
+        relabel(from, holder); // swap the displaced role onto the holder
+      } else {
+        dropRole(holder); // drop non-refinable role so holder becomes role-less
+      }
+    }
     relabel(role, target);
     changes.push({ hex: target.hex, from, to: role });
   }
@@ -255,7 +286,11 @@ export function applyRoleRefinements(
   const order = new Map<ColorRole, number>(
     REFINABLE_COLOR_ROLES.map((r, i) => [r, i]),
   );
-  colors.sort((a, b) => (order.get(a.role) ?? 99) - (order.get(b.role) ?? 99));
+  colors.sort((a, b) => {
+    const aVal = a.role ? (order.get(a.role) ?? 99) : 999;
+    const bVal = b.role ? (order.get(b.role) ?? 99) : 999;
+    return aVal - bVal;
+  });
 
   return { palette: { ...palette, colors }, changes };
 }

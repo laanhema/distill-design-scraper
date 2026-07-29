@@ -49,10 +49,10 @@ export const colorRoleSchema = z.enum(COLOR_ROLES);
 export const refinableColorRoleSchema = z.enum(REFINABLE_COLOR_ROLES);
 
 export const swatchSchema = z.object({
-  name: z.string(),
+  name: z.string().optional(),
   hex: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  role: colorRoleSchema,
-  usage: z.string(),
+  role: colorRoleSchema.optional(),
+  usage: z.string().optional(),
   /** Share of painted screenshot pixels credited to this color (§5). */
   areaWeight: z.number().min(0).max(1),
   /** True when the color was recovered from pixels but missing from the DOM
