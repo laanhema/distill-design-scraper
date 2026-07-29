@@ -90,7 +90,7 @@ async function scoreSite(slug: string): Promise<{
 async function main() {
   if (!aiLaneAvailable()) {
     console.log(
-      "AI-lane stability eval skipped: set GEMINI_API_KEY to run it.",
+      "AI-lane stability eval skipped: set GEMINI_API_KEY or OPENROUTER_API_KEY to run it.",
     );
     return;
   }

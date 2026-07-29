@@ -65,10 +65,10 @@ Distill includes a modern Next.js web application featuring:
 - **Node.js 18+** (CI runs Node 20; developed and tested on Node 20 / 22)
 - **Chromium** (Installed automatically by Playwright during `npm install`)
 - **An AI provider key** *(Optional)*: Required for the AI lane (`identity`, `imageMood`, semantic structural refinement, and vision-inferred structure from images). Without a key, deterministic token extraction operates fully offline. Two providers are supported behind one seam:
-  - **Google Gemini** — `GEMINI_API_KEY`, model pinned to `gemini-3.5-flash`. A free-tier key with no credit card required is available at https://aistudio.google.com/apikey.
-  - **OpenRouter** — `OPENROUTER_API_KEY`, model selectable via `OPENROUTER_MODEL` (defaults to `google/gemini-2.5-flash`).
+  - **Google Gemini** — `GEMINI_API_KEY`, model defaults to `gemini-3.5-flash`, overridable via `GEMINI_MODEL`. A free-tier key with no credit card required is available at https://aistudio.google.com/apikey.
+  - **OpenRouter** — `OPENROUTER_API_KEY`, model selectable via `OPENROUTER_MODEL` (defaults to `google/gemini-3.5-flash`).
 
-  If **both** keys are set, OpenRouter wins. Note that Gemini-only knobs (thinking-level capping, native JSON-schema enforcement) silently don't apply on the OpenRouter path — JSON mode degrades to `response_format: json_object`.
+  If **both** keys are set, OpenRouter wins. Structured output *is* requested on both paths: OpenRouter sends a real (non-strict) `response_format: json_schema` — provider support for it varies by the routed model, and Zod is still the real shape gate on both paths either way. `thinkingLevel` (thinking-effort capping) remains Gemini-only; a lane that sends one over OpenRouter is logged once per process rather than silently ignored.
 
 ---
 
@@ -85,10 +85,11 @@ Distill includes a modern Next.js web application featuring:
    ```env
    # .env.local — option A: Google Gemini (free tier, no credit card)
    GEMINI_API_KEY=...
+   GEMINI_MODEL=gemini-3.5-flash   # optional; this is the default
 
    # option B: OpenRouter (takes precedence if both are set)
    OPENROUTER_API_KEY=...
-   OPENROUTER_MODEL=google/gemini-2.5-flash   # optional; this is the default
+   OPENROUTER_MODEL=google/gemini-3.5-flash   # optional; this is the default
    ```
    Restart the dev server after editing `.env.local`. With no key set, every AI lane
    degrades gracefully: the measured report is returned untouched, structure falls back

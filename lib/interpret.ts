@@ -32,7 +32,10 @@ import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, w
 // read the feel — not to reason hard — hence `ThinkingLevel.MINIMAL`. The old
 // 1024 was sized for a budget the answer had to itself; thinking tokens now
 // share `maxOutputTokens`, so it doubles to keep a thinking prelude from
-// truncating the JSON.
+// truncating the JSON. `thinkingLevel` is a Gemini-only pin, though — it has
+// no effect when this lane is dispatched over OpenRouter (logged once by
+// `aiLane.ts`), so the "capped thinking prelude" assumption above doesn't
+// hold on that path; the 2048 budget still has to be enough on its own there.
 const MAX_TOKENS = 2048;
 
 const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
