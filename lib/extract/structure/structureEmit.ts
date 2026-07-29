@@ -214,7 +214,12 @@ function computeContentMaxWidth(root: PrunedNode, viewportWidth: number): number
   const widths: number[] = [];
 
   function walk(node: PrunedNode) {
-    if (node.componentName === "MainContent" || node.tagName === "section") {
+    const isMainContent =
+      node.landmark === "main" ||
+      node.tagName === "main" ||
+      node.tagName === "section" ||
+      node.componentName === "MainContent";
+    if (isMainContent) {
       for (const child of node.children) {
         if (!child.bounds) continue;
         const w = Math.round(child.bounds.width);
