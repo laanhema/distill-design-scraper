@@ -363,7 +363,19 @@ function renderCssVariables(report: Report): string {
     }
   }
 
-  lines.push("}", "```");
+  lines.push("}");
+
+  if (report.paletteDark && report.paletteDark.colors.length > 0) {
+    lines.push("", "@media (prefers-color-scheme: dark) {", "  :root {");
+    for (const c of report.paletteDark.colors) {
+      if (c.role) {
+        lines.push(`    --color-${c.role}: ${c.hex};`);
+      }
+    }
+    lines.push("  }", "}");
+  }
+
+  lines.push("```");
   return lines.join("\n");
 }
 
