@@ -8,3 +8,12 @@ html,
 body {
   height: 100%;
 }
+
+:where(button:not(:disabled), [role="button"]:not([aria-disabled="true"])) {
+  cursor: pointer;
+}
+
+:where(button:disabled, [role="button"][aria-disabled="true"]) {
+  cursor: not-allowed;
+}
+
