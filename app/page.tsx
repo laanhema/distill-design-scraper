@@ -360,16 +360,16 @@ export default function Home() {
                 {structureReport.header.fidelity === "inferred" ? " (inferred)" : ""}
               </Tab>
             )}
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex shrink-0 gap-2">
               <button
                 onClick={downloadActiveMarkdown}
-                className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                className="whitespace-nowrap rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
               >
-                {tab === "structure" ? "Download Layout Structure .md" : "Download Design System .md"}
+                Download Markdown
               </button>
               <button
                 onClick={downloadTailwindTheme}
-                className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                className="whitespace-nowrap rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
               >
                 Download Tailwind @theme
               </button>
