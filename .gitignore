@@ -32,6 +32,8 @@ next-env.d.ts
 !/eval/corpus/dark-mode/capture.json
 !/eval/corpus/adversarial-shell/capture.json
 
+# Temporary files & folders
 temp.txt
 .agents/temp/
 todo.txt
+TODO.md
