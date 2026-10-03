@@ -83,7 +83,6 @@ export default function Home() {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [refinements, setRefinements] = useState<Refinement[]>([]);
   const [tab, setTab] = useState<"preview" | "tokens" | "structure">("preview");
-  const [copied, setCopied] = useState(false);
 
   async function handleFilesSelect(files: File[]) {
     const room = MAX_IMAGES - images.length;
@@ -162,13 +161,6 @@ export default function Home() {
       setError(err instanceof Error ? err.message : "Something went wrong.");
       setStatus("error");
     }
-  }
-
-  async function copyActiveMarkdown() {
-    const textToCopy = tab === "structure" ? (structureReport?.markdown ?? "") : markdown;
-    await navigator.clipboard.writeText(textToCopy);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
   }
 
   /** Hostname derivation shared by both download handlers: prefer the
@@ -369,16 +361,6 @@ export default function Home() {
               </Tab>
             )}
             <div className="ml-auto flex gap-2">
-              <button
-                onClick={copyActiveMarkdown}
-                className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
-              >
-                {copied
-                  ? "Copied ✓"
-                  : tab === "structure"
-                    ? "Copy Structure .md"
-                    : "Copy Design System .md"}
-              </button>
               <button
                 onClick={downloadActiveMarkdown}
                 className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"

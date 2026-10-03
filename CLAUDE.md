@@ -125,7 +125,7 @@ Rate limiting sits _after_ the cache check on purpose: cache hits consume zero b
 
 ### Frontend (`app/page.tsx`)
 
-One client component, no state library: URL-or-images input, then a three-tab result view (`preview` / `tokens` / `structure`, the structure tab present only when a `structureReport` came back). Copy and download act on the *active* tab's markdown, and the Tailwind download calls `emitTailwindTheme(report)` client-side. When a response arrives without structure, the tab selection falls back to `preview` rather than pointing at a pane that no longer exists.
+One client component, no state library: URL-or-images input, then a three-tab result view (`preview` / `tokens` / `structure`, the structure tab present only when a `structureReport` came back). The markdown download acts on the *active* tab, and the Tailwind download calls `emitTailwindTheme(report)` client-side. When a response arrives without structure, the tab selection falls back to `preview` rather than pointing at a pane that no longer exists.
 
 ### Path alias
 
