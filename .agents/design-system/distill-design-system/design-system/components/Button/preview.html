@@ -1,0 +1,12 @@
+<!-- @dsCard group="Actions" height=120 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Button — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {className: 'dt-stack'}, h('div', {className: 'dt-row', style: {padding: 0}}, h(D.Button, null, 'Analyze'), h(D.Button, {disabled: true}, 'Analyzing\u2026')), h('div', {className: 'dt-row', style: {padding: 0}}, h(D.Button, {size: 'sm'}, 'Download Design System .md'), h(D.Button, {size: 'sm', variant: 'secondary'}, 'Download Tailwind @theme'))));
+</script>
+</body>
+</html>

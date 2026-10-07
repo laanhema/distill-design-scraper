@@ -1,0 +1,104 @@
+/* Distill components — hand-written from app/page.tsx (Tailwind v4 classes → tokens). Values live in tokens.json. */
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.dt-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); padding: var(--space-4); }
+.dt-stack { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
+.dt-transition { transition-property: color, background-color, border-color, opacity, box-shadow; transition-duration: 150ms; transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1); }
+.dt-code { font-family: var(--font-mono); }
+
+/* Button */
+.dt-btn { font-family: inherit; border: var(--border-hairline) solid transparent; margin: 0; cursor: pointer; font-weight: 500; font-size: 0.875rem; line-height: 1.25rem; padding: var(--space-2\.5) var(--space-5); border-radius: var(--radius-lg); transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms cubic-bezier(0.4, 0, 0.2, 1), opacity 150ms cubic-bezier(0.4, 0, 0.2, 1); }
+.dt-btn-sm { font-size: 0.75rem; line-height: 1rem; padding: var(--space-1\.5) var(--space-3); border-radius: var(--radius-md); }
+.dt-btn-primary { background: var(--action); color: var(--on-action); }
+.dt-btn-primary:hover:not(:disabled) { background: var(--action-hover); }
+.dt-btn-secondary { background: transparent; color: var(--ink); border-color: var(--line-strong); }
+.dt-btn-secondary:hover:not(:disabled) { background: var(--fill); }
+.dt-btn:disabled { opacity: var(--opacity-disabled); cursor: not-allowed; }
+
+/* Tab (segmented) */
+.dt-tabbar { display: flex; align-items: center; gap: var(--space-2); padding-bottom: var(--space-2); border-bottom: var(--border-hairline) solid var(--line); }
+.dt-tab { font-family: inherit; border: 0; margin: 0; cursor: pointer; background: transparent; color: var(--ink-muted); font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; padding: var(--space-1\.5) var(--space-3); border-radius: var(--radius-md); transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1), background-color 150ms cubic-bezier(0.4, 0, 0.2, 1); }
+.dt-tab:hover { background: var(--fill); }
+.dt-tab[aria-selected="true"] { background: var(--action); color: var(--on-action); }
+
+/* TextField */
+.dt-input { flex: 1; min-width: 0; font-family: inherit; font-size: 0.875rem; line-height: 1.25rem; color: var(--ink); background: var(--surface); border: var(--border-hairline) solid var(--line-strong); border-radius: var(--radius-lg); padding: var(--space-2\.5) var(--space-4); outline: none; }
+.dt-input::placeholder { color: var(--ink-faint); }
+.dt-input:focus { border-color: var(--line-focus); box-shadow: 0 0 0 var(--border-thick) var(--ring); }
+.dt-field { display: flex; gap: var(--space-3); }
+
+/* Dropzone */
+.dt-drop { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: var(--space-8); border: var(--border-thick) dashed var(--line-strong); border-radius: var(--radius-lg); transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1); }
+.dt-drop:hover { border-color: var(--line-hover); }
+.dt-drop label { cursor: pointer; font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; color: var(--ink-soft); }
+.dt-drop u { text-decoration: underline; }
+.dt-help { margin: 0; font-size: 0.75rem; line-height: 1rem; color: var(--ink-subtle); }
+
+/* Thumbnail */
+.dt-thumb { position: relative; width: var(--size-swatch); height: var(--size-swatch); overflow: hidden; border-radius: var(--radius-md); border: var(--border-hairline) solid var(--line); }
+.dt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dt-thumb button { position: absolute; top: 0; right: 0; width: var(--size-dismiss); height: var(--size-dismiss); display: flex; align-items: center; justify-content: center; border: 0; padding: 0; cursor: pointer; background: var(--scrim); color: var(--white); font-size: 0.75rem; line-height: 1rem; opacity: 0; transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1); }
+.dt-thumb:hover button, .dt-thumb button:focus-visible { opacity: 1; }
+
+/* Alert */
+.dt-alert { margin: 0; font-size: 0.875rem; line-height: 1.25rem; padding: var(--space-3) var(--space-4); border-radius: var(--radius-lg); border: var(--border-hairline) solid; }
+.dt-alert strong { font-weight: 500; }
+.dt-alert-danger { background: var(--danger-bg); border-color: var(--danger-line); color: var(--danger-ink); }
+.dt-alert-warning { background: var(--warning-bg); border-color: var(--warning-line); color: var(--warning-ink); }
+.dt-alert-hint { font-size: 0.75rem; line-height: 1rem; padding: var(--space-2) var(--space-3\.5); border-radius: var(--radius-md); background: var(--surface-sunken); border-color: var(--line); color: var(--ink-muted); }
+.dt-alert-hint code { font-family: var(--font-mono); color: var(--ink-code); }
+.dt-alert-hint a { color: inherit; text-decoration: underline; }
+.dt-alert-hint a:hover { color: var(--ink); }
+
+/* Badge */
+.dt-badge { display: inline-block; border-radius: var(--radius-sm); background: var(--fill-strong); padding: var(--space-0\.5) var(--space-1\.5); font-size: 0.75rem; line-height: 1rem; font-weight: 500; color: var(--ink); }
+.dt-badge-provenance { font-size: 10px; line-height: 1.5556; text-transform: uppercase; letter-spacing: 0.025em; color: var(--ink-muted); }
+
+/* Chip */
+.dt-chip { display: inline-block; font-size: 0.75rem; line-height: 1rem; border-radius: var(--radius-full); padding: var(--space-1) var(--space-2\.5); }
+.dt-chip-outline { border: var(--border-hairline) solid var(--line); }
+.dt-chip-filled { background: var(--fill); }
+.dt-chip-tag { background: var(--fill); border-radius: var(--radius-md); }
+.dt-chip strong { font-weight: 700; }
+.dt-pass { color: var(--pass-ink); }
+.dt-fail { color: var(--fail-ink); }
+
+/* Swatch */
+.dt-swatches { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-4); }
+.dt-swatch { overflow: hidden; border-radius: var(--radius-lg); border: var(--border-hairline) solid var(--line); }
+.dt-swatch-color { height: var(--size-swatch); width: 100%; }
+.dt-swatch-body { padding: var(--space-2) var(--space-3); }
+.dt-swatch-head { display: flex; align-items: center; justify-content: space-between; }
+.dt-swatch-role { font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
+.dt-swatch-img { font-size: 10px; color: var(--ink-faint); }
+.dt-swatch-hex { font-family: var(--font-mono); font-size: 0.75rem; line-height: 1rem; color: var(--ink-subtle); }
+.dt-swatch-usage { font-size: 11px; color: var(--ink-faint); }
+
+/* MetaItem */
+.dt-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); column-gap: var(--space-6); row-gap: var(--space-2); margin: 0; padding: var(--space-4); font-size: 0.875rem; line-height: 1.25rem; }
+.dt-meta-item { min-width: 0; }
+.dt-meta dt { font-size: 0.75rem; line-height: 1rem; text-transform: uppercase; letter-spacing: 0.025em; color: var(--ink-subtle); }
+.dt-meta dd { margin: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* SectionTitle */
+.dt-section-title { margin: 0 0 var(--space-4); display: flex; align-items: center; gap: var(--space-2); font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; }
+
+/* MoodList */
+.dt-mood-label { margin-bottom: var(--space-2); font-size: 0.75rem; line-height: 1rem; text-transform: uppercase; letter-spacing: 0.025em; color: var(--ink-subtle); }
+.dt-mood { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-1\.5); }
+.dt-mood li { border: var(--border-hairline) solid var(--line); border-radius: var(--radius-md); padding: var(--space-1\.5) var(--space-2\.5); font-size: 0.875rem; line-height: 1.25rem; }
+
+/* CodeBlock */
+.dt-pre { margin: 0; overflow-x: auto; border-radius: var(--radius-lg); border: var(--border-hairline) solid var(--line); background: var(--surface-sunken); padding: var(--space-4); font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.625; color: var(--ink); }
+
+/* TokenSample */
+.dt-space { display: flex; align-items: center; gap: var(--space-2); border: var(--border-hairline) solid var(--line); border-radius: var(--radius-md); padding: var(--space-1\.5) var(--space-3); font-size: 0.75rem; line-height: 1rem; }
+.dt-space-bar { height: 8px; background: var(--mark); }
+.dt-space span, .dt-radius { font-family: var(--font-mono); }
+.dt-radius { display: flex; width: var(--size-sample); height: var(--size-sample); align-items: center; justify-content: center; border: var(--border-thick) solid var(--mark); background: var(--fill); font-size: 10px; }
+.dt-shadow { border-radius: var(--radius-lg); background: var(--surface); padding: var(--space-4); font-family: var(--font-mono); font-size: 0.75rem; line-height: 1rem; color: var(--ink-muted); }
+.dt-shadow b { font-weight: 600; }
+
+/* Loading line */
+.dt-pulse { margin: 0; font-size: 0.875rem; line-height: 1.25rem; color: var(--ink-subtle); animation: dt-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+@keyframes dt-pulse { 50% { opacity: var(--opacity-pulse); } }
+@media (prefers-reduced-motion: reduce) { .dt-pulse { animation: none; } }

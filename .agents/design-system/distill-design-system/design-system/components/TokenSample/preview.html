@@ -1,0 +1,12 @@
+<!-- @dsCard group="Data display" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>TokenSample — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {className: 'dt-stack'}, h('div', {className: 'dt-row', style: {padding: 0}}, [4, 8, 16, 24, 48].map(function (v) { return h(D.TokenSample, {key: v, kind: 'spacing', value: v}); })), h('div', {className: 'dt-row', style: {padding: 0, gap: 12}}, ['0px', '4px', '8px', '9999px'].map(function (v) { return h(D.TokenSample, {key: v, kind: 'radius', value: v}); }))));
+</script>
+</body>
+</html>

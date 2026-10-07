@@ -1,0 +1,12 @@
+<!-- @dsCard group="Data display" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>CodeBlock — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {style: {padding: 16}}, h(D.CodeBlock, null, '---\nreportKind: design-system\npalette:\n  primary: "#171717"\n  surface: "#fafafa"\n---\n\n## Palette')));
+</script>
+</body>
+</html>

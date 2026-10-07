@@ -1,0 +1,12 @@
+<!-- @dsCard group="Status" height=64 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Badge — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {className: 'dt-row'}, h(D.Badge, null, 'Track A (Design System, measured) + Track B (Layout Structure, measured)'), h(D.Badge, {variant: 'provenance'}, 'measured'), h(D.Badge, {variant: 'provenance'}, 'ai')));
+</script>
+</body>
+</html>

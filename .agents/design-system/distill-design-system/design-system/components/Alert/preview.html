@@ -1,0 +1,12 @@
+<!-- @dsCard group="Feedback" height=196 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Alert — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {className: 'dt-stack'}, h(D.Alert, {tone: 'danger', title: "Couldn't analyze this input."}, 'Request failed (413).'), h(D.Alert, {tone: 'warning'}, 'Structure needs an API key for image input.'), h(D.Alert, {tone: 'hint'}, '\ud83d\udca1 ', h('strong', null, 'Setup Hint:'), ' Set ', h('code', null, 'GEMINI_API_KEY'), ' in ', h('code', null, '.env.local'), ' to enable AI vision enrichment.')));
+</script>
+</body>
+</html>

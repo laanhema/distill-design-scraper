@@ -1,0 +1,12 @@
+<!-- @dsCard group="Navigation" height=72 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Tab — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {className: 'dt-tabbar', role: 'tablist', style: {margin: 16}}, h(D.Tab, {active: true}, 'Design System Preview'), h(D.Tab, null, 'Design System Markdown'), h(D.Tab, null, 'Layout Structure Markdown')));
+</script>
+</body>
+</html>
