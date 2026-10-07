@@ -21,6 +21,7 @@ Preconditions:
 - Baseline from the README.
 
 - **All tabs and downloads.** Run `$V drive tabs-downloads`. It analyzes `clean-light`, then visits each tab and clicks each download. Expect `tokens tab shows the design markdown`, `"Download Design System .md" saves distill-127.0.0.1.md`, `downloaded design .md equals API markdown`, `structure tab shows the structure markdown`, `"Download Layout Structure .md" saves distill-structure-127.0.0.1.md`, `downloaded structure .md equals API structureReport.markdown`, `"Download Tailwind @theme" saves distill-theme-127.0.0.1.css`, `Tailwind theme contains an @theme block`, and `download label reverts on preview tab`. The saved files are in `downloads/`, and `tab-*.png` shows each tab.
+- **Header layout stability.** Run `$V drive tab-layout`. At 1280, 1024, 768 and 390px it switches through all three tabs and records each header button's box, its rendered line count, the scrollbar gutter, and page overflow. Expect `header buttons keep their boxes on …`, `header labels stay on one line on …`, `scrollbar gutter unchanged on …` and `no horizontal page overflow on …` for every width. `tab-bar-layout.json` holds the raw geometry, and `tab-bar-<width>-<tab>.png` shows each state.
 - **Image source host.** For an image analysis, the filename host comes from the first image's base name. The scenario doesn't cover this. Extend `drive.ts` before you claim it.
 
 ## Gotchas
