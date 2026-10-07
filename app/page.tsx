@@ -347,7 +347,7 @@ export default function Home() {
 
       {status === "done" && report && meta && (
         <section className="mt-10 space-y-8">
-          <div className="flex items-center gap-2 border-b border-line pb-2">
+          <div className="flex flex-wrap items-center gap-2 border-b border-line pb-2">
             <Tab active={tab === "preview"} onClick={() => setTab("preview")}>
               Design System Preview
             </Tab>
@@ -360,16 +360,22 @@ export default function Home() {
                 {structureReport.header.fidelity === "inferred" ? " (inferred)" : ""}
               </Tab>
             )}
-            <div className="ml-auto flex gap-2">
+            <div className="ml-auto flex flex-wrap justify-end gap-2">
+              {/* Both labels share one grid cell so the button keeps the longer one's width on every tab. */}
               <button
                 onClick={downloadActiveMarkdown}
-                className="rounded-md bg-action px-3 py-1.5 text-xs font-medium text-on-action hover:bg-action-hover"
+                className="grid whitespace-nowrap rounded-md bg-action px-3 py-1.5 text-xs font-medium text-on-action hover:bg-action-hover"
               >
-                {tab === "structure" ? "Download Layout Structure .md" : "Download Design System .md"}
+                <span className={"col-start-1 row-start-1" + (tab === "structure" ? " invisible" : "")}>
+                  Download Design System .md
+                </span>
+                <span className={"col-start-1 row-start-1" + (tab === "structure" ? "" : " invisible")}>
+                  Download Layout Structure .md
+                </span>
               </button>
               <button
                 onClick={downloadTailwindTheme}
-                className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium hover:bg-fill"
+                className="whitespace-nowrap rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium hover:bg-fill"
               >
                 Download Tailwind @theme
               </button>
@@ -711,7 +717,7 @@ function Tab({
       type="button"
       onClick={onClick}
       className={
-        "rounded-md px-3 py-1.5 text-sm font-medium transition " +
+        "whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition " +
         (active
           ? "bg-action text-on-action"
           : "text-ink-muted hover:bg-fill")

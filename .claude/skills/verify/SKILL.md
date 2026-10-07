@@ -49,12 +49,13 @@ It also prints `run`, `head` (`-dirty` when tracked files changed) and `ai-lane`
 
 ## Drive
 
-`verify.sh drive <scenario>` runs `scripts/drive.ts`, a headless Playwright Chromium driver, against the running instance. It uses only user-visible handles: button names (`URL Input`, `Image Input`, `Analyze`, `Analyze Images`, `Design System Preview`, `Design System Markdown`, `Layout Structure Markdown`, `Download Design System .md`, `Download Layout Structure .md`, `Download Tailwind @theme`, `Remove image N`), the URL box's placeholder `https://stripe.com`, the file input `#image-input` (hidden behind the drop-zone label), thumbnail `img` alt text equal to the file name, and the error text `Couldn't analyze this input.`.
+`verify.sh drive <scenario>` runs `scripts/drive.ts`, a headless Playwright Chromium driver, against the running instance. It runs Chromium with real scrollbars, so a scrollbar appearing shifts layout as it does for a user. It uses only user-visible handles: button names (`URL Input`, `Image Input`, `Analyze`, `Analyze Images`, `Design System Preview`, `Design System Markdown`, `Layout Structure Markdown`, `Download Design System .md`, `Download Layout Structure .md`, `Download Tailwind @theme`, `Remove image N`), the URL box's placeholder `https://stripe.com`, the file input `#image-input` (hidden behind the drop-zone label), thumbnail `img` alt text equal to the file name, and the error text `Couldn't analyze this input.`.
 
 | Scenario | Flags (defaults) | Proves |
 | --- | --- | --- |
 | `analyze-url` | `--target clean-light` (fixture name or any `http(s)` URL) | URL → report, preview, structure tab, AI-lane label |
 | `tabs-downloads` | `--target clean-light` | each tab shows the right markdown; all three downloads match the API payload |
+| `tab-layout` | `--target clean-light`, `--widths 1280,1024,768,390` | at each width, the result header's tab and download buttons keep identical boxes across tab switches, every label stays on one line, and the page has no horizontal overflow |
 | `analyze-images` | `--fixtures clean-light,dark-mode,adversarial-shell`, `--remove <n>` (default: last) | upload, thumbnails, remove, palette-mood report, structure behavior with and without a key |
 | `error` | `--url http://10.0.0.1/` | a blocked URL gives a 400, the error banner, and no result tabs |
 

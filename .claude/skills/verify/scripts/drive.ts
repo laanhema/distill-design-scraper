@@ -6,10 +6,11 @@
  *
  *   analyze-url     [--target clean-light|dark-mode|adversarial-shell|<http url>]
  *   tabs-downloads  [--target …]
+ *   tab-layout      [--target …] [--widths 1280,1024,768,390]
  *   analyze-images  [--fixtures clean-light,dark-mode,adversarial-shell] [--remove <n>]
  *   error           [--url http://10.0.0.1/]
  */
-import { chromium, type Page } from "playwright";
+import { chromium, type Locator, type Page } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -48,6 +49,11 @@ function check(label: string, ok: boolean, detail?: string): void {
   console.log(`${ok ? "ok  " : "FAIL"}  ${label}${detail ? ` — ${detail}` : ""}`);
 }
 
+/** Waits for the locator to appear, since `isVisible()` alone checks once and loses to async renders. */
+function appears(locator: Locator, timeout = 5_000): Promise<boolean> {
+  return locator.waitFor({ state: "visible", timeout }).then(() => true, () => false);
+}
+
 async function shot(page: Page, name: string): Promise<void> {
   const file = `${String(shotIndex++).padStart(2, "0")}-${name}`;
   await page.screenshot({ path: join(OUT, `${file}.png`), fullPage: true });
@@ -75,10 +81,14 @@ async function submitAndWait(page: Page, buttonName: RegExp): Promise<Analysis> 
     (r) => r.url().endsWith("/api/analyze") && r.request().method() === "POST",
     { timeout: ANALYZE_TIMEOUT_MS },
   );
+  // A response cache hit can return before the loading state paints, so hold the request until it has been seen.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  await page.route("**/api/analyze", async (route) => { await held; await route.continue(); }, { times: 1 });
   await page.getByRole("button", { name: buttonName }).click();
-  const analyzing = page.getByRole("button", { name: "Analyzing…" });
-  check("submit shows the Analyzing… state", await analyzing.isVisible().catch(() => false));
+  check("submit shows the Analyzing… state", await appears(page.getByRole("button", { name: "Analyzing…" })));
   await shot(page, "loading");
+  release();
 
   const response = await responsePromise;
   const body = (await response.json()) as Record<string, unknown>;
@@ -165,6 +175,75 @@ async function scenarioTabsDownloads(page: Page): Promise<void> {
   check("download label reverts on preview tab", await page.getByRole("button", { name: "Download Design System .md" }).isVisible());
 }
 
+const RESULT_TABS = ["Design System Preview", "Design System Markdown", "Layout Structure Markdown"];
+
+interface BarLayout {
+  /** Scrollbar gutter; when it appears or vanishes, the centred column shifts sideways. */
+  gutter: number;
+  overflowX: number;
+  boxes: { label: string; box: string; lines: number }[];
+}
+
+/** Geometry of every tab and action button in the result header, keyed by role so a restructured header still measures. */
+async function tabBarLayout(page: Page): Promise<BarLayout> {
+  const buttons = [
+    ...RESULT_TABS.map((name) => page.getByRole("button", { name })),
+    page.getByRole("button", { name: /^Download .*\.md$/ }),
+    page.getByRole("button", { name: "Download Tailwind @theme" }),
+  ];
+  const boxes = await Promise.all(buttons.map((b) => b.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    const content = r.height - ["paddingTop", "paddingBottom", "borderTopWidth", "borderBottomWidth"]
+      .reduce((sum, k) => sum + parseFloat(cs[k as "paddingTop"]), 0);
+    return {
+      label: (el as HTMLElement).innerText,
+      box: `${Math.round(r.width)}x${Math.round(r.height)}@${Math.round(r.x)},${Math.round(r.y)}`,
+      lines: Math.round(content / parseFloat(cs.lineHeight)),
+    };
+  })));
+  return page.evaluate((boxes) => ({
+    gutter: window.innerWidth - document.documentElement.clientWidth,
+    overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    boxes,
+  }), boxes);
+}
+
+async function scenarioTabLayout(page: Page): Promise<void> {
+  await analyzeUrl(page, targetUrl(flag("target", "clean-light")));
+  const widths = flag("widths", "1280,1024,768,390").split(",").map(Number);
+  const layouts: Record<string, Record<string, BarLayout>> = {};
+
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: 900 });
+    layouts[width] = {};
+    for (const tab of RESULT_TABS) {
+      await page.getByRole("button", { name: tab }).click();
+      await page.mouse.move(0, 0);
+      layouts[width][tab] = await tabBarLayout(page);
+      await shot(page, `tab-bar-${width}-${["preview", "tokens", "structure"][RESULT_TABS.indexOf(tab)]}`);
+    }
+
+    const base = layouts[width][RESULT_TABS[0]];
+    for (const tab of RESULT_TABS.slice(1)) {
+      const l = layouts[width][tab];
+      const moved = l.boxes
+        .map((b, i) => ({ b, was: base.boxes[i] }))
+        .filter(({ b, was }) => b.box !== was.box)
+        .map(({ b, was }) => `"${b.label}" ${was.box} → ${b.box}`);
+      check(`@${width}px: header buttons keep their boxes on "${tab}"`, moved.length === 0, moved.join("; ") || undefined);
+      check(`@${width}px: scrollbar gutter unchanged on "${tab}"`, l.gutter === base.gutter, `${base.gutter}px → ${l.gutter}px`);
+    }
+    for (const tab of RESULT_TABS) {
+      const l = layouts[width][tab];
+      const wrapped = l.boxes.filter((b) => b.lines !== 1).map((b) => `"${b.label}" ${b.lines} lines`);
+      check(`@${width}px: header labels stay on one line on "${tab}"`, wrapped.length === 0, wrapped.join("; ") || undefined);
+      check(`@${width}px: no horizontal page overflow on "${tab}"`, l.overflowX === 0, `${l.overflowX}px`);
+    }
+  }
+  writeFileSync(join(OUT, "tab-bar-layout.json"), JSON.stringify(layouts, null, 2));
+}
+
 async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typeof chromium.launch>>): Promise<void> {
   const fixtures = flag("fixtures", "clean-light,dark-mode,adversarial-shell").split(",");
   const remove = Number(flag("remove", fixtures.length > 1 ? String(fixtures.length) : "0"));
@@ -184,7 +263,7 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
   await page.getByRole("button", { name: "Image Input" }).click();
   await page.locator("#image-input").setInputFiles(files);
   const plural = (n: number) => `${n} image${n > 1 ? "s" : ""} selected`;
-  check(`label reads "${plural(files.length)}"`, await page.getByText(plural(files.length)).isVisible());
+  check(`label reads "${plural(files.length)}"`, await appears(page.getByText(plural(files.length))));
   for (const f of fixtures) {
     check(`thumbnail for ${f}.png shown`, await page.getByRole("img", { name: `${f}.png` }).isVisible());
   }
@@ -196,7 +275,7 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
     await thumb.hover();
     await page.getByRole("button", { name: `Remove image ${remove}` }).click();
     kept = fixtures.filter((_, i) => i !== remove - 1);
-    check(`after removing image ${remove}, label reads "${plural(kept.length)}"`, await page.getByText(plural(kept.length)).isVisible());
+    check(`after removing image ${remove}, label reads "${plural(kept.length)}"`, await appears(page.getByText(plural(kept.length))));
     check(`${fixtures[remove - 1]}.png thumbnail is gone`, (await thumb.count()) === 0);
     await shot(page, "image-removed");
   }
@@ -233,7 +312,8 @@ async function scenarioError(page: Page): Promise<void> {
 async function main(): Promise<void> {
   const scenario = process.argv[2];
   for (const dir of ["", "downloads", "inputs"]) mkdirSync(join(OUT, dir), { recursive: true });
-  const browser = await chromium.launch({ headless: true });
+  // Headless Chromium hides scrollbars by default; keep them so a gutter appearing on tab switch is measurable.
+  const browser = await chromium.launch({ headless: true, ignoreDefaultArgs: ["--hide-scrollbars"] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
   const page = await context.newPage();
   const consoleErrors: string[] = [];
@@ -244,6 +324,7 @@ async function main(): Promise<void> {
     switch (scenario) {
       case "analyze-url": await scenarioAnalyzeUrl(page); break;
       case "tabs-downloads": await scenarioTabsDownloads(page); break;
+      case "tab-layout": await scenarioTabLayout(page); break;
       case "analyze-images": await scenarioAnalyzeImages(page, browser); break;
       case "error": await scenarioError(page); break;
       default: throw new Error(`unknown scenario "${scenario}"`);
