@@ -1,0 +1,12 @@
+<!-- @dsCard group="Data display" height=148 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Swatch — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {className: 'dt-swatches'}, h(D.Swatch, {role: 'primary', hex: '#171717', usage: 'buttons', areaWeight: 0.04}), h(D.Swatch, {role: 'surface', hex: '#fafafa', usage: 'background', areaWeight: 0.62}), h(D.Swatch, {role: 'accent', hex: '#ffd230', usage: 'highlights', areaWeight: 0.03, imageSourced: true}), h(D.Swatch, {role: 'danger', hex: '#e7000b', usage: 'errors', areaWeight: 0.01})));
+</script>
+</body>
+</html>

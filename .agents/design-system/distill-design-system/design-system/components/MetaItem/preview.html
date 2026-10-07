@@ -1,0 +1,12 @@
+<!-- @dsCard group="Data display" height=84 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>MetaItem — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('dl', {className: 'dt-meta'}, h(D.MetaItem, {label: 'Source', value: 'https://stripe.com/'}), h(D.MetaItem, {label: 'Report Kind', value: 'design-system'}), h(D.MetaItem, {label: 'Render time', value: '4210 ms'}), h(D.MetaItem, {label: 'AI lane', value: 'skipped (no key)'})));
+</script>
+</body>
+</html>

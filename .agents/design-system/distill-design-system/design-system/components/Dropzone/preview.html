@@ -1,0 +1,12 @@
+<!-- @dsCard group="Forms" height=170 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Dropzone — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {className: 'dt-stack'}, h(D.Dropzone, null), h(D.Dropzone, {count: 2, id: 'dz2'}), h('p', {className: 'dt-help'}, 'Multiple images of the same site/design merge into one palette (up to 6).')));
+</script>
+</body>
+</html>

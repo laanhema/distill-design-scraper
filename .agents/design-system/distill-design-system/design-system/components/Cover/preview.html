@@ -1,0 +1,75 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Cover</title>
+<style>
+  html, body { margin: 0; background: var(--bg); }
+  .cover { position: relative; width: 960px; height: 288px; overflow: hidden; background: var(--bg); font-family: var(--font-sans); }
+  svg { position: absolute; inset: 0; }
+  .b { rx: var(--radius-md); ry: var(--radius-md); }
+  .act { fill: var(--action); }
+  .muted { fill: var(--ink-muted); }
+  .line { fill: var(--line-strong); }
+  .warn { fill: var(--warning-line); }
+  .pass { fill: var(--pass-ink); }
+  .dot { fill: var(--ink-faint); }
+  .text { position: absolute; left: 48px; bottom: 40px; max-width: 440px; }
+  .name { margin: 0; font-size: 96px; line-height: .92; font-weight: 600; letter-spacing: -0.025em; color: var(--ink); }
+  .tag { margin: 16px 0 0; font-size: 14px; line-height: 20px; color: var(--ink-muted); }
+</style></head>
+<body>
+<div class="cover">
+  <svg width="960" height="288" viewBox="0 0 960 288" aria-hidden="true">
+    <!--
+      blocks: action ×2 (304, 448 wide), line-strong ×2 (176, 384), ink-muted (240), warning-line (128) + one pass-ink square (32) — all 32px (space-8) tall, space-2 apart
+      arrangement: a staircase of horizontal bands bleeding off the right edge, lengthening downward — the app's own spacing-sample bars, grown to cover scale
+      pattern: dot grid at a space-8 pitch in ink-faint, filling the step left of the stairs — "measured, never faked": a technical, gridded instrument panel
+      scales: space-2 gap, space-8 band height and dot pitch, radius-md corners; neutral-first, hues kept to two small state blocks
+    -->
+    <rect class="b warn" x="832" y="24" width="144" height="32"/>
+    <rect class="b line" x="784" y="64" width="192" height="32"/>
+    <rect class="b muted" x="720" y="104" width="256" height="32"/>
+    <rect class="b act" x="656" y="144" width="320" height="32"/>
+    <rect class="b line" x="576" y="184" width="400" height="32"/>
+    <rect class="b act" x="512" y="224" width="464" height="32"/>
+    <rect class="b pass" x="792" y="24" width="32" height="32"/>
+    <circle class="dot" cx="496" cy="40" r="2"/>
+    <circle class="dot" cx="528" cy="40" r="2"/>
+    <circle class="dot" cx="560" cy="40" r="2"/>
+    <circle class="dot" cx="592" cy="40" r="2"/>
+    <circle class="dot" cx="624" cy="40" r="2"/>
+    <circle class="dot" cx="656" cy="40" r="2"/>
+    <circle class="dot" cx="688" cy="40" r="2"/>
+    <circle class="dot" cx="720" cy="40" r="2"/>
+    <circle class="dot" cx="752" cy="40" r="2"/>
+    <circle class="dot" cx="496" cy="80" r="2"/>
+    <circle class="dot" cx="528" cy="80" r="2"/>
+    <circle class="dot" cx="560" cy="80" r="2"/>
+    <circle class="dot" cx="592" cy="80" r="2"/>
+    <circle class="dot" cx="624" cy="80" r="2"/>
+    <circle class="dot" cx="656" cy="80" r="2"/>
+    <circle class="dot" cx="688" cy="80" r="2"/>
+    <circle class="dot" cx="720" cy="80" r="2"/>
+    <circle class="dot" cx="752" cy="80" r="2"/>
+    <circle class="dot" cx="496" cy="120" r="2"/>
+    <circle class="dot" cx="528" cy="120" r="2"/>
+    <circle class="dot" cx="560" cy="120" r="2"/>
+    <circle class="dot" cx="592" cy="120" r="2"/>
+    <circle class="dot" cx="624" cy="120" r="2"/>
+    <circle class="dot" cx="656" cy="120" r="2"/>
+    <circle class="dot" cx="688" cy="120" r="2"/>
+    <circle class="dot" cx="496" cy="160" r="2"/>
+    <circle class="dot" cx="528" cy="160" r="2"/>
+    <circle class="dot" cx="560" cy="160" r="2"/>
+    <circle class="dot" cx="592" cy="160" r="2"/>
+    <circle class="dot" cx="624" cy="160" r="2"/>
+    <circle class="dot" cx="496" cy="200" r="2"/>
+    <circle class="dot" cx="528" cy="200" r="2"/>
+  </svg>
+  <div class="text">
+    <h1 class="name">Distill</h1>
+    <p class="tag">Point it at a URL or drop in an image → a Markdown design system.</p>
+  </div>
+</div>
+</body>
+</html>

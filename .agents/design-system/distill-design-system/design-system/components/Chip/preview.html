@@ -1,0 +1,12 @@
+<!-- @dsCard group="Status" height=112 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Chip — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.Distill, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById("root")).render(h('div', {className: 'dt-stack'}, h('div', {className: 'dt-row', style: {padding: 0}}, h(D.Chip, {verdict: 'AAA'}, 'text/surface: 17.2:1'), h(D.Chip, {verdict: 'fail'}, 'muted/surface: 2.6:1')), h('div', {className: 'dt-row', style: {padding: 0}}, h(D.Chip, {variant: 'filled'}, 'precise'), h(D.Chip, {variant: 'filled'}, 'utilitarian'), h(D.Chip, {variant: 'tag'}, h('strong', null, 'Inter'), ' \u00b7 body \u00b7 sans-serif'))));
+</script>
+</body>
+</html>

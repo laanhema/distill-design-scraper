@@ -197,10 +197,10 @@ export default function Home() {
     <main className="mx-auto max-w-4xl px-6 py-16">
       <header className="mb-10">
         <h1 className="text-4xl font-semibold tracking-tight">Distill</h1>
-        <p className="mt-2 text-neutral-600 dark:text-neutral-400">
+        <p className="mt-2 text-ink-muted">
           Point it at a URL for a measured Design System &amp; Layout Structure report, or drop in
           image(s) for a Palette &amp; Mood report plus a vision-inferred layout skeleton.{" "}
-          <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-xs font-medium dark:bg-neutral-800">
+          <span className="rounded bg-fill-strong px-1.5 py-0.5 text-xs font-medium">
             {inputMode === "url"
               ? "Track A (Design System, measured) + Track B (Layout Structure, measured)"
               : "Palette & Mood (measured) + Layout Structure (inferred)"}
@@ -208,14 +208,14 @@ export default function Home() {
         </p>
       </header>
 
-      <div className="mb-4 flex gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800">
+      <div className="mb-4 flex gap-2 border-b border-line pb-2">
         <button
           type="button"
           onClick={() => setInputMode("url")}
           className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${
             inputMode === "url"
-              ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-              : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+              ? "bg-action text-on-action"
+              : "text-ink-muted hover:bg-fill"
           }`}
         >
           URL Input
@@ -225,8 +225,8 @@ export default function Home() {
           onClick={() => setInputMode("image")}
           className={`px-3 py-1.5 text-sm font-medium rounded-md transition ${
             inputMode === "image"
-              ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-              : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800"
+              ? "bg-action text-on-action"
+              : "text-ink-muted hover:bg-fill"
           }`}
         >
           Image Input
@@ -243,12 +243,12 @@ export default function Home() {
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://stripe.com"
               required
-              className="flex-1 rounded-lg border border-neutral-300 bg-white px-4 py-2.5 text-sm outline-none focus:border-neutral-500 focus:ring-2 focus:ring-neutral-300 dark:border-neutral-700 dark:bg-neutral-900 dark:focus:ring-neutral-700"
+              className="flex-1 rounded-lg border border-line-strong bg-surface px-4 py-2.5 text-sm outline-none focus:border-line-focus focus:ring-2 focus:ring-ring"
             />
             <button
               type="submit"
               disabled={status === "loading"}
-              className="rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              className="rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-on-action transition hover:bg-action-hover disabled:opacity-50"
             >
               {status === "loading" ? "Analyzing…" : "Analyze"}
             </button>
@@ -263,7 +263,7 @@ export default function Home() {
                   handleFilesSelect(Array.from(e.dataTransfer.files));
                 }
               }}
-              className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-neutral-300 p-8 text-center transition hover:border-neutral-400 dark:border-neutral-700 dark:hover:border-neutral-600"
+              className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-line-strong p-8 text-center transition hover:border-line-hover"
             >
               <input
                 type="file"
@@ -278,7 +278,7 @@ export default function Home() {
               />
               <label
                 htmlFor="image-input"
-                className="cursor-pointer text-sm font-medium text-neutral-700 dark:text-neutral-300"
+                className="cursor-pointer text-sm font-medium text-ink-soft"
               >
                 {images.length > 0 ? (
                   <span>
@@ -293,13 +293,13 @@ export default function Home() {
             {images.length > 0 && (
               <div className="flex flex-wrap gap-2">
                 {images.map((img, i) => (
-                  <div key={i} className="group relative h-16 w-16 overflow-hidden rounded-md border border-neutral-200 dark:border-neutral-800">
+                  <div key={i} className="group relative h-16 w-16 overflow-hidden rounded-md border border-line">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={img.preview} alt={img.file.name || `image ${i + 1}`} className="h-full w-full object-cover" />
                     <button
                       type="button"
                       onClick={() => removeImage(i)}
-                      className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center bg-black/60 text-xs text-white opacity-0 transition group-hover:opacity-100"
+                      className="absolute right-0 top-0 flex h-5 w-5 items-center justify-center bg-scrim text-xs text-white opacity-0 transition group-hover:opacity-100"
                       aria-label={`Remove image ${i + 1}`}
                     >
                       ×
@@ -308,7 +308,7 @@ export default function Home() {
                 ))}
               </div>
             )}
-            <p className="text-xs text-neutral-500">
+            <p className="text-xs text-ink-subtle">
               Multiple images of the same site/design merge into one palette (up to {MAX_IMAGES}).
               Layout structure from an image is vision-inferred, not measured (no DOM to walk) —
               it&apos;s stamped <code>fidelity: inferred</code> and requires an API key.
@@ -316,7 +316,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={status === "loading" || images.length === 0}
-              className="self-end rounded-lg bg-neutral-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-neutral-700 disabled:opacity-50 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+              className="self-end rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-on-action transition hover:bg-action-hover disabled:opacity-50"
             >
               {status === "loading" ? "Analyzing…" : `Analyze Image${images.length > 1 ? "s" : ""}`}
             </button>
@@ -325,7 +325,7 @@ export default function Home() {
       </form>
 
       {status === "loading" && (
-        <p className="mt-6 animate-pulse text-sm text-neutral-500">
+        <p className="mt-6 animate-pulse text-sm text-ink-subtle">
           {inputMode === "url"
             ? "Rendering, measuring palette, typography, layout tokens & harvesting structure…"
             : "Processing image pixels & measuring color palette & mood…"}
@@ -333,21 +333,21 @@ export default function Home() {
       )}
 
       {status === "error" && error && (
-        <div className="mt-6 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300">
+        <div className="mt-6 rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger-ink">
           <strong className="font-medium">Couldn&apos;t analyze this input.</strong>{" "}
           {error}
         </div>
       )}
 
       {status === "done" && report && meta && structureUnavailableReason && (
-        <p className="mt-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+        <p className="mt-6 rounded-lg border border-warning-line bg-warning-bg px-4 py-3 text-sm text-warning-ink">
           {structureUnavailableReason}
         </p>
       )}
 
       {status === "done" && report && meta && (
         <section className="mt-10 space-y-8">
-          <div className="flex items-center gap-2 border-b border-neutral-200 pb-2 dark:border-neutral-800">
+          <div className="flex items-center gap-2 border-b border-line pb-2">
             <Tab active={tab === "preview"} onClick={() => setTab("preview")}>
               Design System Preview
             </Tab>
@@ -363,13 +363,13 @@ export default function Home() {
             <div className="ml-auto flex gap-2">
               <button
                 onClick={downloadActiveMarkdown}
-                className="rounded-md bg-neutral-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-neutral-700 dark:bg-white dark:text-neutral-900 dark:hover:bg-neutral-200"
+                className="rounded-md bg-action px-3 py-1.5 text-xs font-medium text-on-action hover:bg-action-hover"
               >
                 {tab === "structure" ? "Download Layout Structure .md" : "Download Design System .md"}
               </button>
               <button
                 onClick={downloadTailwindTheme}
-                className="rounded-md border border-neutral-300 px-3 py-1.5 text-xs font-medium hover:bg-neutral-100 dark:border-neutral-700 dark:hover:bg-neutral-800"
+                className="rounded-md border border-line-strong px-3 py-1.5 text-xs font-medium hover:bg-fill"
               >
                 Download Tailwind @theme
               </button>
@@ -381,13 +381,13 @@ export default function Home() {
           )}
 
           {tab === "tokens" && (
-            <pre className="overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-xs leading-relaxed dark:border-neutral-800 dark:bg-neutral-900">
+            <pre className="overflow-x-auto rounded-lg border border-line bg-surface-sunken p-4 text-xs leading-relaxed">
               <code>{markdown}</code>
             </pre>
           )}
 
           {tab === "structure" && structureReport && (
-            <pre className="overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-50 p-4 text-xs leading-relaxed dark:border-neutral-800 dark:bg-neutral-900">
+            <pre className="overflow-x-auto rounded-lg border border-line bg-surface-sunken p-4 text-xs leading-relaxed">
               <code>{structureReport.markdown}</code>
             </pre>
           )}
@@ -419,13 +419,13 @@ function Preview({
       </dl>
 
       {!meta.aiApplied && (
-        <p className="rounded-md border border-neutral-200 bg-neutral-50 px-3.5 py-2 text-xs text-neutral-600 dark:border-neutral-800 dark:bg-neutral-900/50 dark:text-neutral-400">
-          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-neutral-800 dark:text-neutral-200">GEMINI_API_KEY</code> or <code className="font-mono text-neutral-800 dark:text-neutral-200">OPENROUTER_API_KEY</code> in <code className="font-mono text-neutral-800 dark:text-neutral-200">.env.local</code> to enable optional AI vision enrichment (§7). Get a free Gemini key at{" "}
+        <p className="rounded-md border border-line bg-surface-sunken px-3.5 py-2 text-xs text-ink-muted">
+          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-ink-code">GEMINI_API_KEY</code> or <code className="font-mono text-ink-code">OPENROUTER_API_KEY</code> in <code className="font-mono text-ink-code">.env.local</code> to enable optional AI vision enrichment (§7). Get a free Gemini key at{" "}
           <a
             href="https://aistudio.google.com/apikey"
             target="_blank"
             rel="noreferrer"
-            className="underline hover:text-neutral-900 dark:hover:text-neutral-200"
+            className="underline hover:text-ink"
           >
             aistudio.google.com/apikey
           </a>.
@@ -438,18 +438,18 @@ function Preview({
           {report.palette.colors.map((c) => (
             <div
               key={c.role}
-              className="overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800"
+              className="overflow-hidden rounded-lg border border-line"
             >
               <div className="h-16 w-full" style={{ backgroundColor: c.hex }} />
               <div className="px-3 py-2">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{c.role}</span>
                   {c.imageSourced && (
-                    <span className="text-[10px] text-neutral-400">img</span>
+                    <span className="text-[10px] text-ink-faint">img</span>
                   )}
                 </div>
-                <div className="font-mono text-xs text-neutral-500">{c.hex}</div>
-                <div className="text-[11px] text-neutral-400">
+                <div className="font-mono text-xs text-ink-subtle">{c.hex}</div>
+                <div className="text-[11px] text-ink-faint">
                   {c.usage} · {Math.round(c.areaWeight * 100)}%
                 </div>
               </div>
@@ -461,14 +461,14 @@ function Preview({
             {report.palette.contrast.map((p) => (
               <span
                 key={p.pair.join("-")}
-                className="rounded-full border border-neutral-200 px-2.5 py-1 text-xs dark:border-neutral-800"
+                className="rounded-full border border-line px-2.5 py-1 text-xs"
               >
                 {p.pair[0]}/{p.pair[1]}: {p.ratio}:1{" "}
                 <strong
                   className={
                     p.wcag === "fail"
-                      ? "text-red-600 dark:text-red-400"
-                      : "text-green-700 dark:text-green-400"
+                      ? "text-fail-ink"
+                      : "text-pass-ink"
                   }
                 >
                   {p.wcag}
@@ -478,7 +478,7 @@ function Preview({
           </div>
         )}
         {refinements.length > 0 && (
-          <p className="mt-3 text-xs text-neutral-500">
+          <p className="mt-3 text-xs text-ink-subtle">
             AI relabelled{" "}
             {refinements
               .map((r) => `${r.hex} ${r.from}→${r.to}`)
@@ -497,7 +497,7 @@ function Preview({
             {report.typography.families.map((f) => (
               <span
                 key={f.name}
-                className="rounded-md bg-neutral-100 px-2.5 py-1 dark:bg-neutral-800"
+                className="rounded-md bg-fill px-2.5 py-1"
               >
                 <strong>{f.name}</strong> · {f.role} · {f.classification}
               </span>
@@ -506,7 +506,7 @@ function Preview({
           <div className="space-y-1.5">
             {report.typography.scale.map((s) => (
               <div key={s.token} className="flex items-baseline gap-4">
-                <span className="w-16 shrink-0 font-mono text-xs text-neutral-400">
+                <span className="w-16 shrink-0 font-mono text-xs text-ink-faint">
                   {s.token}
                 </span>
                 <span
@@ -531,17 +531,17 @@ function Preview({
           <SectionTitle provenance={report.spacing.provenance}>
             Spacing
           </SectionTitle>
-          <p className="mb-2 text-xs text-neutral-500">
+          <p className="mb-2 text-xs text-ink-subtle">
             Base unit: <strong className="font-mono">{report.spacing.baseUnitPx}px</strong>
           </p>
           <div className="flex flex-wrap items-center gap-2">
             {report.spacing.scale.map((px) => (
               <div
                 key={px}
-                className="flex items-center gap-2 rounded-md border border-neutral-200 px-3 py-1.5 text-xs dark:border-neutral-800"
+                className="flex items-center gap-2 rounded-md border border-line px-3 py-1.5 text-xs"
               >
                 <div
-                  className="bg-neutral-800 dark:bg-neutral-200"
+                  className="bg-mark"
                   style={{ width: `${Math.min(px, 32)}px`, height: "8px" }}
                 />
                 <span className="font-mono">{px}px</span>
@@ -560,7 +560,7 @@ function Preview({
             {report.radius.scale.map((rad) => (
               <div
                 key={rad}
-                className="flex h-12 w-12 items-center justify-center border-2 border-neutral-800 bg-neutral-100 text-[10px] font-mono dark:border-neutral-200 dark:bg-neutral-800"
+                className="flex h-12 w-12 items-center justify-center border-2 border-mark bg-fill text-[10px] font-mono"
                 style={{ borderRadius: rad }}
               >
                 {rad}
@@ -579,7 +579,7 @@ function Preview({
             {report.elevation.shadows.map((sh) => (
               <div
                 key={sh.name}
-                className="rounded-lg bg-white p-4 text-xs font-mono text-neutral-600 dark:bg-neutral-900 dark:text-neutral-400"
+                className="rounded-lg bg-surface p-4 text-xs font-mono text-ink-muted"
                 style={{ boxShadow: sh.value }}
               >
                 <span className="font-semibold">{sh.name}</span> {sh.value}
@@ -595,14 +595,14 @@ function Preview({
             Identity
           </SectionTitle>
           <p className="text-sm font-medium">{report.identity.archetype}</p>
-          <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+          <p className="mt-1 text-sm text-ink-muted">
             {report.identity.description}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             {report.identity.adjectives.map((a) => (
               <span
                 key={a}
-                className="rounded-full bg-neutral-100 px-2.5 py-1 text-xs dark:bg-neutral-800"
+                className="rounded-full bg-fill px-2.5 py-1 text-xs"
               >
                 {a}
               </span>
@@ -631,7 +631,7 @@ function Preview({
               key={i}
               src={src}
               alt={`Source image ${i + 1} of ${meta.finalUrl}`}
-              className="w-full rounded-lg border border-neutral-200 shadow-sm dark:border-neutral-800"
+              className="w-full rounded-lg border border-line shadow-sm"
             />
           ))}
         </div>
@@ -640,7 +640,7 @@ function Preview({
         <img
           src={meta.viewportShot}
           alt={`Screenshot of ${meta.finalUrl}`}
-          className="w-full rounded-lg border border-neutral-200 shadow-sm dark:border-neutral-800"
+          className="w-full rounded-lg border border-line shadow-sm"
         />
       )}
     </div>
@@ -657,7 +657,7 @@ function SectionTitle({
   return (
     <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold">
       {children}
-      <span className="rounded bg-neutral-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400">
+      <span className="rounded bg-fill-strong px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-ink-muted">
         {provenance}
       </span>
     </h2>
@@ -667,14 +667,14 @@ function SectionTitle({
 function MoodList({ label, queries }: { label: string; queries: string[] }) {
   return (
     <div>
-      <div className="mb-2 text-xs uppercase tracking-wide text-neutral-500">
+      <div className="mb-2 text-xs uppercase tracking-wide text-ink-subtle">
         {label}
       </div>
       <ul className="space-y-1.5">
         {queries.map((q) => (
           <li
             key={q}
-            className="rounded-md border border-neutral-200 px-2.5 py-1.5 text-sm dark:border-neutral-800"
+            className="rounded-md border border-line px-2.5 py-1.5 text-sm"
           >
             {q}
           </li>
@@ -687,7 +687,7 @@ function MoodList({ label, queries }: { label: string; queries: string[] }) {
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
-      <dt className="text-xs uppercase tracking-wide text-neutral-500">
+      <dt className="text-xs uppercase tracking-wide text-ink-subtle">
         {label}
       </dt>
       <dd className="truncate font-medium" title={value}>
@@ -713,8 +713,8 @@ function Tab({
       className={
         "rounded-md px-3 py-1.5 text-sm font-medium transition " +
         (active
-          ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
-          : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800")
+          ? "bg-action text-on-action"
+          : "text-ink-muted hover:bg-fill")
       }
     >
       {children}

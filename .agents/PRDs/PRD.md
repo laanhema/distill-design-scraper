@@ -385,10 +385,10 @@ All three spikes shipped under the existing optional-lane contract.
 
 #### P3 — Gate coverage
 
-- [ ] **The eval gate is weaker than the documentation implies.** §11 and `CLAUDE.md` present `npm run eval` as *the* correctness gate for extraction logic, but it currently scores **two synthetic fixtures, both pinned at exactly 1.0**, and silently skips `stripe`, `linear`, and `vercel` (their captures are git-ignored by design, per `eval/corpus.ts`). With a `SITE_FLOOR` of 0.7 and a baseline of `{1, 1}`, there is little room to detect a real-world regression, and a missing corpus entry is a log line rather than a failure. This is a deliberate MVP posture, not a defect — but the gap between "the correctness gate" and "two perfect-scoring fixtures" should be named. *Options: commit sanitized captures for at least one real site, or fail rather than skip when a `CORPUS` entry has no capture.*
+- [ ] **The eval gate is weaker than the documentation implies.** §11 and `AGENTS.md` present `npm run eval` as *the* correctness gate for extraction logic, but it currently scores **three synthetic fixtures (`clean-light`, `dark-mode`, `adversarial-shell`), all pinned at exactly 1.0**, and skips `stripe`, `linear`, and `vercel` (marked `optional: true` in `eval/corpus.ts`; their captures are git-ignored by design). With a `SITE_FLOOR` of 0.7 and a baseline of `{1, 1, 1}`, there is little room to detect a real-world regression. A *required* entry missing its capture or `expected.yaml` now fails the run; only the `optional` live entries are logged as skipped. This is a deliberate MVP posture, not a defect — but the gap between "the correctness gate" and "three perfect-scoring synthetic fixtures" should be named. *Remaining option: commit sanitized captures for at least one real site.*
 - [ ] **Latent viewport coupling:** `Capture` carries no viewport, so `extractStructureFromCapture` always lets the structure lane fall back to its 1440×900 default (`lib/extract/structure/index.ts:44`). Correct today only because `renderUrl` is never called with a custom `RenderOptions.viewport`; if it ever is, `regionMetrics` silently measures against the wrong viewport height.
 
-- **Validation:** `lint` + `typecheck` clean; **`npm run eval` passes with `eval/baseline.json` untouched** — every P0/P1 item is either outside the measured lane (P0-1, P0-3) or a pure dedup/removal, so *any* score movement means the change leaked into measured extraction and must be investigated, not baselined away. P0-2 additionally needs a live cross-origin verification against a synthetic two-server fixture (per `CLAUDE.md` "Manually verifying extraction changes"), since no committed capture exercises cross-origin stylesheets. P0-1 needs a keyed `both`-mode URL run confirming `## Motion` survives AI enrichment.
+- **Validation:** `lint` + `typecheck` clean; **`npm run eval` passes with `eval/baseline.json` untouched** — every P0/P1 item is either outside the measured lane (P0-1, P0-3) or a pure dedup/removal, so *any* score movement means the change leaked into measured extraction and must be investigated, not baselined away. P0-2 additionally needs a live cross-origin verification against a synthetic two-server fixture (per `AGENTS.md` "Manually verifying extraction changes"), since no committed capture exercises cross-origin stylesheets. P0-1 needs a keyed `both`-mode URL run confirming `## Motion` survives AI enrichment.
 
 ## 13. Future Considerations
 
@@ -424,7 +424,7 @@ All three spikes shipped under the existing optional-lane contract.
 
 - **Related documents:**
   - `README.md` — user-facing capabilities & setup
-  - `CLAUDE.md` — authoritative agent/contributor architecture guide (`AGENTS.md` points to it)
+  - `AGENTS.md` — authoritative agent/contributor architecture guide (`CLAUDE.md` and `GEMINI.md` point to it)
   - `PLAN.md` — rounds 1–3 fix-plan history (the de-facto changelog of Phases 1–3)
   - `.agents/plans/completed/from-claude-to-gemini-plan.md` — the Phase-5 migration plan (delivered; retained as the record of intent, including the two deltas noted in §12 Phase 5)
   - `.agents/plans/completed/`, `.agents/reports/`, `.agents/reviews/`, `.agents/stories/` — per-story plans, spike reports, code reviews, and backlog

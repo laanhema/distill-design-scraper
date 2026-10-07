@@ -1,0 +1,134 @@
+/* Distill theme — semantic colour tokens for Tailwind v4.
+ * Generated from the Distill design system (tokens.json). Values are Tailwind 4.3.3 defaults.
+ * Usage: @import "./distill-theme.css"; after @import "tailwindcss"; in app/globals.css.
+ * Gives utilities like bg-bg, text-ink, text-ink-muted, border-line, bg-action, text-on-action.
+ * Dark values follow prefers-color-scheme; <html data-theme="light|dark"> forces one. */
+
+:root {
+  --bg: oklch(98.5% 0 0);
+  --surface: #fff;
+  --surface-sunken: oklch(98.5% 0 0);
+  --fill: oklch(97% 0 0);
+  --fill-strong: oklch(92.2% 0 0);
+  --line: oklch(92.2% 0 0);
+  --line-strong: oklch(87% 0 0);
+  --line-hover: oklch(70.8% 0 0);
+  --line-focus: oklch(55.6% 0 0);
+  --ring: oklch(87% 0 0);
+  --ink: oklch(20.5% 0 0);
+  --ink-soft: oklch(37.1% 0 0);
+  --ink-muted: oklch(43.9% 0 0);
+  --ink-subtle: oklch(55.6% 0 0);
+  --ink-faint: oklch(70.8% 0 0);
+  --ink-code: oklch(26.9% 0 0);
+  --mark: oklch(26.9% 0 0);
+  --action: oklch(20.5% 0 0);
+  --action-hover: oklch(37.1% 0 0);
+  --on-action: #fff;
+  --danger-bg: oklch(97.1% 0.013 17.38);
+  --danger-line: oklch(80.8% 0.114 19.571);
+  --danger-ink: oklch(44.4% 0.177 26.899);
+  --warning-bg: oklch(98.7% 0.022 95.277);
+  --warning-line: oklch(87.9% 0.169 91.605);
+  --warning-ink: oklch(47.3% 0.137 46.201);
+  --pass-ink: oklch(52.7% 0.154 150.069);
+  --fail-ink: oklch(57.7% 0.245 27.325);
+  --scrim: #00000099;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: oklch(14.5% 0 0);
+    --surface: oklch(20.5% 0 0);
+    --surface-sunken: oklch(20.5% 0 0);
+    --fill: oklch(26.9% 0 0);
+    --fill-strong: oklch(26.9% 0 0);
+    --line: oklch(26.9% 0 0);
+    --line-strong: oklch(37.1% 0 0);
+    --line-hover: oklch(43.9% 0 0);
+    --line-focus: oklch(55.6% 0 0);
+    --ring: oklch(37.1% 0 0);
+    --ink: oklch(97% 0 0);
+    --ink-soft: oklch(87% 0 0);
+    --ink-muted: oklch(70.8% 0 0);
+    --ink-subtle: oklch(55.6% 0 0);
+    --ink-faint: oklch(70.8% 0 0);
+    --ink-code: oklch(92.2% 0 0);
+    --mark: oklch(92.2% 0 0);
+    --action: #fff;
+    --action-hover: oklch(92.2% 0 0);
+    --on-action: oklch(20.5% 0 0);
+    --danger-bg: oklch(25.8% 0.092 26.042);
+    --danger-line: oklch(39.6% 0.141 25.723);
+    --danger-ink: oklch(80.8% 0.114 19.571);
+    --warning-bg: oklch(27.9% 0.077 45.635);
+    --warning-line: oklch(41.4% 0.112 45.904);
+    --warning-ink: oklch(87.9% 0.169 91.605);
+    --pass-ink: oklch(79.2% 0.209 151.711);
+    --fail-ink: oklch(70.4% 0.191 22.216);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: oklch(14.5% 0 0);
+  --surface: oklch(20.5% 0 0);
+  --surface-sunken: oklch(20.5% 0 0);
+  --fill: oklch(26.9% 0 0);
+  --fill-strong: oklch(26.9% 0 0);
+  --line: oklch(26.9% 0 0);
+  --line-strong: oklch(37.1% 0 0);
+  --line-hover: oklch(43.9% 0 0);
+  --line-focus: oklch(55.6% 0 0);
+  --ring: oklch(37.1% 0 0);
+  --ink: oklch(97% 0 0);
+  --ink-soft: oklch(87% 0 0);
+  --ink-muted: oklch(70.8% 0 0);
+  --ink-subtle: oklch(55.6% 0 0);
+  --ink-faint: oklch(70.8% 0 0);
+  --ink-code: oklch(92.2% 0 0);
+  --mark: oklch(92.2% 0 0);
+  --action: #fff;
+  --action-hover: oklch(92.2% 0 0);
+  --on-action: oklch(20.5% 0 0);
+  --danger-bg: oklch(25.8% 0.092 26.042);
+  --danger-line: oklch(39.6% 0.141 25.723);
+  --danger-ink: oklch(80.8% 0.114 19.571);
+  --warning-bg: oklch(27.9% 0.077 45.635);
+  --warning-line: oklch(41.4% 0.112 45.904);
+  --warning-ink: oklch(87.9% 0.169 91.605);
+  --pass-ink: oklch(79.2% 0.209 151.711);
+  --fail-ink: oklch(70.4% 0.191 22.216);
+}
+
+/* Expose the roles to Tailwind. `inline` makes utilities read the live variables above. */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-fill: var(--fill);
+  --color-fill-strong: var(--fill-strong);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-hover: var(--line-hover);
+  --color-line-focus: var(--line-focus);
+  --color-ring: var(--ring);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-ink-faint: var(--ink-faint);
+  --color-ink-code: var(--ink-code);
+  --color-mark: var(--mark);
+  --color-action: var(--action);
+  --color-action-hover: var(--action-hover);
+  --color-on-action: var(--on-action);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-line: var(--danger-line);
+  --color-danger-ink: var(--danger-ink);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-line: var(--warning-line);
+  --color-warning-ink: var(--warning-ink);
+  --color-pass-ink: var(--pass-ink);
+  --color-fail-ink: var(--fail-ink);
+  --color-scrim: var(--scrim);
+}
