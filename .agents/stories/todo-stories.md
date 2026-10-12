@@ -1,6 +1,36 @@
 # TODO Stories
 
 Generated from `TODO.md` on 2026-10-04.
+Last Updated: 2026-10-13
+
+## Status
+
+3 stories are done (TODO-2, TODO-4, TODO-5), 2 stories are pending (TODO-1, TODO-3). Issues #156 and #158 remain open on GitHub; spike #166 was completed for #156.
+
+| Story | Issue | Pull request | Phase | Status | Acceptance criteria ticked |
+| --- | --- | --- | --- | --- | --- |
+| [TODO-1] Handle Inaccessible URLs, Bot-Blocks, and View-Obscuring Overlays Gracefully | #156 | none | Backlog | pending | 0 of 4 |
+| [TODO-2] Set Cursor Pointer on Interactive UI Buttons | #157 | #162 | Backlog | done — issue closed, PR #162 merged | 3 of 3 |
+| [TODO-3] Investigate Secure Local Distribution and Sharing Models (Docker / BYOK) | #158 | none | Backlog | pending | 0 of 3 |
+| [TODO-4] Prevent Layout Shift and Button Width Changes on Tab Selection and State Changes | #159 | #165 | Backlog | done — issue closed, PR #165 merged | 3 of 3 |
+| [TODO-5] Remove "Copy .md" Button from the Workbench Header | #160 | #161 | Backlog | done — issue closed, PR #161 merged | 4 of 4 |
+
+Criteria checked on 2026-10-13 against the codebase at HEAD (`e1f25e7`) and GitHub issue/PR records. Ticked boxes indicate empirical verification in code and tests. Delivery records are in git history and PRs #161, #162, #163, #165, and `.agents/reports/overlay-mitigation-spike.md`.
+
+### Open Items Without a Story
+
+**Known issues**
+
+None
+
+**Specified in the source but not built**
+
+- Overlay and bot mitigation implementation (spiked in #166; unbuilt in code for #156)
+- Distribution and BYOK strategy (pending in #158)
+
+**Open GitHub issues that no story names**
+
+- #166 [TODO-1] Spike: bypass or detect view-obscuring overlays, cookie walls, and paywalls before capture
 
 ## Skipped
 
@@ -11,6 +41,7 @@ Generated from `TODO.md` on 2026-10-04.
 ## [TODO-1] Handle Inaccessible URLs, Bot-Blocks, and View-Obscuring Overlays Gracefully
 
 **GitHub**: #156
+**Status**: pending — issue open, spike #166 complete; 4 criteria not met
 **Type**: Bug
 **GitHub Label**: bug
 **Priority**: High
@@ -26,9 +57,13 @@ When Playwright navigates to URLs that block headless browsers (e.g. Cloudflare 
 ### Acceptance Criteria
 
 - [ ] Ingestion pipeline catches HTTP errors (e.g. 403 Forbidden, 401, 5xx) and bot-challenge pages during navigation and reports an explicit, human-readable error.
+  - *Not met:* HTTP error and bot-challenge detection not yet implemented in `lib/ingest.ts`.
 - [ ] If navigation fails or times out, the API returns a structured error message indicating the site is inaccessible rather than crashing or hanging.
+  - *Not met:* Structured inaccessible-site error responses not yet implemented in `app/api/analyze/route.ts`.
 - [ ] Common modal popups, paywalls, and overlay backdrops (e.g., newsletter dialogs, cookie walls) that obstruct view are detected and dismissed or mitigated prior to viewport screenshotting.
+  - *Not met:* Prototyped in spike #166 (`.agents/reports/overlay-mitigation-spike.md`); not yet integrated into `lib/ingest.ts`.
 - [ ] The frontend displays the specific accessibility/block error state clearly to the user.
+  - *Not met:* Frontend block/inaccessible error UI not yet implemented in `app/page.tsx`.
 
 ### Technical Notes
 
@@ -46,6 +81,7 @@ When Playwright navigates to URLs that block headless browsers (e.g. Cloudflare 
 ## [TODO-2] Set Cursor Pointer on Interactive UI Buttons
 
 **GitHub**: #157
+**Status**: done — issue closed, PR #162 merged
 **Type**: Enhancement
 **GitHub Label**: enhancement
 **Priority**: Medium
@@ -60,14 +96,19 @@ Buttons in the web workbench currently retain the default arrow cursor on hover 
 
 ### Acceptance Criteria
 
-- [ ] All clickable buttons across the UI (mode toggles, submit buttons, remove image buttons, tabs, download buttons) show a pointer cursor on hover.
-- [ ] Disabled buttons show appropriate non-interactive cursor (e.g., `cursor: not-allowed` or default) instead of pointer.
-- [ ] Can be implemented cleanly via global CSS (`app/globals.css`) or Tailwind utilities.
+- [x] All clickable buttons across the UI (mode toggles, submit buttons, remove image buttons, tabs, download buttons) show a pointer cursor on hover.
+- [x] Disabled buttons show appropriate non-interactive cursor (e.g., `cursor: not-allowed` or default) instead of pointer.
+- [x] Can be implemented cleanly via global CSS (`app/globals.css`) or Tailwind utilities.
 
 ### Technical Notes
 
 - Add `button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }` to `app/globals.css`, or add `cursor-pointer` to button components in `app/page.tsx`.
 - Check disabled states (`disabled:cursor-not-allowed`).
+
+### As Built
+
+- Global CSS rules added in `app/globals.css:13-19` using `:where(button:not(:disabled), [role="button"]:not([aria-disabled="true"])) { cursor: pointer; }` and `:where(button:disabled, [role="button"][aria-disabled="true"]) { cursor: not-allowed; }`.
+- `cursor-pointer` utility verified on file input and workbench controls.
 
 ### Dependencies
 
@@ -79,6 +120,7 @@ Buttons in the web workbench currently retain the default arrow cursor on hover 
 ## [TODO-3] Investigate Secure Local Distribution and Sharing Models (Docker / BYOK)
 
 **GitHub**: #158
+**Status**: pending — issue open; 3 criteria not met
 **Type**: Spike
 **GitHub Label**: spike
 **Priority**: Medium
@@ -94,8 +136,11 @@ Investigate approaches for sharing Distill with external users without requiring
 ### Acceptance Criteria
 
 - [ ] Document trade-offs between local Docker container execution (`docker run -p 3000:3000`), a packaged desktop executable, and a hosted deployment with client-side Bring-Your-Own-Key (BYOK) passed per request.
+  - *Not met:* Distribution trade-off analysis document not yet written.
 - [ ] Determine how Playwright Chromium requirements impact non-technical users in local distribution.
+  - *Not met:* Packaging investigation pending.
 - [ ] Define concrete recommendations and file follow-up implementation issues for the chosen distribution strategy.
+  - *Not met:* Follow-up implementation issues not yet filed.
 
 ### Technical Notes
 
@@ -113,6 +158,7 @@ Investigate approaches for sharing Distill with external users without requiring
 ## [TODO-4] Prevent Layout Shift and Button Width Changes on Tab Selection and State Changes
 
 **GitHub**: #159
+**Status**: done — issue closed, PR #165 merged
 **Type**: Enhancement
 **GitHub Label**: enhancement
 **Priority**: Medium
@@ -127,14 +173,19 @@ In the results header, the action buttons dynamically change their text (e.g. "C
 
 ### Acceptance Criteria
 
-- [ ] Action buttons in the results header maintain stable widths when switching between "Design System Preview", "Design System Markdown", and "Layout Structure Markdown" tabs.
-- [ ] Buttons do not unexpectedly resize or cause neighboring elements to jitter during tab switching or state toggling.
-- [ ] Layout remains visually aligned and responsive across desktop and smaller viewports.
+- [x] Action buttons in the results header maintain stable widths when switching between "Design System Preview", "Design System Markdown", and "Layout Structure Markdown" tabs.
+- [x] Buttons do not unexpectedly resize or cause neighboring elements to jitter during tab switching or state toggling.
+- [x] Layout remains visually aligned and responsive across desktop and smaller viewports.
 
 ### Technical Notes
 
 - In `app/page.tsx`, examine the workbench action buttons inside the tab bar (`ml-auto flex gap-2`).
 - Either simplify button labels to static concise text (e.g. "Download .md", "Download Markdown", or paired with TODO-5 / #160) or assign consistent min-width / flex constraints to prevent width jumps.
+
+### As Built
+
+- In `app/page.tsx:363-375`, both label spans ("Download Design System .md" and "Download Layout Structure .md") share a single CSS grid cell (`col-start-1 row-start-1`), reserving the width of the longer label so the button does not resize when switching tabs.
+- Added `scenarioTabLayout` to `.claude/skills/verify/scripts/drive.ts` and automated verification across 1280px, 1024px, 768px, and 390px viewports.
 
 ### Dependencies
 
@@ -146,6 +197,7 @@ In the results header, the action buttons dynamically change their text (e.g. "C
 ## [TODO-5] Remove "Copy .md" Button from the Workbench Header
 
 **GitHub**: #160
+**Status**: done — issue closed, PR #161 merged
 **Type**: Enhancement
 **GitHub Label**: enhancement
 **Priority**: Medium
@@ -160,15 +212,20 @@ Remove the "Copy Design System .md" / "Copy Structure .md" button from the workb
 
 ### Acceptance Criteria
 
-- [ ] The "Copy ... .md" button is removed from `app/page.tsx`.
-- [ ] The `copyActiveMarkdown` function and `copied` state are cleaned up if no longer used elsewhere.
-- [ ] The workbench action bar cleanly displays only the "Download ... .md" and "Download Tailwind @theme" buttons.
-- [ ] Typecheck and lint pass with no unused variables or broken references.
+- [x] The "Copy ... .md" button is removed from `app/page.tsx`.
+- [x] The `copyActiveMarkdown` function and `copied` state are cleaned up if no longer used elsewhere.
+- [x] The workbench action bar cleanly displays only the "Download ... .md" and "Download Tailwind @theme" buttons.
+- [x] Typecheck and lint pass with no unused variables or broken references.
 
 ### Technical Notes
 
 - Remove `copyActiveMarkdown` and `copied` state from `app/page.tsx` (around lines 86, 167-173, and 372-381).
 - Also eliminates one of the button width shift triggers from TODO-4 (#159).
+
+### As Built
+
+- Removed `copyActiveMarkdown`, `copied` state, and the Copy button element from `app/page.tsx`.
+- Action bar in `app/page.tsx` renders only download buttons with consistent styling.
 
 ### Dependencies
 

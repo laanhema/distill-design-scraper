@@ -5,8 +5,38 @@
 **Repository:** `laanhema/distill-design-scraper`
 **Baseline commit:** `67c00f0`
 **Story ID range:** DIST-048 → DIST-061 (continues from DIST-047 / issue #94)
+**Last Updated:** 2026-10-13
 
 Every finding below was re-verified against the code at `67c00f0` before a story was written for it.
+
+## Status
+
+All 14 stories are delivered and closed. All corresponding GitHub issues (#96–#109) and PRs (#110–#123) are merged into main.
+
+| Story | Issue | Pull request | Phase | Status | Acceptance criteria ticked |
+| --- | --- | --- | --- | --- | --- |
+| DIST-048 CSSOM state scanner dedup | #96 | #110 | 7 | done — issue closed, PR #110 merged | 5 of 5 |
+| DIST-049 Unraceable SSRF redirect check | #97 | #111 | 7 | done — issue closed, PR #111 merged | 4 of 4 |
+| DIST-050 structureUnavailableReason on no-key | #98 | #112 | 7 | done — issue closed, PR #112 merged | 3 of 3 |
+| DIST-051 Drop unused full-page screenshot | #99 | #113 | 7 | done — issue closed, PR #113 merged | 3 of 3 |
+| DIST-052 Remove dead analyzeUrlStructure | #100 | #114 | 7 | done — issue closed, PR #114 merged | 3 of 3 |
+| DIST-053 Deduplicate download plumbing | #101 | #115 | 7 | done — issue closed, PR #115 merged | 3 of 3 |
+| DIST-054 Rename populateMissingComponentDefs | #102 | #116 | 7 | done — issue closed, PR #116 merged | 3 of 3 |
+| DIST-055 Drop redundant @types/js-yaml | #103 | #117 | 7 | done — issue closed, PR #117 merged | 3 of 3 |
+| DIST-056 OpenRouter ModelCall parity | #104 | #118 | 7 | done — issue closed, PR #118 merged | 5 of 5 |
+| DIST-057 Setup hint names OPENROUTER_API_KEY | #105 | #119 | 7 | done — issue closed, PR #119 merged | 3 of 3 |
+| DIST-058 Add npm run build to CI | #106 | #120 | 7 | done — issue closed, PR #120 merged | 3 of 3 |
+| DIST-059 Remove stale Anthropic comment | #107 | #121 | 7 | done — issue closed, PR #121 merged | 2 of 2 |
+| DIST-060 Eval fail on missing corpus capture | #108 | #122 | 7 | done — issue closed, PR #122 merged | 4 of 4 |
+| DIST-061 Carry viewport through Capture | #109 | #123 | 7 | done — issue closed, PR #123 merged | 4 of 4 |
+
+Criteria verified against the codebase at HEAD (`e1f25e7`) and merged pull requests #110–#123.
+
+### Open Items Without a Story
+
+None
+
+---
 
 ## Created GitHub issues
 

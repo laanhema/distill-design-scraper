@@ -5,10 +5,40 @@
 **Repository:** `laanhema/distill-design-scraper`
 **Baseline commit:** `d619f19`
 **Story ID range:** DIST-062 → DIST-077 (continues from DIST-061 / issue #109)
+**Last Updated:** 2026-10-13
 
 Every finding below was **re-verified against the code at `d619f19`** before a story was written for it — line numbers, predicates, and duplicate bodies were read in the tree, not taken from the PRD text. Verification notes are inline in each story's Technical Notes.
 
 Phase ordering follows the PRD's own P0 → P1 → P2 → P3 priority grouping rather than implementation phases, with **one deliberate inversion**: DIST-062 (the adversarial eval fixture, PRD P1-1) ships **first**, because §12 Phase 8's own validation note says *"P1-1 gates the rest: land the adversarial fixture first, so P0-1's fix is verified by the harness rather than by hand."*
+
+## Status
+
+All 16 stories are delivered and closed. All corresponding GitHub issues (#124–#139) and PRs (#140–#155) are merged into main.
+
+| Story | Issue | Pull request | Phase | Status | Acceptance criteria ticked |
+| --- | --- | --- | --- | --- | --- |
+| DIST-062 Adversarial eval fixture | #124 | #140 | 8 | done — issue closed, PR #140 merged | 4 of 4 |
+| DIST-063 Region typing by landmark | #125 | #141 | 8 | done — issue closed, PR #141 merged | 4 of 4 |
+| DIST-064 Non-displaceable semantic roles | #126 | #142 | 8 | done — issue closed, PR #142 merged | 4 of 4 |
+| DIST-065 Capture.viewport on eval path | #127 | #143 | 8 | done — issue closed, PR #143 merged | 4 of 4 |
+| DIST-066 Band-segment regex unification | #128 | #144 | 8 | done — issue closed, PR #144 merged | 3 of 3 |
+| DIST-067 Unify nearestScaleValue | #129 | #145 | 8 | done — issue closed, PR #145 merged | 3 of 3 |
+| DIST-068 Unify mode<T> copies | #130 | #146 | 8 | done — issue closed, PR #146 merged | 3 of 3 |
+| DIST-069 Unify parsePositiveNumber / parsePositiveInteger | #131 | #147 | 8 | done — issue closed, PR #147 merged | 3 of 3 |
+| DIST-070 Remove unreachable landmark branch | #132 | #148 | 8 | done — issue closed, PR #148 merged | 3 of 3 |
+| DIST-071 Move emitTailwindTheme out of emit.ts | #133 | #149 | 8 | done — issue closed, PR #149 merged | 4 of 4 |
+| DIST-072 Join computeContentMaxWidth on landmark | #134 | #150 | 8 | done — issue closed, PR #150 merged | 3 of 3 |
+| DIST-073 Clean up unused exports | #135 | #151 | 8 | done — issue closed, PR #151 merged | 3 of 3 |
+| DIST-074 Stop double-counting fold pixels | #136 | #152 | 8 | done — issue closed, PR #152 merged | 3 of 3 |
+| DIST-075 Emit prefers-color-scheme: dark CSS vars | #137 | #153 | 8 | done — issue closed, PR #153 merged | 3 of 3 |
+| DIST-076 Skip AI interpretation on mode: structure | #138 | #154 | 8 | done — issue closed, PR #154 merged | 3 of 3 |
+| DIST-077 Omit text swatch on single-cluster images | #139 | #155 | 8 | done — issue closed, PR #155 merged | 3 of 3 |
+
+Criteria verified against the codebase at HEAD (`e1f25e7`) and merged pull requests #140–#155.
+
+### Open Items Without a Story
+
+None
 
 ---
 

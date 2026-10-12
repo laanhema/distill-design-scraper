@@ -159,7 +159,7 @@ docker run -p 3000:3000 -e OPENROUTER_API_KEY="..." distill
 
 ### Continuous Integration
 `.github/workflows/ci.yml` runs on every push and pull request to `main`: Node 20, `npm ci`,
-`playwright install --with-deps chromium`, then `typecheck` → `lint` → `eval`. No API key is
+`playwright install --with-deps chromium`, then `typecheck` → `lint` → `build` → `eval`. No API key is
 present in CI, so anything that only passes with a key set will fail there — which is exactly
 why `npm run eval` is fully offline and deterministic.
 
