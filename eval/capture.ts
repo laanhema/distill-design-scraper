@@ -40,7 +40,8 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
     } catch {
       /* chatty sites never idle — proceed with what has painted */
     }
-    const captured = await capturePage(page);
+    const { bannerDismissed, ...artifacts } = await capturePage(page);
+    void bannerDismissed;
     const capture: Capture = {
       source: {
         type: "url",
@@ -50,13 +51,7 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
       finalUrl: page.url(),
       title: await page.title(),
       viewport: VIEWPORT,
-      styleDump: captured.styleDump,
-      viewportShot: captured.viewportShot,
-      rawHarvestNode: captured.rawHarvestNode,
-      responsiveHarvests: captured.responsiveHarvests,
-      darkCapture: captured.darkCapture,
-      scrollShots: captured.scrollShots,
-      panoramaShot: captured.panoramaShot,
+      ...artifacts,
     };
     await context.close();
     return capture;
