@@ -5,16 +5,11 @@ import type { RawHarvestNode, PrunedNode } from "../structureSchema";
  */
 export function pruneAndCollapse(
   root: RawHarvestNode,
-  foldCutoffY?: number,
 ): PrunedNode | null {
   // First recursively clean children
   const cleanedChildren: PrunedNode[] = [];
   for (const child of root.children) {
-    // Fold cutoff filter if specified
-    if (foldCutoffY && child.bounds.y > foldCutoffY) {
-      continue;
-    }
-    const prunedChild = pruneAndCollapse(child, foldCutoffY);
+    const prunedChild = pruneAndCollapse(child);
     if (prunedChild) {
       cleanedChildren.push(prunedChild);
     }

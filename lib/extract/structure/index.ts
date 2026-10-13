@@ -1,5 +1,3 @@
-import type { Page } from "playwright";
-import { harvestDomTree } from "./harvester";
 import { pruneAndCollapse } from "./pruner";
 import { squashWrapperChains } from "./squash";
 import { detectRepetition } from "./repetition";
@@ -18,7 +16,7 @@ export interface ExtractStructureOptions {
   sourceUrl: string;
   capturedAt?: string;
   viewport?: { width: number; height: number };
-  rawHarvestNode?: RawHarvestNode; // For offline replay in eval harness
+  rawHarvestNode: RawHarvestNode; // Required: Track B DOM harvest tree
   /** Force the Stage 7 AI labeller to its heuristic fallback without ever
    *  constructing a model client — used by the eval harness to keep
    *  `npm run eval` offline and deterministic even when an API key is set
@@ -36,47 +34,21 @@ export interface ExtractStructureOptions {
  * Executes Stages 1-9 to produce a `layout-structure` report.
  */
 export async function extractStructure(
-  pageOrOptions: Page | ExtractStructureOptions,
-  options?: ExtractStructureOptions,
+  options: ExtractStructureOptions,
 ): Promise<StructureReport> {
-  let rawRoot: RawHarvestNode;
-  let sourceUrl = "http://localhost";
-  let viewport = { width: 1440, height: 900 };
-  let capturedAt = new Date().toISOString();
-  let dump: StyleDump | undefined;
-  let report: Report | undefined;
-  let responsiveHarvests: ResponsiveHarvest[] | undefined;
-  let forceHeuristicNaming: boolean | undefined;
-
-  if ("evaluate" in pageOrOptions && typeof pageOrOptions.evaluate === "function") {
-    const page = pageOrOptions as Page;
-    rawRoot = await harvestDomTree(page);
-    if (options) {
-      sourceUrl = options.sourceUrl || sourceUrl;
-      viewport = options.viewport || viewport;
-      capturedAt = options.capturedAt || capturedAt;
-      dump = options.dump;
-      report = options.report;
-      responsiveHarvests = options.responsiveHarvests;
-      forceHeuristicNaming = options.forceHeuristicNaming;
-    }
-  } else {
-    const opts = pageOrOptions as ExtractStructureOptions;
-    if (!opts.rawHarvestNode) {
-      throw new Error("extractStructure requires a Playwright Page or a rawHarvestNode option.");
-    }
-    rawRoot = opts.rawHarvestNode;
-    sourceUrl = opts.sourceUrl || sourceUrl;
-    viewport = opts.viewport || viewport;
-    capturedAt = opts.capturedAt || capturedAt;
-    dump = opts.dump;
-    report = opts.report;
-    responsiveHarvests = opts.responsiveHarvests;
-    forceHeuristicNaming = opts.forceHeuristicNaming;
-  }
+  const {
+    rawHarvestNode,
+    sourceUrl = "http://localhost",
+    viewport = { width: 1440, height: 900 },
+    capturedAt = new Date().toISOString(),
+    dump,
+    report,
+    responsiveHarvests,
+    forceHeuristicNaming,
+  } = options;
 
   // Stage 3 & 4: Prune & Collapse Wrappers
-  const prunedRoot = pruneAndCollapse(rawRoot);
+  const prunedRoot = pruneAndCollapse(rawHarvestNode);
   if (!prunedRoot) {
     throw new Error("DOM tree was completely pruned; no structure nodes remained.");
   }
