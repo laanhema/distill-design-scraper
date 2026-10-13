@@ -65,6 +65,21 @@ The subsystem write-ups are in `docs/architecture/`; "Start here by task" above 
 
 `@/*` maps to the project root (see `tsconfig.json`) — e.g. `@/lib/schema`, `@/lib/extract/palette`.
 
+## Rules & Enforcements
+
+| Rule | Enforcement | Level |
+| --- | --- | --- |
+| Every capture artifact field must be shared across render, extraction, and eval | `CaptureArtifacts` in `lib/ingest.ts` (extended by `RenderResult` and `Capture`) | Architecture (Level 1) |
+| Structure extraction requires a DOM harvest node; no dead browser-page overloads | `ExtractStructureOptions.rawHarvestNode` required in `lib/extract/structure/index.ts` | Architecture (Level 1) |
+| Palette area weighting processes single-pass screenshot; no dead fold-doubling options | `PaletteInput.screenshotPngBase64` in `lib/extract/palette.ts` (dead `additionalScreenshotsPngBase64` deleted) | Architecture (Level 1) |
+| Verification and test automation scripts must be strictly typechecked | `tsconfig.json` includes `".claude/skills/verify/scripts/**/*.ts"` | Types (Level 2) |
+| Do not run `npm run build` or `npm run check` while a `verify.sh` dev server is running | `prebuild` script runs `scripts/guard-build.mjs` which exits non-zero naming `verify.sh down` | Tooling / Build guard (Level 2) |
+| Request payloads to `POST /api/analyze` must be validated before access | `analyzeBodySchema.safeParse` in `app/api/analyze/route.ts` | Schema / Runtime validation (Level 2) |
+| Measured extraction scores must not regress below committed baselines | `npm run eval` regression gate across required fixtures in CI | Eval / Test gate (Level 3) |
+| Result tab bar action buttons must not shift layout on tab switch | `scenarioTabLayout` in `.claude/skills/verify/scripts/drive.ts` | Test / Verification (Level 3) |
+| Frontmatter and Markdown body must never drift | Generated from the same report object via `buildReport` and `renderMarkdown` | Architecture (Level 1) |
+| Do not commit, push, or open PRs unless explicitly asked | Project policy | Docs (Level 4) |
+
 ## Git policy
 
 Do not commit, push, or open PRs unless explicitly asked. Stage only intended files and never commit secrets. After completing a task, run `npm run check` to verify.
