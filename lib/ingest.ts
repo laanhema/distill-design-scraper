@@ -1,6 +1,10 @@
 import { chromium, type Browser, type Page } from "playwright";
 import sharp from "sharp";
-import { collectStyleDump, type StyleDump } from "@/lib/extract/styleDump";
+import {
+  collectStyleDump,
+  type CrossOriginSheetCache,
+  type StyleDump,
+} from "@/lib/extract/styleDump";
 import { harvestDomTree } from "@/lib/extract/structure/harvester";
 import type { RawHarvestNode, ResponsiveHarvest } from "@/lib/extract/structureSchema";
 import { assertSafeUrl } from "@/lib/security/ssrfGuard";
@@ -167,16 +171,19 @@ async function captureResponsiveHarvests(
  * harvest, since the palette lane needs pixels and computed colors, not
  * layout. Whether the result is actually a *different* scheme (vs. a
  * single-scheme site that ignores `prefers-color-scheme`) is a call for the
- * extraction lane, not this capture step.
+ * extraction lane, not this capture step. `sheetCache` is the capture's one
+ * cross-origin stylesheet cache: this dump re-parses the CSS text that the
+ * light dump already fetched instead of downloading each sheet again.
  */
 async function captureDarkScheme(
   page: Page,
+  sheetCache: CrossOriginSheetCache,
 ): Promise<{ viewportShot: string; styleDump: StyleDump } | undefined> {
   try {
     await page.emulateMedia({ colorScheme: "dark" });
     await page.waitForTimeout(200);
     const viewportShotBuf = await page.screenshot({ fullPage: false });
-    const styleDump = await collectStyleDump(page);
+    const styleDump = await collectStyleDump(page, sheetCache);
     return { viewportShot: viewportShotBuf.toString("base64"), styleDump };
   } catch (err) {
     console.warn("Dark-scheme capture failed:", err);
@@ -298,7 +305,10 @@ export async function capturePage(
   await page.waitForTimeout(300);
 
   const viewportShotBuf = await page.screenshot({ fullPage: false });
-  const styleDump = await collectStyleDump(page);
+  // One cache per capture, shared by the light and the dark style dump, so
+  // each cross-origin stylesheet is downloaded once per analysis.
+  const sheetCache: CrossOriginSheetCache = new Map();
+  const styleDump = await collectStyleDump(page, sheetCache);
   let rawHarvestNode: RawHarvestNode | undefined;
   try {
     rawHarvestNode = await harvestDomTree(page);
@@ -307,7 +317,7 @@ export async function capturePage(
   }
 
   const responsiveHarvests = await captureResponsiveHarvests(page, primaryViewport);
-  const darkCapture = await captureDarkScheme(page);
+  const darkCapture = await captureDarkScheme(page, sheetCache);
   const { scrollShots, panoramaShot } = await captureFullPageTiles(
     page,
     primaryViewport,
