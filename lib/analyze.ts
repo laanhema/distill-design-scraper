@@ -380,16 +380,19 @@ export async function analyzeUrl(
             viewport: capture.viewport,
             responsiveHarvests: capture.responsiveHarvests,
           })
-            .then((preliminary) => ({ preliminary, error: undefined }))
+            .then((preliminary) => ({ preliminary }))
             .catch((err) => {
               console.warn("Structure extraction error:", err);
-              return { preliminary: undefined, error: err as unknown };
+              return { preliminary: undefined };
             })
-        : Promise.resolve({
-            preliminary: undefined,
-            error: new Error("Capture does not contain rawHarvestNode for structure extraction."),
-          })
-      : Promise.resolve({ preliminary: undefined, error: undefined }),
+        : (() => {
+            console.warn(
+              "Structure extraction error:",
+              new Error("Capture does not contain rawHarvestNode for structure extraction."),
+            );
+            return Promise.resolve({ preliminary: undefined });
+          })()
+      : Promise.resolve({ preliminary: undefined }),
   ]);
 
   let structureReport: StructureReport | undefined;
