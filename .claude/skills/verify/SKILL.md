@@ -28,7 +28,7 @@ Read [`features/README.md`](features/README.md) before driving. It holds the fea
   - `GEMINI_API_KEY=` and `OPENROUTER_API_KEY=` set empty, so the AI lane is **off**. Next never overrides an env var that is already defined, so `.env.local` keys are ignored. The run stays deterministic, free, and offline. Start with `VERIFY_AI=1 verify.sh up` to keep the `.env.local` keys. That run makes real paid model calls.
   - Any other env var you prefix on `up` reaches the app, for example `RATE_LIMIT_MAX_REQUESTS=2 verify.sh up` or `RATE_LIMIT_DISABLED=1 verify.sh up`.
 
-Both ports are random free ports unless you set `APP_PORT` or `FIXTURE_PORT`. The instance is ready when `up` prints `ready: app http://127.0.0.1:<port> …`. The first request compiles the page, so allow up to about 30s. `up` polls `GET /` until the `<h1>Distill</h1>` shell renders, or fails after 120s and names the log.
+Both ports are random free ports unless you set `APP_PORT` or `FIXTURE_PORT`. The instance is ready when `up` prints `ready: app http://127.0.0.1:<port> …`; run `up` with its output unpiped or redirected to a file, because the detached servers keep a pipe such as `| tail` open and the call then does not return until `down`. The first request compiles the page, so allow up to about 30s. `up` polls `GET /` until the `<h1>Distill</h1>` shell renders, or fails after 120s and names the log.
 
 Run state is in `.verify/current.env` (`RUN_ID`, `RUN_DIR`, `APP_URL`, `FIXTURE_URL`, PGIDs, `AI_LANE`, `GIT_HEAD`). Run `source .verify/current.env` to get `$APP_URL`, `$FIXTURE_URL` and `$RUN_DIR` for `curl` recipes. The `.verify/` directory is git-ignored.
 
