@@ -148,7 +148,7 @@ export default function Home() {
       }
 
       const sourceName =
-        inputMode === "url"
+        data.report.source.type === "url"
           ? (data.meta.finalUrl || url)
           : (images[0]?.file.name || data.report.source.ref || "image");
 
