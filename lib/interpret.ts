@@ -1,3 +1,4 @@
+import { z } from "zod";
 import {
   aiResponseSchema,
   REFINABLE_COLOR_ROLES,
@@ -48,49 +49,28 @@ Return ONLY these three things:
 - imageMood: two lists of Unsplash-searchable queries — "hero" (main imagery) and "texture" (backgrounds/overlays). Each query must be concrete and photographable (e.g. "soft morning light interior"), never abstract (e.g. "innovation").
 - roleRefinements: OPTIONAL corrections to the color role labels. You may relabel an existing hex (e.g. the color labelled "accent" is really the brand "primary"), but you must NEVER introduce a new hex or alter one. Reference colors only by a hex present in the summary. Omit or leave empty when the labels look right.`;
 
-/** JSON Schema mirror of `aiResponseSchema` for structured outputs (§6). */
-const OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    identity: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        adjectives: { type: "array", items: { type: "string" } },
-        archetype: { type: "string" },
-        description: { type: "string" },
-      },
-      required: ["adjectives", "archetype", "description"],
-    },
-    imageMood: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        hero: { type: "array", items: { type: "string" } },
-        texture: { type: "array", items: { type: "string" } },
-      },
-      required: ["hero", "texture"],
-    },
-    roleRefinements: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          hex: { type: "string" },
-          role: {
-            type: "string",
-            // Derived from the same const as the Zod mirror so the two can't drift.
-            enum: [...REFINABLE_COLOR_ROLES],
-          },
-        },
-        required: ["hex", "role"],
-      },
-    },
-  },
-  required: ["identity", "imageMood", "roleRefinements"],
-} as const;
+/**
+ * The JSON Schema sent for structured outputs (§6), generated from
+ * `aiResponseSchema` so the provider is told every bound that the Zod gate in
+ * `requestOnce` checks: 3 to 6 adjectives, a non-empty archetype and
+ * description, at least one hero and one texture query, the `#rrggbb` pattern,
+ * and the refinable-role enum. It used to be a hand-written copy without those
+ * bounds, so a reply the provider accepted could still fail Zod and, after the
+ * retry, drop the whole lane (#177). A bound added to `aiResponseSchema` is
+ * sent on the next call — check it live on both providers, since only a real
+ * request shows whether each accepts a generated keyword. Stated is not
+ * applied, though: the `@google/genai` doc comment of `responseJsonSchema`
+ * lists `minItems`/`maxItems` (the adjective, hero and texture counts) as
+ * supported but not `minLength` or `pattern`, so on the native Gemini path the
+ * non-empty archetype/description and the hex pattern are sent without being
+ * documented as applied, and Zod stays the only gate for them there.
+ *
+ * The call relies on the default `io: "output"` mode of `z.toJSONSchema`, and
+ * that mode is intended: it keeps `roleRefinements` in the top-level
+ * `required` (`io: "input"` would drop it), so the sent schema is stricter
+ * than Zod for that one field, whose `.default([])` accepts a reply without it.
+ */
+const OUTPUT_SCHEMA = z.toJSONSchema(aiResponseSchema);
 
 /** Vision calls stay cheap and grounded — more images add cost without adding read. */
 const MAX_INTERPRET_IMAGES = 4;

@@ -18,8 +18,9 @@ export const provenanceSchema = z.enum(PROVENANCE);
  * The 7 core roles the AI lane may permute in a role refinement (§6). The
  * roles below in `COLOR_ROLES`' tail are evidence-gated — `on-primary` is
  * derived, and the semantic states need measured usage context — so the model
- * is never allowed to assign them. `OUTPUT_SCHEMA` in `lib/interpret.ts`
- * derives its enum from this same const so the two can't drift.
+ * is never allowed to assign them. `OUTPUT_SCHEMA` in `lib/interpret.ts` is
+ * generated from `aiResponseSchema`, whose `role` is `refinableColorRoleSchema`,
+ * so the enum sent to the model is this const and the two can't drift.
  */
 export const REFINABLE_COLOR_ROLES = [
   "background",
@@ -301,6 +302,8 @@ export * from "@/lib/extract/structureSchema";
  * merged into the report — provenance is stamped by us, never trusted from the
  * model, so it isn't part of this shape. `roleRefinements` is Stage E (§5): the
  * model may relabel an existing hex's role, never introduce or alter a hex.
+ * `lib/interpret.ts` also generates the JSON Schema it sends to the provider
+ * from this schema (#177), so a bound stated here is stated to the model too.
  */
 export const aiResponseSchema = z.object({
   identity: z.object({
