@@ -34,8 +34,8 @@ None
 None
 
 **Noted, not a finding**:
-- No permanent regression check covers the changed path: `npm run eval` replays frozen captures and never calls `collectStyleDump`. The plan raised this as Open Question 4 and the owner resolved it (the two-origin check stays a scratch script).
-- A sheet that fails or times out is skipped with no log line, and the dark pass does not retry it (Open Questions 2 and 3, resolved by the owner). A slow but healthy host that needs more than 5 s loses its states and keyframes, which the plan accepts as an honest omission (Open Question 1).
+- No permanent regression check covers the changed path: `npm run eval` replays frozen captures and never calls `collectStyleDump`. The plan raised this as Open Question 4, and the `/do` orchestrator adopted the plan's default without asking the owner (the two-origin check stays a scratch script).
+- A sheet that fails or times out is skipped with no log line, and the dark pass does not retry it (Open Questions 2 and 3, where the `/do` orchestrator adopted the plan's defaults without asking the owner). A slow but healthy host that needs more than 5 s loses its states and keyframes, which the plan accepts as an honest omission (Open Question 1).
 - The number of concurrent requests has no cap, and the cache holds every sheet's text until `capturePage` returns. The plan scopes both out: the count is bounded by the page's own `<link>`s, which the browser already loaded in parallel.
 - The plan's Metadata row cites the patch at `.agents/plans/todo-12-…-prototype.patch`, while the file is in `.agents/plans/completed/`. The workflow moves both files after the plan is executed, and the merged plan of todo-11 carries the same pre-move path. The patch itself reverse-applies cleanly to the tree, so the code is exactly the prototype.
 
