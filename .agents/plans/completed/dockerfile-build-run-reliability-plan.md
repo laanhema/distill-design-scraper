@@ -133,7 +133,7 @@ Execute in order. Each task is atomic and verifiable.
 - **Implement**: Exclude from the build context: `node_modules`, `.next`, `.git`,
   `.agents`, `.claude`, `eval` (fixtures are large and unused by the app build),
   `Dockerfile`, `.dockerignore`, `tsconfig.tsbuildinfo`, `*.md` docs at root
-  (`README.md`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`). Keep `app/`, `lib/`,
+  (`README.md`, `CLAUDE.md`, `AGENTS.md`). Keep `app/`, `lib/`,
   `package*.json`, `next.config.mjs`, `postcss.config.mjs`, `tsconfig.json`,
   `next-env.d.ts` in context.
 - **Mirror**: standard Next.js `.dockerignore` shape; no in-repo precedent exists.

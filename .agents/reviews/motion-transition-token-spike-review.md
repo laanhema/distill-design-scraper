@@ -1,6 +1,6 @@
 # Code Review: Unstaged changes (motion-transition-token-spike)
 
-**Scope**: Unstaged/staged changes on `feature/motion-transition-token-spike` — spike deliverable (`.agents/reports/motion-spike.md`, `.agents/reports/motion-transition-token-spike-report.md`, `.agents/plans/completed/motion-transition-token-spike-plan.md`), a PRD checkbox flip (`.agents/PRDs/PRD.md`), plus a batch of unrelated doc-hygiene changes carried on this branch: `.plan.md`/`.stories.md` → `-plan.md`/`-stories.md` renames (and the resulting cross-reference fixups in reports/plans/reviews), `AGENTS.md`/`GEMINI.md` collapsed to `@CLAUDE.md` imports, and a Prettier-style table reformat in `panorama-capture-report.md`.
+**Scope**: Unstaged/staged changes on `feature/motion-transition-token-spike` — spike deliverable (`.agents/reports/motion-spike.md`, `.agents/reports/motion-transition-token-spike-report.md`, `.agents/plans/completed/motion-transition-token-spike-plan.md`), a PRD checkbox flip (`.agents/PRDs/PRD.md`), plus a batch of unrelated doc-hygiene changes carried on this branch: `.plan.md`/`.stories.md` → `-plan.md`/`-stories.md` renames (and the resulting cross-reference fixups in reports/plans/reviews), `AGENTS.md` collapsed to an `@CLAUDE.md` import, and a Prettier-style table reformat in `panorama-capture-report.md`.
 **Recommendation**: APPROVE
 
 ## Summary
