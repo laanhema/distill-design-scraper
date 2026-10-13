@@ -1,0 +1,258 @@
+diff --git a/app/page.tsx b/app/page.tsx
+index 807d2e3..2dde493 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -1,17 +1,22 @@
+ "use client";
+ 
+ import { useState } from "react";
+-import type { Report, StructureReport } from "@/lib/schema";
++import type { Report } from "@/lib/schema";
+ import { emitTailwindTheme } from "@/lib/emitTailwind";
+ import {
+   MAX_IMAGES,
+   isAnalyzeResponse,
+   type AiOutcome,
+   type AnalyzeMeta,
++  type AnalyzeSuccess,
+   type RefinementChange,
+ } from "@/lib/api";
+ 
+-type Status = "idle" | "loading" | "done" | "error";
++type AnalysisState =
++  | { status: "idle" }
++  | { status: "loading" }
++  | { status: "error"; message: string }
++  | { status: "done"; result: AnalyzeSuccess; sourceName: string };
+ type InputMode = "url" | "image";
+ 
+ /** A selected file and its data-URL preview, kept in one entry so the pairing
+@@ -31,6 +36,23 @@ function readFileAsDataURL(file: File): Promise<string> {
+   });
+ }
+ 
++/** Hostname derivation shared by both download handlers: prefer the
++ *  analyzed URL's hostname, then the first uploaded image's basename,
++ *  then the caller-supplied default — derived from the analyzed result's
++ *  source name rather than live form inputs (#101, #173). */
++function deriveHost(sourceName: string, defaultHost: string): string {
++  let host = defaultHost;
++  try {
++    host = new URL(sourceName).hostname.replace(/^www\./, "");
++  } catch {
++    const cleaned = sourceName.replace(/\.[^/.]+$/, "").trim();
++    if (cleaned) {
++      host = cleaned;
++    }
++  }
++  return host || defaultHost;
++}
++
+ /** Shared Blob → object URL → anchor → click → revoke sequence for the two
+  *  workbench download actions, so a future fix to this plumbing can't land
+  *  in one handler and silently miss the other (#101). */
+@@ -48,14 +70,7 @@ export default function Home() {
+   const [inputMode, setInputMode] = useState<InputMode>("url");
+   const [url, setUrl] = useState("");
+   const [images, setImages] = useState<SelectedImage[]>([]);
+-  const [status, setStatus] = useState<Status>("idle");
+-  const [error, setError] = useState<string | null>(null);
+-  const [report, setReport] = useState<Report | null>(null);
+-  const [markdown, setMarkdown] = useState<string>("");
+-  const [structureReport, setStructureReport] = useState<StructureReport | null>(null);
+-  const [structureUnavailableReason, setStructureUnavailableReason] = useState<string | null>(null);
+-  const [meta, setMeta] = useState<AnalyzeMeta | null>(null);
+-  const [refinements, setRefinements] = useState<RefinementChange[]>([]);
++  const [state, setState] = useState<AnalysisState>({ status: "idle" });
+   const [tab, setTab] = useState<"preview" | "tokens" | "structure">("preview");
+ 
+   async function handleFilesSelect(files: File[]) {
+@@ -88,14 +103,7 @@ export default function Home() {
+     if (inputMode === "url" && !url.trim()) return;
+     if (inputMode === "image" && images.length === 0) return;
+ 
+-    setStatus("loading");
+-    setError(null);
+-    setReport(null);
+-    setMarkdown("");
+-    setStructureReport(null);
+-    setStructureUnavailableReason(null);
+-    setMeta(null);
+-    setRefinements([]);
++    setState({ status: "loading" });
+ 
+     try {
+       const bodyData: Record<string, unknown> = { mode: "both" };
+@@ -133,51 +141,43 @@ export default function Home() {
+         throw new Error(!data.ok ? data.error : `Request failed (${res.status}).`);
+       }
+ 
+-      setReport(data.report);
+-      setMarkdown(data.markdown);
+-      setStructureReport(data.structureReport);
+       // A new analysis may have no structure report — never leave the active
+       // tab pointing at a pane that no longer exists (#23).
+       if (!data.structureReport) {
+         setTab((t) => (t === "structure" ? "preview" : t));
+       }
+-      setStructureUnavailableReason(data.structureUnavailableReason ?? null);
+-      setMeta(data.meta);
+-      setRefinements(data.refinements);
+-      setStatus("done");
+-    } catch (err) {
+-      setError(err instanceof Error ? err.message : "Something went wrong.");
+-      setStatus("error");
+-    }
+-  }
+ 
+-  /** Hostname derivation shared by both download handlers: prefer the
+-   *  analyzed URL's hostname, then the first uploaded image's basename,
+-   *  then the caller-supplied default — kept identical across both
+-   *  handlers so a hostname-sanitizing fix can't miss one of them (#101). */
+-  function deriveHost(defaultHost: string): string {
+-    let host = defaultHost;
+-    try {
+-      host = new URL(meta?.finalUrl ?? url).hostname.replace(/^www\./, "");
+-    } catch {
+-      if (inputMode === "image" && images[0]) {
+-        host = images[0].file.name.replace(/\.[^/.]+$/, "");
+-      }
++      const sourceName =
++        inputMode === "url"
++          ? (data.meta.finalUrl || url)
++          : (images[0]?.file.name || data.report.source.ref || "image");
++
++      setState({
++        status: "done",
++        result: data,
++        sourceName,
++      });
++    } catch (err) {
++      setState({
++        status: "error",
++        message: err instanceof Error ? err.message : "Something went wrong.",
++      });
+     }
+-    return host;
+   }
+ 
+   function downloadActiveMarkdown() {
+-    const textToDownload = tab === "structure" ? (structureReport?.markdown ?? "") : markdown;
++    if (state.status !== "done") return;
++    const { result, sourceName } = state;
++    const textToDownload = tab === "structure" ? (result.structureReport?.markdown ?? "") : result.markdown;
+     const isStruct = tab === "structure";
+-    const host = deriveHost("report");
++    const host = deriveHost(sourceName, "report");
+     downloadBlob(textToDownload, "text/markdown", `distill-${isStruct ? "structure-" : ""}${host}.md`);
+   }
+ 
+   function downloadTailwindTheme() {
+-    if (!report) return;
+-    const themeCss = emitTailwindTheme(report);
+-    const host = deriveHost("theme");
++    if (state.status !== "done") return;
++    const themeCss = emitTailwindTheme(state.result.report);
++    const host = deriveHost(state.sourceName, "theme");
+     downloadBlob(themeCss, "text/css", `distill-theme-${host}.css`);
+   }
+ 
+@@ -235,10 +235,10 @@ export default function Home() {
+             />
+             <button
+               type="submit"
+-              disabled={status === "loading"}
++              disabled={state.status === "loading"}
+               className="rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-on-action transition hover:bg-action-hover disabled:opacity-50"
+             >
+-              {status === "loading" ? "Analyzing…" : "Analyze"}
++              {state.status === "loading" ? "Analyzing…" : "Analyze"}
+             </button>
+           </div>
+         ) : (
+@@ -303,16 +303,16 @@ export default function Home() {
+             </p>
+             <button
+               type="submit"
+-              disabled={status === "loading" || images.length === 0}
++              disabled={state.status === "loading" || images.length === 0}
+               className="self-end rounded-lg bg-action px-5 py-2.5 text-sm font-medium text-on-action transition hover:bg-action-hover disabled:opacity-50"
+             >
+-              {status === "loading" ? "Analyzing…" : `Analyze Image${images.length > 1 ? "s" : ""}`}
++              {state.status === "loading" ? "Analyzing…" : `Analyze Image${images.length > 1 ? "s" : ""}`}
+             </button>
+           </div>
+         )}
+       </form>
+ 
+-      {status === "loading" && (
++      {state.status === "loading" && (
+         <p className="mt-6 animate-pulse text-sm text-ink-subtle">
+           {inputMode === "url"
+             ? "Rendering, measuring palette, typography, layout tokens & harvesting structure…"
+@@ -320,20 +320,20 @@ export default function Home() {
+         </p>
+       )}
+ 
+-      {status === "error" && error && (
++      {state.status === "error" && (
+         <div className="mt-6 rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger-ink">
+           <strong className="font-medium">Couldn&apos;t analyze this input.</strong>{" "}
+-          {error}
++          {state.message}
+         </div>
+       )}
+ 
+-      {status === "done" && report && meta && structureUnavailableReason && (
++      {state.status === "done" && state.result.structureUnavailableReason && (
+         <p className="mt-6 rounded-lg border border-warning-line bg-warning-bg px-4 py-3 text-sm text-warning-ink">
+-          {structureUnavailableReason}
++          {state.result.structureUnavailableReason}
+         </p>
+       )}
+ 
+-      {status === "done" && report && meta && (
++      {state.status === "done" && (
+         <section className="mt-10 space-y-8">
+           <div className="flex flex-wrap items-center gap-2 border-b border-line pb-2">
+             <Tab active={tab === "preview"} onClick={() => setTab("preview")}>
+@@ -342,10 +342,10 @@ export default function Home() {
+             <Tab active={tab === "tokens"} onClick={() => setTab("tokens")}>
+               Design System Markdown
+             </Tab>
+-            {structureReport && (
++            {state.result.structureReport && (
+               <Tab active={tab === "structure"} onClick={() => setTab("structure")}>
+                 Layout Structure Markdown
+-                {structureReport.header.fidelity === "inferred" ? " (inferred)" : ""}
++                {state.result.structureReport.header.fidelity === "inferred" ? " (inferred)" : ""}
+               </Tab>
+             )}
+             <div className="ml-auto flex flex-wrap justify-end gap-2">
+@@ -371,18 +371,22 @@ export default function Home() {
+           </div>
+ 
+           {tab === "preview" && (
+-            <Preview report={report} meta={meta} refinements={refinements} />
++            <Preview
++              report={state.result.report}
++              meta={state.result.meta}
++              refinements={state.result.refinements}
++            />
+           )}
+ 
+           {tab === "tokens" && (
+             <pre className="overflow-x-auto rounded-lg border border-line bg-surface-sunken p-4 text-xs leading-relaxed">
+-              <code>{markdown}</code>
++              <code>{state.result.markdown}</code>
+             </pre>
+           )}
+ 
+-          {tab === "structure" && structureReport && (
++          {tab === "structure" && state.result.structureReport && (
+             <pre className="overflow-x-auto rounded-lg border border-line bg-surface-sunken p-4 text-xs leading-relaxed">
+-              <code>{structureReport.markdown}</code>
++              <code>{state.result.structureReport.markdown}</code>
+             </pre>
+           )}
+         </section>
