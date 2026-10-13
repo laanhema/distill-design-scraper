@@ -4,6 +4,8 @@
 **Branch**: `feature/todo-13-bring-ai-lane-json-schema-in-line-with-zod`
 **Status**: COMPLETE
 
+Added after the run: the owner reworded the issue's second acceptance criterion on 2026-10-14 (issue #177, comment 6157432534) to "`npm run eval:ai` passes over OpenRouter", that run passed on `google/gemini-2.5-flash` (three `✓` lines, `✓ AI lane stable`), and the run on the native Gemini API with the pinned `gemini-3.5-flash` stays unverified, so the Gemini re-run that the PENDING notes below ask for is no longer a condition of that criterion.
+
 One check is PENDING and is not counted as passed: `npm run eval:ai` on the pinned Gemini model could not run, because `gemini-3.5-flash` answered every request with HTTP 503 for the 21 minutes of this run. It must be re-run before the issue's second acceptance criterion is ticked (see Validation Results and Deviations).
 
 ## Summary
