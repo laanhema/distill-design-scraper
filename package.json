@@ -5,6 +5,7 @@
   "description": "Point it at a URL or drop in an image → a Markdown design system.",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/guard-build.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
