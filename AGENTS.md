@@ -1,6 +1,6 @@
 # AGENTS.md
 
-This file provides guidance to AI coding agents (Claude Code, Gemini CLI, Codex, …) when working with code in this repository. `CLAUDE.md` and `GEMINI.md` are one-line `@AGENTS.md` pointers — this file is the only place to edit agent guidance.
+This file provides guidance to AI coding agents (Claude Code, Codex, …) when working with code in this repository. `CLAUDE.md` is a one-line `@AGENTS.md` pointer — this file is the only place to edit agent guidance.
 
 ## What this is
 

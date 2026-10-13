@@ -451,7 +451,7 @@ All three spikes shipped under the existing optional-lane contract.
 
 - **Related documents:**
   - `README.md` — user-facing capabilities & setup
-  - `AGENTS.md` — authoritative agent/contributor architecture guide (`CLAUDE.md` and `GEMINI.md` point to it)
+  - `AGENTS.md` — authoritative agent/contributor architecture guide (`CLAUDE.md` points to it)
   - `PLAN.md` — rounds 1–3 fix-plan history (the de-facto changelog of Phases 1–3)
   - `.agents/plans/completed/from-claude-to-gemini-plan.md` — the Phase-5 migration plan (delivered; retained as the record of intent, including the two deltas noted in §12 Phase 5)
   - `.agents/plans/completed/`, `.agents/reports/`, `.agents/reviews/`, `.agents/stories/` — per-story plans, spike reports, code reviews, and backlog
