@@ -107,6 +107,45 @@ export interface StyleDump {
 /** Hard cap on collected nodes, to bound the payload handed back to Node. */
 const NODE_CAP = 5000;
 
+/** Ceiling on one cross-origin stylesheet refetch. The browser loaded the
+ *  same sheet moments earlier, so a host that needs longer than this is
+ *  stalled, and Playwright's own default (30 s per request) would let it
+ *  spend the analysis route's whole budget. */
+const CROSS_ORIGIN_SHEET_TIMEOUT_MS = 5_000;
+
+/**
+ * CSS text of the cross-origin stylesheets of one analysis, keyed by `href`.
+ * `capturePage` creates one and hands it to every `collectStyleDump` call of
+ * that capture, so the dark-scheme dump re-parses the text that the light
+ * dump fetched and never downloads a sheet again. An entry is the request
+ * itself: `null` is a sheet that failed, timed out or came back empty, which
+ * is remembered too, so a stalled host costs one timeout per analysis.
+ */
+export type CrossOriginSheetCache = Map<string, Promise<string | null>>;
+
+/** Start (or reuse) the refetch of one cross-origin stylesheet. Best-effort:
+ *  the returned promise never rejects — any failure resolves to `null`. */
+function fetchCrossOriginSheet(
+  page: Page,
+  href: string,
+  cache: CrossOriginSheetCache,
+): Promise<string | null> {
+  let pending = cache.get(href);
+  if (!pending) {
+    pending = page
+      .context()
+      .request.get(href, { timeout: CROSS_ORIGIN_SHEET_TIMEOUT_MS })
+      .then(async (res) => {
+        if (!res.ok()) return null;
+        const cssText = await res.text();
+        return cssText.trim() ? cssText : null;
+      })
+      .catch(() => null);
+    cache.set(href, pending);
+  }
+  return pending;
+}
+
 /**
  * The shared `:hover`/`:focus-visible` CSSOM scanner (`STATE_PROPS`,
  * `resolveVarRefs`, `applyRule`, `scanRules`), used by *both* the
@@ -273,7 +312,10 @@ function createStateScanner() {
  * *rendered state only* — unused theme variants sitting in stylesheets never
  * appear here, which is exactly what §5 role assignment wants.
  */
-export async function collectStyleDump(page: Page): Promise<StyleDump> {
+export async function collectStyleDump(
+  page: Page,
+  sheetCache: CrossOriginSheetCache,
+): Promise<StyleDump> {
   // Bundlers that compile this module (tsx/esbuild with keepNames) inject a
   // `__name(fn, "…")` helper around the named functions inside the serialized
   // browser callback below. That helper doesn't exist in the page, so define a
@@ -617,119 +659,123 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
     const interactiveIds = new Set(
       dump.nodes.flatMap((n, i) => (n.interactive ? [i] : [])),
     );
-    for (const href of dump.crossOriginHrefs) {
+    // Every sheet is requested at once, each under its own timeout; the
+    // texts come back in stylesheet order whatever order the responses
+    // arrive in, and are applied one at a time below, so the first sheet
+    // that declares a change still wins the merge.
+    const cssTexts = await Promise.all(
+      dump.crossOriginHrefs.map((href) =>
+        fetchCrossOriginSheet(page, href, sheetCache),
+      ),
+    );
+    for (const cssText of cssTexts) {
+      if (cssText === null) continue;
       try {
-        const res = await page.context().request.get(href);
-        if (res.ok()) {
-          const cssText = await res.text();
-          if (cssText && cssText.trim()) {
-            const extra = await page.evaluate(
-              ({
-                text,
-                scannerSrc,
-                interactiveIds,
-              }: {
-                text: string;
-                scannerSrc: string;
-                interactiveIds: number[];
-              }) => {
-                const { scanRules }: ReturnType<typeof createStateScanner> =
-                  new Function("return (" + scannerSrc + ")")()();
-                const interactiveIdSet = new Set(interactiveIds);
-                const recordsById = new Map<
-                  number,
-                  {
-                    interactive: boolean;
-                    states: {
-                      state: "hover" | "focus";
-                      changes: { property: string; from: string; to: string }[];
-                    }[];
-                  }
-                >();
-                function getRecord(el: Element) {
-                  const idStr = el.getAttribute("data-distill-id");
-                  if (!idStr) return undefined;
-                  const id = parseInt(idStr, 10);
-                  let rec = recordsById.get(id);
-                  if (!rec) {
-                    rec = { interactive: interactiveIdSet.has(id), states: [] };
-                    recordsById.set(id, rec);
-                  }
-                  return rec;
-                }
-
-                const keyframes: KeyframeDef[] = [];
-                const doc = document.implementation.createHTMLDocument("");
-                const style = doc.createElement("style");
-                style.textContent = text;
-                doc.head.appendChild(style);
-                const sheet = style.sheet;
-                if (!sheet || !sheet.cssRules) return null;
-
-                scanRules(
-                  sheet.cssRules,
-                  getRecord,
-                  (kf) => {
-                    if (!keyframes.some((k) => k.name === kf.name)) keyframes.push(kf);
-                  },
-                );
-
-                const updates = Array.from(recordsById.entries())
-                  .filter(([, rec]) => rec.states.length > 0)
-                  .map(([id, rec]) => ({ id, states: rec.states }));
-
-                return { updates, keyframes };
-              },
+        const extra = await page.evaluate(
+          ({
+            text,
+            scannerSrc,
+            interactiveIds,
+          }: {
+            text: string;
+            scannerSrc: string;
+            interactiveIds: number[];
+          }) => {
+            const { scanRules }: ReturnType<typeof createStateScanner> =
+              new Function("return (" + scannerSrc + ")")()();
+            const interactiveIdSet = new Set(interactiveIds);
+            const recordsById = new Map<
+              number,
               {
-                text: cssText,
-                scannerSrc: createStateScanner.toString(),
-                interactiveIds: [...interactiveIds],
+                interactive: boolean;
+                states: {
+                  state: "hover" | "focus";
+                  changes: { property: string; from: string; to: string }[];
+                }[];
+              }
+            >();
+            function getRecord(el: Element) {
+              const idStr = el.getAttribute("data-distill-id");
+              if (!idStr) return undefined;
+              const id = parseInt(idStr, 10);
+              let rec = recordsById.get(id);
+              if (!rec) {
+                rec = { interactive: interactiveIdSet.has(id), states: [] };
+                recordsById.set(id, rec);
+              }
+              return rec;
+            }
+
+            const keyframes: KeyframeDef[] = [];
+            const doc = document.implementation.createHTMLDocument("");
+            const style = doc.createElement("style");
+            style.textContent = text;
+            doc.head.appendChild(style);
+            const sheet = style.sheet;
+            if (!sheet || !sheet.cssRules) return null;
+
+            scanRules(
+              sheet.cssRules,
+              getRecord,
+              (kf) => {
+                if (!keyframes.some((k) => k.name === kf.name)) keyframes.push(kf);
               },
             );
 
-            if (extra) {
-              for (const { id, states } of extra.updates) {
-                const node = dump.nodes[id];
-                if (node) {
-                  const existingStates = node.states ?? [];
-                  for (const st of states) {
-                    const existing = existingStates.find(
-                      (s) => s.state === st.state,
-                    );
-                    if (existing) {
-                      for (const ch of st.changes) {
-                        if (
-                          !existing.changes.some(
-                            (e) => e.property === ch.property,
-                          )
-                        ) {
-                          existing.changes.push(ch);
-                        }
-                      }
-                    } else {
-                      existingStates.push(st);
+            const updates = Array.from(recordsById.entries())
+              .filter(([, rec]) => rec.states.length > 0)
+              .map(([id, rec]) => ({ id, states: rec.states }));
+
+            return { updates, keyframes };
+          },
+          {
+            text: cssText,
+            scannerSrc: createStateScanner.toString(),
+            interactiveIds: [...interactiveIds],
+          },
+        );
+
+        if (extra) {
+          for (const { id, states } of extra.updates) {
+            const node = dump.nodes[id];
+            if (node) {
+              const existingStates = node.states ?? [];
+              for (const st of states) {
+                const existing = existingStates.find(
+                  (s) => s.state === st.state,
+                );
+                if (existing) {
+                  for (const ch of st.changes) {
+                    if (
+                      !existing.changes.some(
+                        (e) => e.property === ch.property,
+                      )
+                    ) {
+                      existing.changes.push(ch);
                     }
                   }
-                  node.states = existingStates;
+                } else {
+                  existingStates.push(st);
                 }
               }
-              if (extra.keyframes && extra.keyframes.length > 0) {
-                dump.keyframes = dump.keyframes ?? [];
-                for (const k of extra.keyframes) {
-                  if (
-                    !dump.keyframes.some(
-                      (existing) => existing.name === k.name,
-                    )
-                  ) {
-                    dump.keyframes.push(k);
-                  }
-                }
+              node.states = existingStates;
+            }
+          }
+          if (extra.keyframes && extra.keyframes.length > 0) {
+            dump.keyframes = dump.keyframes ?? [];
+            for (const k of extra.keyframes) {
+              if (
+                !dump.keyframes.some(
+                  (existing) => existing.name === k.name,
+                )
+              ) {
+                dump.keyframes.push(k);
               }
             }
           }
         }
       } catch {
-        // Skip cross-origin stylesheet best-effort on network/fetch error
+        // Skip this cross-origin stylesheet, best-effort, on a parse/evaluate error
       }
     }
   }
