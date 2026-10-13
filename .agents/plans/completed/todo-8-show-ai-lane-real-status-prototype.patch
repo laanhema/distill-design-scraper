@@ -1,0 +1,225 @@
+diff --git a/.claude/skills/verify/scripts/drive.ts b/.claude/skills/verify/scripts/drive.ts
+index c1fe1bd..3e7b205 100644
+--- a/.claude/skills/verify/scripts/drive.ts
++++ b/.claude/skills/verify/scripts/drive.ts
+@@ -121,6 +121,12 @@ function checkDesignReport(page: Page, a: Analysis, url: string): Promise<void>[
+   check("report.source.ref is the submitted URL", report?.source?.ref?.startsWith(url) ?? false, report?.source?.ref);
+   check("markdown starts with YAML frontmatter", String(a.body.markdown ?? "").startsWith("---\n"));
+   check("structureReport present in both mode", Boolean(a.body.structureReport));
++  const expectedOutcome = AI_ON ? "applied" : "no-key";
++  check(
++    `meta.aiOutcome is ${expectedOutcome}`,
++    (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome === expectedOutcome,
++    (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome,
++  );
+   return [
+     page.getByRole("button", { name: "Layout Structure Markdown" }).isVisible()
+       .then((v) => check("Layout Structure Markdown tab is shown", v)),
+@@ -286,6 +292,12 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
+   check("API answered 200 ok", a.status === 200 && a.body.ok === true, `status ${a.status}`);
+   check("reportKind is palette-mood", report?.reportKind === "palette-mood", report?.reportKind);
+   check(`viewportShots has one entry per kept image (${kept.length})`, shots.length === kept.length, String(shots.length));
++  const expectedOutcome = AI_ON ? "applied" : "no-key";
++  check(
++    `meta.aiOutcome is ${expectedOutcome}`,
++    (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome === expectedOutcome,
++    (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome,
++  );
+   check("Preview renders the Palette section", await page.getByRole("heading", { name: /^Palette/ }).first().isVisible());
+   if (AI_ON) {
+     check("inferred structure tab is shown", await page.getByRole("button", { name: "Layout Structure Markdown (inferred)" }).isVisible());
+diff --git a/app/page.tsx b/app/page.tsx
+index 44793e3..807d2e3 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -6,6 +6,7 @@ import { emitTailwindTheme } from "@/lib/emitTailwind";
+ import {
+   MAX_IMAGES,
+   isAnalyzeResponse,
++  type AiOutcome,
+   type AnalyzeMeta,
+   type RefinementChange,
+ } from "@/lib/api";
+@@ -390,6 +391,13 @@ export default function Home() {
+   );
+ }
+ 
++const AI_LANE_LABELS: Record<AiOutcome, string> = {
++  applied: "applied",
++  "no-key": "skipped (no key)",
++  failed: "failed",
++  "not-requested": "skipped (not requested)",
++};
++
+ function Preview({
+   report,
+   meta,
+@@ -407,11 +415,11 @@ function Preview({
+         <Meta label="Render time" value={`${meta.elapsedMs} ms`} />
+         <Meta
+           label="AI lane"
+-          value={meta.aiApplied ? "applied" : "skipped (no key)"}
++          value={AI_LANE_LABELS[meta.aiOutcome]}
+         />
+       </dl>
+ 
+-      {!meta.aiApplied && (
++      {meta.aiOutcome === "no-key" && (
+         <p className="rounded-md border border-line bg-surface-sunken px-3.5 py-2 text-xs text-ink-muted">
+           💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-ink-code">GEMINI_API_KEY</code> or <code className="font-mono text-ink-code">OPENROUTER_API_KEY</code> in <code className="font-mono text-ink-code">.env.local</code> to enable optional AI vision enrichment (§7). Get a free Gemini key at{" "}
+           <a
+diff --git a/lib/analyze.ts b/lib/analyze.ts
+index 74dabfb..14dc367 100644
+--- a/lib/analyze.ts
++++ b/lib/analyze.ts
+@@ -17,6 +17,7 @@ import {
+   type RefinementChange,
+ } from "@/lib/interpret";
+ import type { Report, StructureReport } from "@/lib/schema";
++import type { AiOutcome } from "@/lib/api";
+ 
+ /**
+  * Orchestration (§8, URL & Image pipelines). Extraction is split from rendering on
+@@ -120,18 +121,35 @@ export async function extractStructureFromCapture(
+  * only the live URL/image paths reach for the model. Falls back to the measured
+  * report untouched when no API key is set or the model fails (§6, §9).
+  */
++export interface EnrichWithAiOptions {
++  requested?: boolean;
++}
++
++export type EnrichWithAiResult = AnalyzeResult & {
++  refinements: RefinementChange[];
++  outcome: AiOutcome;
++};
++
+ export async function enrichWithAI(
+   measured: AnalyzeResult,
+   screenshotsPngBase64: string[],
+-): Promise<AnalyzeResult & { refinements: RefinementChange[] }> {
+-  if (!aiLaneAvailable()) return { ...measured, refinements: [] };
++  opts?: EnrichWithAiOptions,
++): Promise<EnrichWithAiResult> {
++  if (opts?.requested === false) {
++    return { ...measured, refinements: [], outcome: "not-requested" };
++  }
++  if (!aiLaneAvailable()) {
++    return { ...measured, refinements: [], outcome: "no-key" };
++  }
+ 
+   const interpretation = await interpret({
+     screenshotsPngBase64,
+     palette: measured.report.palette,
+     typography: measured.report.typography,
+   });
+-  if (!interpretation) return { ...measured, refinements: [] };
++  if (!interpretation) {
++    return { ...measured, refinements: [], outcome: "failed" };
++  }
+ 
+   const { palette, changes } = applyRoleRefinements(
+     measured.report.palette,
+@@ -149,7 +167,12 @@ export async function enrichWithAI(
+     imageMood: interpretation.imageMood,
+   });
+ 
+-  return { report, markdown: renderMarkdown(report), refinements: changes };
++  return {
++    report,
++    markdown: renderMarkdown(report),
++    refinements: changes,
++    outcome: "applied",
++  };
+ }
+ 
+ export interface ImageInput {
+@@ -180,7 +203,7 @@ export async function analyzeImages(
+       title: string;
+       elapsedMs: number;
+       bannerDismissed: boolean;
+-      aiApplied: boolean;
++      aiOutcome: AiOutcome;
+     };
+   }
+ > {
+@@ -221,9 +244,7 @@ export async function analyzeImages(
+   const wantsTokenEnrichment = mode === "tokens" || mode === "both";
+ 
+   const [enriched, structureOutcome] = await Promise.all([
+-    wantsTokenEnrichment
+-      ? enrichWithAI(measuredResult, screenshotsBase64)
+-      : Promise.resolve({ ...measuredResult, refinements: [] as RefinementChange[] }),
++    enrichWithAI(measuredResult, screenshotsBase64, { requested: wantsTokenEnrichment }),
+     wantsStructure
+       ? aiLaneAvailable()
+         ? structureFromImages({
+@@ -274,7 +295,7 @@ export async function analyzeImages(
+       title: ref,
+       elapsedMs: Date.now() - startedAt,
+       bannerDismissed: false,
+-      aiApplied: Boolean(enriched.report.identity),
++      aiOutcome: enriched.outcome,
+     },
+   };
+ }
+@@ -322,7 +343,7 @@ export async function analyzeUrl(
+     title: string;
+     elapsedMs: number;
+     bannerDismissed: boolean;
+-    aiApplied: boolean;
++    aiOutcome: AiOutcome;
+   };
+ }> {
+   const capturedAt = new Date().toISOString();
+@@ -332,12 +353,14 @@ export async function analyzeUrl(
+   // A "structure"-only caller has no use for the identity/imageMood AI pass
+   // over the palette-mood report, so skip it rather than paying for both.
+   const wantsTokenEnrichment = mode === "tokens" || mode === "both";
+-  const enriched = wantsTokenEnrichment
+-    ? await enrichWithAI(measured, [
+-        capture.viewportShot,
+-        ...subsampleEvenly(capture.scrollShots ?? [], 3),
+-      ])
+-    : { ...measured, refinements: [] as RefinementChange[] };
++  const enriched = await enrichWithAI(
++    measured,
++    [
++      capture.viewportShot,
++      ...subsampleEvenly(capture.scrollShots ?? [], 3),
++    ],
++    { requested: wantsTokenEnrichment },
++  );
+   return {
+     report: enriched.report,
+     markdown: enriched.markdown,
+@@ -348,7 +371,7 @@ export async function analyzeUrl(
+       title: render.title,
+       elapsedMs: render.elapsedMs,
+       bannerDismissed: render.bannerDismissed,
+-      aiApplied: Boolean(enriched.report.identity),
++      aiOutcome: enriched.outcome,
+     },
+   };
+ }
+diff --git a/lib/api.ts b/lib/api.ts
+index 21e1c07..8346d92 100644
+--- a/lib/api.ts
++++ b/lib/api.ts
+@@ -9,6 +9,8 @@ import type { RefinementChange } from "@/lib/interpret";
+ 
+ export const MAX_IMAGES = 6;
+ 
++export type AiOutcome = "applied" | "no-key" | "failed" | "not-requested";
++
+ export interface AnalyzeMeta {
+   finalUrl: string;
+   title: string;
+@@ -18,7 +20,7 @@ export interface AnalyzeMeta {
+   viewportShot: string;
+   /** Every source image, in submitted order (image mode only, §P6-1). */
+   viewportShots?: string[];
+-  aiApplied: boolean;
++  aiOutcome: AiOutcome;
+ }
+ 
+ export type Meta = AnalyzeMeta;
