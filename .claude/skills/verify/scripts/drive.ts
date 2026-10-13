@@ -121,6 +121,12 @@ function checkDesignReport(page: Page, a: Analysis, url: string): Promise<void>[
   check("report.source.ref is the submitted URL", report?.source?.ref?.startsWith(url) ?? false, report?.source?.ref);
   check("markdown starts with YAML frontmatter", String(a.body.markdown ?? "").startsWith("---\n"));
   check("structureReport present in both mode", Boolean(a.body.structureReport));
+  const expectedOutcome = AI_ON ? "applied" : "no-key";
+  check(
+    `meta.aiOutcome is ${expectedOutcome}`,
+    (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome === expectedOutcome,
+    (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome,
+  );
   return [
     page.getByRole("button", { name: "Layout Structure Markdown" }).isVisible()
       .then((v) => check("Layout Structure Markdown tab is shown", v)),
@@ -286,6 +292,12 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
   check("API answered 200 ok", a.status === 200 && a.body.ok === true, `status ${a.status}`);
   check("reportKind is palette-mood", report?.reportKind === "palette-mood", report?.reportKind);
   check(`viewportShots has one entry per kept image (${kept.length})`, shots.length === kept.length, String(shots.length));
+  const expectedOutcome = AI_ON ? "applied" : "no-key";
+  check(
+    `meta.aiOutcome is ${expectedOutcome}`,
+    (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome === expectedOutcome,
+    (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome,
+  );
   check("Preview renders the Palette section", await page.getByRole("heading", { name: /^Palette/ }).first().isVisible());
   if (AI_ON) {
     check("inferred structure tab is shown", await page.getByRole("button", { name: "Layout Structure Markdown (inferred)" }).isVisible());

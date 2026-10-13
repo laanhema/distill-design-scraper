@@ -9,6 +9,8 @@ import type { RefinementChange } from "@/lib/interpret";
 
 export const MAX_IMAGES = 6;
 
+export type AiOutcome = "applied" | "no-key" | "failed" | "not-requested";
+
 export interface AnalyzeMeta {
   finalUrl: string;
   title: string;
@@ -18,7 +20,7 @@ export interface AnalyzeMeta {
   viewportShot: string;
   /** Every source image, in submitted order (image mode only, §P6-1). */
   viewportShots?: string[];
-  aiApplied: boolean;
+  aiOutcome: AiOutcome;
 }
 
 export type Meta = AnalyzeMeta;

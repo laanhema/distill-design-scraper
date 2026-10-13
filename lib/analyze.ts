@@ -17,6 +17,7 @@ import {
   type RefinementChange,
 } from "@/lib/interpret";
 import type { Report, StructureReport } from "@/lib/schema";
+import type { AiOutcome } from "@/lib/api";
 
 /**
  * Orchestration (§8, URL & Image pipelines). Extraction is split from rendering on
@@ -120,18 +121,35 @@ export async function extractStructureFromCapture(
  * only the live URL/image paths reach for the model. Falls back to the measured
  * report untouched when no API key is set or the model fails (§6, §9).
  */
+export interface EnrichWithAiOptions {
+  requested?: boolean;
+}
+
+export type EnrichWithAiResult = AnalyzeResult & {
+  refinements: RefinementChange[];
+  outcome: AiOutcome;
+};
+
 export async function enrichWithAI(
   measured: AnalyzeResult,
   screenshotsPngBase64: string[],
-): Promise<AnalyzeResult & { refinements: RefinementChange[] }> {
-  if (!aiLaneAvailable()) return { ...measured, refinements: [] };
+  opts?: EnrichWithAiOptions,
+): Promise<EnrichWithAiResult> {
+  if (opts?.requested === false) {
+    return { ...measured, refinements: [], outcome: "not-requested" };
+  }
+  if (!aiLaneAvailable()) {
+    return { ...measured, refinements: [], outcome: "no-key" };
+  }
 
   const interpretation = await interpret({
     screenshotsPngBase64,
     palette: measured.report.palette,
     typography: measured.report.typography,
   });
-  if (!interpretation) return { ...measured, refinements: [] };
+  if (!interpretation) {
+    return { ...measured, refinements: [], outcome: "failed" };
+  }
 
   const { palette, changes } = applyRoleRefinements(
     measured.report.palette,
@@ -149,7 +167,12 @@ export async function enrichWithAI(
     imageMood: interpretation.imageMood,
   });
 
-  return { report, markdown: renderMarkdown(report), refinements: changes };
+  return {
+    report,
+    markdown: renderMarkdown(report),
+    refinements: changes,
+    outcome: "applied",
+  };
 }
 
 export interface ImageInput {
@@ -180,7 +203,7 @@ export async function analyzeImages(
       title: string;
       elapsedMs: number;
       bannerDismissed: boolean;
-      aiApplied: boolean;
+      aiOutcome: AiOutcome;
     };
   }
 > {
@@ -221,9 +244,7 @@ export async function analyzeImages(
   const wantsTokenEnrichment = mode === "tokens" || mode === "both";
 
   const [enriched, structureOutcome] = await Promise.all([
-    wantsTokenEnrichment
-      ? enrichWithAI(measuredResult, screenshotsBase64)
-      : Promise.resolve({ ...measuredResult, refinements: [] as RefinementChange[] }),
+    enrichWithAI(measuredResult, screenshotsBase64, { requested: wantsTokenEnrichment }),
     wantsStructure
       ? aiLaneAvailable()
         ? structureFromImages({
@@ -274,7 +295,7 @@ export async function analyzeImages(
       title: ref,
       elapsedMs: Date.now() - startedAt,
       bannerDismissed: false,
-      aiApplied: Boolean(enriched.report.identity),
+      aiOutcome: enriched.outcome,
     },
   };
 }
@@ -322,7 +343,7 @@ export async function analyzeUrl(
     title: string;
     elapsedMs: number;
     bannerDismissed: boolean;
-    aiApplied: boolean;
+    aiOutcome: AiOutcome;
   };
 }> {
   const capturedAt = new Date().toISOString();
@@ -332,12 +353,14 @@ export async function analyzeUrl(
   // A "structure"-only caller has no use for the identity/imageMood AI pass
   // over the palette-mood report, so skip it rather than paying for both.
   const wantsTokenEnrichment = mode === "tokens" || mode === "both";
-  const enriched = wantsTokenEnrichment
-    ? await enrichWithAI(measured, [
-        capture.viewportShot,
-        ...subsampleEvenly(capture.scrollShots ?? [], 3),
-      ])
-    : { ...measured, refinements: [] as RefinementChange[] };
+  const enriched = await enrichWithAI(
+    measured,
+    [
+      capture.viewportShot,
+      ...subsampleEvenly(capture.scrollShots ?? [], 3),
+    ],
+    { requested: wantsTokenEnrichment },
+  );
   return {
     report: enriched.report,
     markdown: enriched.markdown,
@@ -348,7 +371,7 @@ export async function analyzeUrl(
       title: render.title,
       elapsedMs: render.elapsedMs,
       bannerDismissed: render.bannerDismissed,
-      aiApplied: Boolean(enriched.report.identity),
+      aiOutcome: enriched.outcome,
     },
   };
 }
