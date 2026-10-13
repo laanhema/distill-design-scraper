@@ -27,14 +27,5 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Type check
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build
-        run: npm run build
-
-      - name: Run eval suite
-        run: npm run eval
+      - name: Type check, lint, build and run eval suite
+        run: npm run check
