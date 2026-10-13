@@ -58,7 +58,17 @@ Return ONLY these three things:
  * bounds, so a reply the provider accepted could still fail Zod and, after the
  * retry, drop the whole lane (#177). A bound added to `aiResponseSchema` is
  * sent on the next call — check it live on both providers, since only a real
- * request shows whether each accepts a generated keyword.
+ * request shows whether each accepts a generated keyword. Stated is not
+ * applied, though: the `@google/genai` doc comment of `responseJsonSchema`
+ * lists `minItems`/`maxItems` (the adjective, hero and texture counts) as
+ * supported but not `minLength` or `pattern`, so on the native Gemini path the
+ * non-empty archetype/description and the hex pattern are sent without being
+ * documented as applied, and Zod stays the only gate for them there.
+ *
+ * The call relies on the default `io: "output"` mode of `z.toJSONSchema`, and
+ * that mode is intended: it keeps `roleRefinements` in the top-level
+ * `required` (`io: "input"` would drop it), so the sent schema is stricter
+ * than Zod for that one field, whose `.default([])` accepts a reply without it.
  */
 const OUTPUT_SCHEMA = z.toJSONSchema(aiResponseSchema);
 
