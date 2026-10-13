@@ -32,7 +32,7 @@ Both ports are random free ports unless you set `APP_PORT` or `FIXTURE_PORT`. Th
 
 Run state is in `.verify/current.env` (`RUN_ID`, `RUN_DIR`, `APP_URL`, `FIXTURE_URL`, PGIDs, `AI_LANE`, `GIT_HEAD`). Run `source .verify/current.env` to get `$APP_URL`, `$FIXTURE_URL` and `$RUN_DIR` for `curl` recipes. The `.verify/` directory is git-ignored.
 
-**Isolation:** use one instance per checkout. `next dev` writes to the shared `.next/` directory, so `up` refuses to start when this checkout already has a Next.js process, such as the user's own `npm run dev`. It also refuses while a previous run is still up. Don't work around this. Reuse the existing run, or ask the user. Don't run `npm run build` while an instance is up, because the build also writes `.next/`.
+**Isolation:** use one instance per checkout. `next dev` writes to the shared `.next/` directory, so `up` refuses to start when this checkout already has a Next.js process, such as the user's own `npm run dev`. It also refuses while a previous run is still up. Don't work around this. Reuse the existing run, or ask the user. Don't run `npm run build` or `npm run check` (its third step is the build) while an instance is up, because the build also writes `.next/`. Run `verify.sh down` first.
 
 ## Doctor
 
