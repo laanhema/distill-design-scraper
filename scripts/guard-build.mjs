@@ -32,3 +32,4 @@ if (fs.existsSync(stateFile)) {
     process.exit(1);
   }
 }
+
