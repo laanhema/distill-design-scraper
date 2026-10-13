@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { renderUrl, type RenderResult } from "@/lib/ingest";
+import { renderUrl, type RenderResult, type CaptureArtifacts } from "@/lib/ingest";
 import { extractPalette, extractDarkPalette } from "@/lib/extract/palette";
 import { extractTypography, applyMobileTypeSizes } from "@/lib/extract/typography";
 import { extractTokens } from "@/lib/extract/tokens";
@@ -16,8 +16,7 @@ import {
   interpret,
   type RefinementChange,
 } from "@/lib/interpret";
-import type { StyleDump } from "@/lib/extract/styleDump";
-import type { Report, RawHarvestNode, ResponsiveHarvest, StructureReport } from "@/lib/schema";
+import type { Report, StructureReport } from "@/lib/schema";
 
 /**
  * Orchestration (§8, URL & Image pipelines). Extraction is split from rendering on
@@ -26,30 +25,11 @@ import type { Report, RawHarvestNode, ResponsiveHarvest, StructureReport } from 
  * exercise every heuristic without launching a browser.
  */
 
-export interface Capture {
+export interface Capture extends CaptureArtifacts {
   source: { type: "url"; ref: string; capturedAt: string };
   finalUrl: string;
   title: string;
   viewport?: { width: number; height: number };
-  styleDump: StyleDump;
-  /** Base64 PNG of the viewport screenshot (area-weight pixel pass). */
-  viewportShot: string;
-  /** DOM harvest tree for layout-structure extraction (Track B). */
-  rawHarvestNode?: RawHarvestNode;
-  /** Secondary-viewport DOM harvests off the same session (§P5-2). */
-  responsiveHarvests?: ResponsiveHarvest[];
-  /** Dark-color-scheme render off the same session (§P8-3). */
-  darkCapture?: { viewportShot: string; styleDump: StyleDump };
-  /** Additional screenshots scrolled toward the bottom of the page, same
-   *  session (§ scroll capture) — the complete gapless viewport-tall tile
-   *  set sent to the AI lane (subsampled for full-page coverage). The
-   *  area-weight pixel pass reads `panoramaShot` instead. */
-  scrollShots?: string[];
-  /** Single seamless full-page screenshot stitched from gapless viewport
-   *  tiles (§ panorama capture) — feeds the area-weight pixel pass and the
-   *  frontend gallery. Omitted when the page fits in one viewport, or on
-   *  capture failure. */
-  panoramaShot?: string;
 }
 
 export interface AnalyzeResult {
@@ -305,18 +285,15 @@ export function captureFromRender(
   ref: string,
   capturedAt: string,
 ): Capture {
+  const { finalUrl, title, viewport, elapsedMs, bannerDismissed, ...artifacts } = render;
+  void elapsedMs;
+  void bannerDismissed;
   return {
     source: { type: "url", ref, capturedAt },
-    finalUrl: render.finalUrl,
-    title: render.title,
-    viewport: render.viewport,
-    styleDump: render.styleDump,
-    viewportShot: render.viewportShot,
-    rawHarvestNode: render.rawHarvestNode,
-    responsiveHarvests: render.responsiveHarvests,
-    darkCapture: render.darkCapture,
-    scrollShots: render.scrollShots,
-    panoramaShot: render.panoramaShot,
+    finalUrl,
+    title,
+    viewport,
+    ...artifacts,
   };
 }
 

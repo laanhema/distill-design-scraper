@@ -43,11 +43,6 @@ export function chroma(color: Color): number {
   return Number.isFinite(c) ? c : 0;
 }
 
-/** OKLCH lightness, 0 (black) → 1 (white). */
-export function lightness(color: Color): number {
-  const l = toOklch(color).l;
-  return Number.isFinite(l) ? l : 0;
-}
 
 /** OKLCH hue in degrees [0, 360). Undefined (achromatic greys) reads as 0. */
 export function hue(color: Color): number {

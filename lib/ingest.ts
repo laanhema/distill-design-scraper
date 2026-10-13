@@ -15,19 +15,9 @@ import { assertSafeUrl } from "@/lib/security/ssrfGuard";
  * pixels (screenshots) and, eventually, a DOM style dump from one render.
  */
 
-export interface RenderResult {
-  /** URL after any redirects. */
-  finalUrl: string;
-  /** Document title of the rendered page. */
-  title: string;
+export interface CaptureArtifacts {
   /** Above-the-fold screenshot, PNG bytes as base64. */
   viewportShot: string;
-  /** Viewport used for the capture. */
-  viewport: { width: number; height: number };
-  /** How long the render took, ms. */
-  elapsedMs: number;
-  /** Whether a consent/cookie banner was clicked away. */
-  bannerDismissed: boolean;
   /** Per-node computed-style dump read off the same render (§5 extraction). */
   styleDump: StyleDump;
   /** DOM harvest tree for layout-structure extraction (Track B). */
@@ -57,6 +47,19 @@ export interface RenderResult {
    *  bring it back as a "simplification.") Omitted when the page fits in one
    *  viewport, or on capture failure. */
   panoramaShot?: string;
+}
+
+export interface RenderResult extends CaptureArtifacts {
+  /** URL after any redirects. */
+  finalUrl: string;
+  /** Document title of the rendered page. */
+  title: string;
+  /** Viewport used for the capture. */
+  viewport: { width: number; height: number };
+  /** How long the render took, ms. */
+  elapsedMs: number;
+  /** Whether a consent/cookie banner was clicked away. */
+  bannerDismissed: boolean;
 }
 
 export interface RenderOptions {
@@ -281,16 +284,9 @@ async function captureFullPageTiles(
  * local fixture pages without going through the http(s)-only `renderUrl`
  * front door.
  */
-export async function capturePage(page: Page): Promise<{
-  viewportShot: string;
-  bannerDismissed: boolean;
-  styleDump: StyleDump;
-  rawHarvestNode?: RawHarvestNode;
-  responsiveHarvests?: ResponsiveHarvest[];
-  darkCapture?: { viewportShot: string; styleDump: StyleDump };
-  scrollShots?: string[];
-  panoramaShot?: string;
-}> {
+export async function capturePage(
+  page: Page,
+): Promise<CaptureArtifacts & { bannerDismissed: boolean }> {
   const primaryViewport = page.viewportSize() ?? DEFAULT_VIEWPORT;
   const bannerDismissed = await dismissConsentBanner(page);
 
@@ -441,21 +437,15 @@ export async function renderUrl(
       // Never idled — proceed with whatever has painted so far.
     }
 
-    const captured = await capturePage(page);
+    const { bannerDismissed, ...artifacts } = await capturePage(page);
 
     const result: RenderResult = {
       finalUrl: page.url(),
       title: await page.title(),
-      viewportShot: captured.viewportShot,
       viewport,
       elapsedMs: Date.now() - startedAt,
-      bannerDismissed: captured.bannerDismissed,
-      styleDump: captured.styleDump,
-      rawHarvestNode: captured.rawHarvestNode,
-      responsiveHarvests: captured.responsiveHarvests,
-      darkCapture: captured.darkCapture,
-      scrollShots: captured.scrollShots,
-      panoramaShot: captured.panoramaShot,
+      bannerDismissed,
+      ...artifacts,
     };
 
     await context.close();
