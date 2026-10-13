@@ -237,7 +237,7 @@ function createStateScanner() {
   function scanRules(
     rules: CSSRuleList,
     getRecord: (el: Element) => StateRecord | undefined,
-    onKeyframe: (kf: { name: string; steps: { offset: string; properties: string[] }[] }) => void,
+    onKeyframe: (kf: KeyframeDef) => void,
   ) {
     for (const rule of rules) {
       if (rule instanceof CSSMediaRule) {
@@ -284,7 +284,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
     g.__name ??= (fn) => fn;
   });
 
-  const dump = (await page.evaluate(
+  const dump = await page.evaluate(
     ({ cap, scannerSrc }: { cap: number; scannerSrc: string }) => {
     /** Parse a computed color; return null for fully-transparent paints. */
     function opaqueColor(value: string): string | null {
@@ -366,10 +366,10 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
     }
 
     const all = document.querySelectorAll("*");
-    const nodes: unknown[] = [];
+    const nodes: NodeStyle[] = [];
     // Only elements that end up with a record are eligible hover/focus scan
     // targets — "already in the dump", per §P5-1.
-    const elementRecords = new Map<Element, Record<string, unknown>>();
+    const elementRecords = new Map<Element, NodeStyle>();
     let totalVisible = 0;
     let truncated = false;
 
@@ -391,7 +391,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       }
 
       const hasText = hasDirectText(el);
-      const colors: { channel: string; value: string }[] = [];
+      const colors: NodeStyle["colors"] = [];
 
       const bg = opaqueColor(cs.backgroundColor);
       if (bg) colors.push({ channel: "background", value: bg });
@@ -466,7 +466,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
         marginsPx.some((m) => m > 0);
 
       // Motion parsing (§P6 Motion Token Lane)
-      const transitions: { property: string; durationMs: number; timingFunction: string; delayMs?: number }[] = [];
+      const transitions: TransitionInfo[] = [];
       if (cs.transitionDuration) {
         const durStrs = splitCommaOutsideParens(cs.transitionDuration);
         const propStrs = splitCommaOutsideParens(cs.transitionProperty || "all");
@@ -489,7 +489,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
         });
       }
 
-      const animations: { name: string; durationMs: number; timingFunction: string; delayMs?: number; iterationCount?: string }[] = [];
+      const animations: AnimationInfo[] = [];
       if (cs.animationName && cs.animationName !== "none") {
         const animNames = splitCommaOutsideParens(cs.animationName);
         const durStrs = splitCommaOutsideParens(cs.animationDuration || "0s");
@@ -520,7 +520,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
 
       if (colors.length === 0 && !hasText && !hasLayout && !hasMotion) continue;
 
-      const record: Record<string, unknown> = {
+      const record: NodeStyle = {
         tag: el.tagName.toLowerCase(),
         rect: { x: r.x, y: r.y, w: r.width, h: r.height },
         colors,
@@ -576,8 +576,8 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
     // defined once, at module scope, in `createStateScanner` — its source is
     // reconstructed here via `new Function` so both this pass and the
     // cross-origin re-fetch pass below share exactly one implementation.
-    const { scanRules } = new Function("return (" + scannerSrc + ")")()();
-    const keyframes: { name: string; steps: { offset: string; properties: string[] }[] }[] = [];
+    const { scanRules }: ReturnType<typeof createStateScanner> = new Function("return (" + scannerSrc + ")")()();
+    const keyframes: KeyframeDef[] = [];
     const crossOriginHrefs: string[] = [];
 
     for (const sheet of document.styleSheets) {
@@ -591,8 +591,8 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       if (rules) {
         scanRules(
           rules,
-          (el: Element) => elementRecords.get(el),
-          (kf: { name: string; steps: { offset: string; properties: string[] }[] }) => {
+          (el) => elementRecords.get(el),
+          (kf) => {
             if (!keyframes.some((k) => k.name === kf.name)) keyframes.push(kf);
           },
         );
@@ -606,7 +606,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
       ...(keyframes.length > 0 ? { keyframes } : {}),
       ...(crossOriginHrefs.length > 0 ? { crossOriginHrefs } : {}),
     };
-  }, { cap: NODE_CAP, scannerSrc: createStateScanner.toString() })) as unknown as StyleDump & { crossOriginHrefs?: string[] };
+  }, { cap: NODE_CAP, scannerSrc: createStateScanner.toString() });
 
   if (dump.crossOriginHrefs && dump.crossOriginHrefs.length > 0) {
     // Which node ids the same-origin pass already flagged interactive — the
@@ -633,9 +633,8 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
                 scannerSrc: string;
                 interactiveIds: number[];
               }) => {
-                const { scanRules } = new Function(
-                  "return (" + scannerSrc + ")",
-                )()();
+                const { scanRules }: ReturnType<typeof createStateScanner> =
+                  new Function("return (" + scannerSrc + ")")()();
                 const interactiveIdSet = new Set(interactiveIds);
                 const recordsById = new Map<
                   number,
@@ -659,7 +658,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
                   return rec;
                 }
 
-                const keyframes: { name: string; steps: { offset: string; properties: string[] }[] }[] = [];
+                const keyframes: KeyframeDef[] = [];
                 const doc = document.implementation.createHTMLDocument("");
                 const style = doc.createElement("style");
                 style.textContent = text;
@@ -670,7 +669,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
                 scanRules(
                   sheet.cssRules,
                   getRecord,
-                  (kf: { name: string; steps: { offset: string; properties: string[] }[] }) => {
+                  (kf) => {
                     if (!keyframes.some((k) => k.name === kf.name)) keyframes.push(kf);
                   },
                 );
@@ -695,13 +694,13 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
                   const existingStates = node.states ?? [];
                   for (const st of states) {
                     const existing = existingStates.find(
-                      (s: { state: string }) => s.state === st.state,
+                      (s) => s.state === st.state,
                     );
                     if (existing) {
                       for (const ch of st.changes) {
                         if (
                           !existing.changes.some(
-                            (e: { property: string }) => e.property === ch.property,
+                            (e) => e.property === ch.property,
                           )
                         ) {
                           existing.changes.push(ch);
@@ -719,7 +718,7 @@ export async function collectStyleDump(page: Page): Promise<StyleDump> {
                 for (const k of extra.keyframes) {
                   if (
                     !dump.keyframes.some(
-                      (existing: { name: string }) => existing.name === k.name,
+                      (existing) => existing.name === k.name,
                     )
                   ) {
                     dump.keyframes.push(k);
