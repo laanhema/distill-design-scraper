@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { analyzeImages, analyzeUrl, extractStructureFromCapture } from "@/lib/analyze";
+import {
+  analyzeImages,
+  analyzeUrl,
+  extractStructureFromCapture,
+  modeSchema,
+  type AnalyzeMode,
+} from "@/lib/analyze";
+import { z } from "zod";
 import { aiLaneAvailable } from "@/lib/aiLane";
 import { createCacheKey, getCache, setCache } from "@/lib/cache";
 import {
@@ -31,20 +38,22 @@ const MAX_IMAGES = 6;
 const MAX_IMAGE_PAYLOAD_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BODY_BYTES = MAX_IMAGES * MAX_IMAGE_PAYLOAD_BYTES;
 
-interface ImageEntry {
-  data: string;
-  name?: string;
-}
+const imageEntrySchema = z.object({
+  data: z.string(),
+  name: z.string().optional(),
+});
+type ImageEntry = z.infer<typeof imageEntrySchema>;
 
-interface AnalyzeBody {
-  url?: string;
+const analyzeBodySchema = z.object({
+  url: z.string().optional(),
   /** @deprecated single-image alias — mapped onto `images` below. */
-  image?: string;
-  imageName?: string;
-  images?: ImageEntry[];
-  mode?: "tokens" | "structure" | "both";
-  forceRefresh?: boolean;
-}
+  image: z.string().optional(),
+  imageName: z.string().optional(),
+  images: z.array(imageEntrySchema).optional(),
+  mode: modeSchema.default("both"),
+  forceRefresh: z.boolean().optional(),
+});
+type AnalyzeBody = z.infer<typeof analyzeBodySchema>;
 
 function stripDataUrlPrefix(image: string): string {
   // Subtype must cover multi-token MIME types — `svg+xml` (the `+`) was the
@@ -91,15 +100,25 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: AnalyzeBody;
+  let rawJson: unknown;
   try {
-    body = JSON.parse(rawBody);
+    rawJson = JSON.parse(rawBody);
   } catch {
     return NextResponse.json(
       { error: "Request body must be JSON." },
       { status: 400 },
     );
   }
+
+  const parsed = analyzeBodySchema.safeParse(rawJson);
+  if (!parsed.success) {
+    const error = parsed.error.issues
+      .map((i) => `Invalid ${i.path.length > 0 ? i.path.join(".") : "body"}: ${i.message}`)
+      .join("; ");
+    return NextResponse.json({ error }, { status: 400 });
+  }
+
+  const body: AnalyzeBody = parsed.data;
 
   const url = body.url?.trim();
   // `image` is a deprecated single-image alias for `images`; both may be
@@ -108,7 +127,7 @@ export async function POST(request: Request) {
     ...(body.image?.trim() ? [{ data: body.image.trim(), name: body.imageName }] : []),
     ...(body.images ?? []),
   ].slice(0, MAX_IMAGES);
-  const mode = body.mode || "both";
+  const mode: AnalyzeMode = body.mode;
 
   if (!url && images.length === 0) {
     return NextResponse.json(

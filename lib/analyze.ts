@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { renderUrl, type RenderResult } from "@/lib/ingest";
 import { extractPalette, extractDarkPalette } from "@/lib/extract/palette";
 import { extractTypography, applyMobileTypeSizes } from "@/lib/extract/typography";
@@ -55,6 +56,9 @@ export interface AnalyzeResult {
   report: Report;
   markdown: string;
 }
+
+export const modeSchema = z.enum(["tokens", "structure", "both"]);
+export type AnalyzeMode = z.infer<typeof modeSchema>;
 
 /** Run the measured lanes over an already-captured page. Browser-free. */
 export async function extractFromCapture(
@@ -182,7 +186,7 @@ export interface ImageInput {
  */
 export async function analyzeImages(
   images: ImageInput[],
-  mode: "tokens" | "structure" | "both" = "tokens",
+  mode: AnalyzeMode = "tokens",
 ): Promise<
   AnalyzeResult & {
     refinements: RefinementChange[];
@@ -332,7 +336,7 @@ function subsampleEvenly<T>(items: T[], maxCount: number): T[] {
 /** Full URL path: render, extract (measured), then interpret (AI, §6). */
 export async function analyzeUrl(
   url: string,
-  mode: "tokens" | "structure" | "both" = "both",
+  mode: AnalyzeMode = "both",
 ): Promise<AnalyzeResult & {
   capture: Capture;
   refinements: RefinementChange[];
