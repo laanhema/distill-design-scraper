@@ -3,37 +3,12 @@
 import { useState } from "react";
 import type { Report, StructureReport } from "@/lib/schema";
 import { emitTailwindTheme } from "@/lib/emitTailwind";
-
-interface Meta {
-  finalUrl: string;
-  title: string;
-  elapsedMs: number;
-  bannerDismissed: boolean;
-  capturedAt: string;
-  viewportShot: string;
-  /** Every source image, in submitted order (image mode only, §P6-1). */
-  viewportShots?: string[];
-  aiApplied: boolean;
-}
-
-interface Refinement {
-  hex: string;
-  from: string;
-  to: string;
-}
-
-interface AnalyzeResponse {
-  ok: boolean;
-  report?: Report;
-  markdown?: string;
-  structureReport?: StructureReport;
-  /** Set when structure was requested but couldn't be produced (image mode
-   *  without an API key, or the vision model failed) — §P6-2 step 2. */
-  structureUnavailableReason?: string;
-  meta?: Meta;
-  refinements?: Refinement[];
-  error?: string;
-}
+import {
+  MAX_IMAGES,
+  isAnalyzeResponse,
+  type AnalyzeMeta,
+  type RefinementChange,
+} from "@/lib/api";
 
 type Status = "idle" | "loading" | "done" | "error";
 type InputMode = "url" | "image";
@@ -45,8 +20,6 @@ interface SelectedImage {
   file: File;
   preview: string;
 }
-
-const MAX_IMAGES = 6;
 
 function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -80,8 +53,8 @@ export default function Home() {
   const [markdown, setMarkdown] = useState<string>("");
   const [structureReport, setStructureReport] = useState<StructureReport | null>(null);
   const [structureUnavailableReason, setStructureUnavailableReason] = useState<string | null>(null);
-  const [meta, setMeta] = useState<Meta | null>(null);
-  const [refinements, setRefinements] = useState<Refinement[]>([]);
+  const [meta, setMeta] = useState<AnalyzeMeta | null>(null);
+  const [refinements, setRefinements] = useState<RefinementChange[]>([]);
   const [tab, setTab] = useState<"preview" | "tokens" | "structure">("preview");
 
   async function handleFilesSelect(files: File[]) {
@@ -141,21 +114,35 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(bodyData),
       });
-      const data = (await res.json()) as AnalyzeResponse;
-      if (!res.ok || !data.ok || !data.report) {
-        throw new Error(data.error ?? `Request failed (${res.status}).`);
+      let raw: unknown;
+      try {
+        raw = await res.json();
+      } catch {
+        throw new Error(
+          `Analysis failed (${res.status}): server returned an unexpected non-JSON response.`,
+        );
       }
+
+      if (!isAnalyzeResponse(raw)) {
+        throw new Error(`Analysis failed (${res.status}): unexpected response structure.`);
+      }
+
+      const data = raw;
+      if (!res.ok || !data.ok) {
+        throw new Error(!data.ok ? data.error : `Request failed (${res.status}).`);
+      }
+
       setReport(data.report);
-      setMarkdown(data.markdown ?? "");
-      setStructureReport(data.structureReport ?? null);
+      setMarkdown(data.markdown);
+      setStructureReport(data.structureReport);
       // A new analysis may have no structure report — never leave the active
       // tab pointing at a pane that no longer exists (#23).
       if (!data.structureReport) {
         setTab((t) => (t === "structure" ? "preview" : t));
       }
       setStructureUnavailableReason(data.structureUnavailableReason ?? null);
-      setMeta(data.meta ?? null);
-      setRefinements(data.refinements ?? []);
+      setMeta(data.meta);
+      setRefinements(data.refinements);
       setStatus("done");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -409,8 +396,8 @@ function Preview({
   refinements,
 }: {
   report: Report;
-  meta: Meta;
-  refinements: Refinement[];
+  meta: AnalyzeMeta;
+  refinements: RefinementChange[];
 }) {
   return (
     <div className="space-y-10">
@@ -487,7 +474,7 @@ function Preview({
           <p className="mt-3 text-xs text-ink-subtle">
             AI relabelled{" "}
             {refinements
-              .map((r) => `${r.hex} ${r.from}→${r.to}`)
+              .map((r) => `${r.hex} ${r.from ? `${r.from}→` : "→"}${r.to}`)
               .join(", ")}
             .
           </p>
