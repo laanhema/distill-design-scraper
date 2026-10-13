@@ -206,7 +206,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 
 ## 9. Security & Configuration
 
-- **Authentication:** none — MVP is a local/self-hosted tool; the API route is unauthenticated by design. Anyone deploying publicly must add their own auth in front (see README "Deploying Publicly — Hardening Guide").
+- **Authentication:** none — MVP is a local/self-hosted tool; the API route is unauthenticated by design. Anyone deploying publicly must add their own auth in front (see README "Deploying publicly: hardening guide").
 - **Configuration** (all optional; sane defaults, absence never blocks measured extraction):
 
   | Env var | Purpose |

@@ -1,89 +1,84 @@
-# Distill — Design System & Structure Scraper
+# Distill: design system and structure scraper
 
-**Distill** turns any website URL or dropped-in image into a structured Markdown design system and page architecture specification. It combines headless browser extraction, deterministic CSS token mining, DOM layout analysis, and optional AI vision interpretation to produce machine-parseable YAML frontmatter paired with human-readable documentation.
+Distill turns a website URL, or a few dropped-in images, into a Markdown report of the design system and the page structure. A headless browser renders the page, deterministic code mines the CSS tokens and the DOM layout, and an optional AI vision pass adds interpretation on top. The report is YAML frontmatter that a machine can parse, followed by a body that a person can read.
 
----
+## What it extracts
 
-## Capabilities & Feature Lanes
+Distill runs two extraction tracks side by side.
 
-Distill operates via two parallel extraction tracks:
+### Track A: the token lane (design system)
 
-### 🎨 Track A: Token Lane (Design System)
-- **Palette Harvesting**: Area-weighted pixel analysis (via Sharp & Culori) across the viewport shot *and* the stitched full-page panorama, DOM color clustering, perceptual ΔE merging, OKLCH math, WCAG contrast floors, and staged role assignment (*primary*, *surface*, *text*, *border*, *muted*, semantic *success/warning/danger*).
-- **Dark-Scheme Palette** *(when present)*: A second render under `prefers-color-scheme: dark` yields `paletteDark` — emitted **only** if the backgrounds actually shift, so single-scheme sites never get a fabricated dark palette.
-- **Typography Scale**: Font families, size hierarchy, weights, line heights, and letter spacing — plus mobile heading sizes (`sizePxMobile`) measured from a real 390px-wide re-harvest.
-- **Spatial & Geometry Tokens**: Inferred spacing multiples/base units, corner radius scales, and normalized box-shadow elevation levels.
-- **Component Recipes**: Per-element-class (Button, TextLink, NavItem, Input, Card, Badge) *modal* property values, with colors resolved back to palette-role names so one outlier instance can't skew a recipe.
-- **Interaction States**: CSSOM-derived `:hover` / `:focus-visible` deltas attributed to the palette role of each node's own base color — including rules recovered from **cross-origin stylesheets** that `document.styleSheets` refuses to expose.
-- **Motion Tokens**: Declared `transition` / `animation` shorthands attributed to the same element classes, keeping only the `@keyframes` definitions actually referenced.
-- **AI Visual Interpretation** *(Optional)*: Vision model analysis producing brand identity/personality, aesthetic style tags, target audience framing, and Unsplash `imageMood` keywords, plus color-role refinements.
+- The palette comes from area-weighted pixel analysis (Sharp and Culori) of both the viewport shot and the stitched full-page panorama, together with DOM color clustering, perceptual ΔE merging, OKLCH math and WCAG contrast floors. Roles are assigned in stages: primary, surface, text, border, muted, and the semantic success, warning and danger.
+- A dark palette (`paletteDark`) comes from a second render under `prefers-color-scheme: dark`. It is emitted only if the backgrounds actually shift, so a single-scheme site never gets a made-up dark palette.
+- Typography covers font families, the size hierarchy, weights, line heights and letter spacing. Mobile heading sizes (`sizePxMobile`) are measured from a real re-harvest at 390px wide.
+- Spacing and geometry tokens are the inferred spacing base unit and its multiples, the corner radius scale, and normalized box-shadow elevation levels.
+- Component recipes are the modal property values per element class (Button, TextLink, NavItem, Input, Card, Badge), with colors resolved back to palette-role names. One outlier instance can't skew a recipe.
+- Interaction states are the `:hover` and `:focus-visible` deltas read from the CSSOM, each attributed to the palette role of the node's own base color. That includes rules recovered from cross-origin stylesheets, which `document.styleSheets` refuses to expose.
+- Motion tokens are the declared `transition` and `animation` shorthands, attributed to the same element classes. Only the `@keyframes` definitions that are actually referenced are kept.
+- AI visual interpretation is optional. A vision model describes the brand identity and personality, aesthetic style tags, the target audience and Unsplash `imageMood` keywords, and it refines the color roles.
 
-Every lane stamps a `provenance` (`measured` / `inferred` / `ai`), and any lane with no signal is **omitted from the report rather than synthesized** — measured, never faked.
+Every lane stamps a `provenance` (`measured`, `inferred` or `ai`), and a lane with no signal is left out of the report rather than synthesized. Measured, never faked.
 
-### 🏗️ Track B: Structure Lane (Layout Architecture)
-- **Staged Extraction Pipeline**: `Render` → `Harvest` → `Prune` → `Wrapper Collapse/Squash` → `Repetition Detection` → `Ontological Mapping` → `AI Semantic Refinement` → `Responsive Diff` → `Region Metrics` → `Token Link` (in `both` mode) → `Section Digest` → `Structure Emitter`.
-- **Layout Mechanics**: Detailing page layout modes (CSS Grid, Flexbox), max-width constraints, sticky headers, and responsive breakpoint rules.
-- **Page Ontology & Regions**: Classifies structural regions (Header, Hero, Navigation, Sidebar, Main Content, Footer, Cards, Grids, Forms, Controls).
-- **Modularity & Hierarchies**: Maps nested UI component trees and repeating patterns.
-- **Responsive Diff**: Re-harvests at mobile (390×844) and tablet (768×1024) viewports and records per-component layout deltas (e.g. `3col → 1col`) by aligning trees on structural position.
-- **Section Digest**: An ordered, per-band summary (`SiteHeader`, each direct child of `MainContent`, `SiteFooter`) joining band metrics, layout, contents, linked tokens, responsive behaviour, and — on the AI path — a one-line intent description per section.
-- **Token Link** *(`both` mode only)*: Joins structure components to the design report by bounds overlap, then by ΔE-nearest color / exact spacing-scale match — best-effort, never guessing a token that isn't in the report.
+### Track B: the structure lane (layout architecture)
 
-### 📦 Derived Exports
+- The pipeline runs in stages: `Render` → `Harvest` → `Prune` → `Wrapper Collapse/Squash` → `Repetition Detection` → `Ontological Mapping` → `AI Semantic Refinement` → `Responsive Diff` → `Region Metrics` → `Token Link` (in `both` mode) → `Section Digest` → `Structure Emitter`.
+- Layout mechanics are recorded: page layout modes (CSS Grid, Flexbox), max-width constraints, sticky headers and responsive breakpoint rules.
+- Structural regions are classified as Header, Hero, Navigation, Sidebar, Main Content, Footer, Cards, Grids, Forms or Controls.
+- Nested UI component trees and repeating patterns are mapped.
+- The responsive diff re-harvests at mobile (390×844) and tablet (768×1024) viewports and records layout deltas per component (for example `3col → 1col`) by aligning the trees on structural position.
+- The section digest is an ordered summary per band (`SiteHeader`, each direct child of `MainContent`, `SiteFooter`). It joins band metrics, layout, contents, linked tokens and responsive behaviour, and on the AI path it adds a one-line intent description per section.
+- The token link (`both` mode only) joins structure components to the design report by bounds overlap, then by ΔE-nearest color or an exact spacing-scale match. It is best-effort, and it never guesses a token that isn't in the report.
 
-Both are rendered from fields that already exist in the report — they add no schema surface of their own:
-- **CSS Variables**: A `:root { … }` fence closing the Markdown body.
-- **Tailwind v4 `@theme`**: A standalone stylesheet (colors, `--font-*`, `--text-*` with line-height/weight/letter-spacing, `--spacing`, `--radius-*`, `--shadow-*`, plus a `prefers-color-scheme: dark` override block when `paletteDark` exists), downloadable from the UI.
+### Derived exports
 
----
+Both exports are rendered from fields that already exist in the report, so they add no schema surface of their own.
 
-## Input Modes & Reports
+- CSS variables: a `:root { … }` fence that closes the Markdown body.
+- Tailwind v4 `@theme`: a standalone stylesheet (colors, `--font-*`, `--text-*` with line-height/weight/letter-spacing, `--spacing`, `--radius-*`, `--shadow-*`, plus a `prefers-color-scheme: dark` override block when `paletteDark` exists), downloadable from the UI.
 
-- **URL Input**: Executes a headless Chromium browser instance via Playwright to capture computed styles, screenshots, and raw DOM node trees. Supports mode selection: `tokens`, `structure`, or `both`. Cheap follow-up passes reuse the same browser session:
-  - a **full-page panorama** — contiguous viewport-tall scroll tiles (capped at 12 viewports) stitched into one seamless PNG, feeding both the palette's area-weight pass and the UI gallery;
-  - **responsive harvests** at mobile and tablet widths (DOM + heading sizes only — no screenshot, no style dump);
-  - a **dark-scheme capture** via `emulateMedia({ colorScheme: "dark" })`.
+## Input modes
 
-  All follow-up passes are best-effort: a failure logs a warning and the field is simply absent.
-- **Image Input**: Produces a measured palette + mood report from image pixel analysis and AI vision interpretation. Layout structure from an image is vision-inferred — stamped `fidelity: inferred` — and requires an API key (no DOM to walk, so no measured layout is possible). Accepts one or more images of the same site/design (up to 6); their pixel clusters are merged into a single deduplicated palette rather than producing one report per image.
+For a URL, Distill launches headless Chromium through Playwright and captures computed styles, screenshots and the raw DOM node tree. You pick a mode: `tokens`, `structure` or `both`. A few cheap follow-up passes reuse the same browser session:
 
----
+- a full-page panorama, which is contiguous viewport-tall scroll tiles (capped at 12 viewports) stitched into one seamless PNG. It feeds both the palette's area-weight pass and the UI gallery.
+- responsive harvests at mobile and tablet widths (DOM and heading sizes only, with no screenshot and no style dump)
+- a dark-scheme capture via `emulateMedia({ colorScheme: "dark" })`
 
-## Interactive UI & API
+All of the follow-up passes are best-effort. If one fails, a warning is logged and the field is absent.
 
-Distill includes a modern Next.js web application featuring:
-- **Interactive Workbench**: URL submission and drag-and-drop multi-image upload with a thumbnail strip (up to 6 images merge into a single palette). Structure from images is vision-inferred and requires an API key.
-- **Visual Swatches & Previews**: Live viewport rendering (plus the full-page panorama when one was captured) alongside visual color swatches and OKLCH/WCAG contrast indicators.
-- **Tabbed Markdown Output**: Quick tabs for Preview, Design System Tokens, and Structural Architecture. The Markdown download acts on the *active* tab and is labelled accordingly (*Download Design System .md* vs. *Download Layout Structure .md*), so it's never ambiguous which report you're taking. A separate **Download Tailwind @theme** action emits the derived Tailwind v4 stylesheet.
-- **AI Lane Status**: The meta panel reports whether the AI lane was `applied`, `skipped (no key)`, `skipped (not requested)`, or `failed`, and — when skipped without a key — shows an inline hint for configuring a key.
-- **REST Endpoint**: `POST /api/analyze` accepts JSON payloads containing `{ url, images, mode, forceRefresh }` (`images` is `{ data, name? }[]`, capped at 6; the legacy single-image `image`/`imageName` fields still work as a one-element alias, merged into `images`) and returns the formatted reports, `viewportShots`, and metadata. Oversized bodies are rejected with `413` before any work starts; a `structure`/`both` request whose structure lane fails returns `structureUnavailableReason` and is deliberately **not** cached, so a retry can succeed.
+For images, Distill produces a measured palette and mood report from pixel analysis and AI vision interpretation. Layout structure from an image is inferred by the vision model and stamped `fidelity: inferred`. It needs an API key, because there is no DOM to walk and so no measured layout is possible. You can give it up to 6 images of the same site or design. Their pixel clusters are merged into one deduplicated palette instead of producing one report per image.
 
----
+## UI and API
+
+The web app is built with Next.js.
+
+- The workbench takes a URL, or a drag-and-drop upload of several images, shown as a thumbnail strip (up to 6 images merge into a single palette). Structure from images is vision-inferred and requires an API key.
+- The result shows the live viewport render (plus the full-page panorama when one was captured) next to color swatches with OKLCH and WCAG contrast indicators.
+- The Markdown output has tabs for Preview, Design System Tokens and Structural Architecture. The Markdown download acts on the active tab and is labelled to match (Download Design System .md or Download Layout Structure .md), so it's never ambiguous which report you're taking. A separate Download Tailwind @theme action emits the derived Tailwind v4 stylesheet.
+- The meta panel reports whether the AI lane was `applied`, `skipped (no key)`, `skipped (not requested)`, or `failed`. When it was skipped for lack of a key, an inline hint shows how to configure one.
+- `POST /api/analyze` accepts a JSON payload `{ url, images, mode, forceRefresh }` and returns the formatted reports, `viewportShots` and metadata. `images` is `{ data, name? }[]`, capped at 6. The legacy single-image `image`/`imageName` fields still work as a one-element alias, merged into `images`. Oversized bodies are rejected with `413` before any work starts. A `structure` or `both` request whose structure lane fails returns `structureUnavailableReason` and is deliberately not cached, so a retry can succeed.
 
 ## Requirements
 
-- **Node.js 18+** (CI runs Node 20; developed and tested on Node 20 / 22)
-- **Chromium** (Installed automatically by Playwright during `npm install`)
-- **An AI provider key** *(Optional)*: Required for the AI lane (`identity`, `imageMood`, semantic structural refinement, and vision-inferred structure from images). Without a key, deterministic token extraction operates fully offline. Two providers are supported behind one seam:
-  - **Google Gemini** — `GEMINI_API_KEY`, model defaults to `gemini-3.5-flash`, overridable via `GEMINI_MODEL`. A free-tier key with no credit card required is available at https://aistudio.google.com/apikey.
-  - **OpenRouter** — `OPENROUTER_API_KEY`, model selectable via `OPENROUTER_MODEL` (defaults to `google/gemini-3.5-flash`).
+- Node.js 18+ (CI runs Node 20; developed and tested on Node 20 and 22)
+- Chromium, which Playwright installs automatically during `npm install`
+- An AI provider key, which is optional. The AI lane needs one (`identity`, `imageMood`, semantic structural refinement, and vision-inferred structure from images). Without a key, deterministic token extraction works fully offline. Two providers are supported behind one seam:
+  - Google Gemini: `GEMINI_API_KEY`, model defaults to `gemini-3.5-flash`, overridable via `GEMINI_MODEL`. A free-tier key that needs no credit card is available at https://aistudio.google.com/apikey.
+  - OpenRouter: `OPENROUTER_API_KEY`, model selectable via `OPENROUTER_MODEL` (defaults to `google/gemini-3.5-flash`).
 
-  If **both** keys are set, OpenRouter wins. Structured output *is* requested on both paths: OpenRouter sends a real (non-strict) `response_format: json_schema` — provider support for it varies by the routed model, and Zod is still the real shape gate on both paths either way. `thinkingLevel` (thinking-effort capping) remains Gemini-only; a lane that sends one over OpenRouter is logged once per process rather than silently ignored.
+  If both keys are set, OpenRouter wins. Structured output is requested on both paths. OpenRouter sends a real (non-strict) `response_format: json_schema`, but provider support for it varies by the routed model, and Zod is the real shape gate on both paths either way. `thinkingLevel` (thinking-effort capping) remains Gemini-only. A lane that sends one over OpenRouter is logged once per process rather than silently ignored.
 
----
+## Setup and configuration
 
-## Setup & Configuration
-
-1. **Install dependencies**:
+1. Install dependencies.
    ```bash
    npm install
    ```
-   *Note: `npm install` automatically triggers `playwright install chromium` via a postinstall hook.*
+   `npm install` also runs `playwright install chromium` through a postinstall hook.
 
-2. **Configure Environment Variables** *(Optional)*:
-   Create a `.env.local` file in the project root to enable the AI interpretation lane. Pick **one** provider:
+2. Configure environment variables (optional). Create a `.env.local` file in the project root to enable the AI interpretation lane. Pick one provider:
    ```env
-   # .env.local — option A: Google Gemini (free tier, no credit card)
+   # .env.local, option A: Google Gemini (free tier, no credit card)
    GEMINI_API_KEY=...
    GEMINI_MODEL=gemini-3.5-flash   # optional; this is the default
 
@@ -91,39 +86,17 @@ Distill includes a modern Next.js web application featuring:
    OPENROUTER_API_KEY=...
    OPENROUTER_MODEL=google/gemini-3.5-flash   # optional; this is the default
    ```
-   Restart the dev server after editing `.env.local`. With no key set, every AI lane
-   degrades gracefully: the measured report is returned untouched, structure falls back
-   to heuristic naming, and the UI's meta panel reads `skipped (no key)`.
+   Restart the dev server after editing `.env.local`. With no key set, the AI lanes step aside: the measured report is returned untouched, structure falls back to heuristic naming, and the UI's meta panel reads `skipped (no key)`.
 
-3. **SSRF guard** *(built in, no configuration required)*:
-   Before navigating to any submitted URL, Distill resolves its hostname via DNS and
-   rejects the request if the resolved address falls in a loopback, private, or
-   otherwise reserved range — `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`,
-   `169.254.0.0/16`, `0.0.0.0/8`, `100.64.0.0/10` (CGNAT), `224.0.0.0/4` (multicast),
-   `240.0.0.0/4` (reserved/broadcast) for IPv4, and `::1`, `fc00::/7`, `fe80::/10` for IPv6 —
-   including IPv4-mapped IPv6 addresses in both their dotted (`::ffff:127.0.0.1`) and
-   hex (`::ffff:7f00:1`) spellings. Validation happens
-   *after* DNS resolution, not against the literal hostname string, so a hostname
-   that resolves to a private address is blocked even if it looks public. Non-`http(s)`
-   schemes (`file://`, `ftp://`, etc.) are always rejected.
+3. SSRF guard (built in, nothing to configure). Before navigating to a submitted URL, Distill resolves its hostname via DNS and rejects the request if the resolved address falls in a loopback, private, or otherwise reserved range. For IPv4 that means `127.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `0.0.0.0/8`, `100.64.0.0/10` (CGNAT), `224.0.0.0/4` (multicast) and `240.0.0.0/4` (reserved/broadcast). For IPv6 it means `::1`, `fc00::/7` and `fe80::/10`, as well as IPv4-mapped IPv6 addresses in both their dotted (`::ffff:127.0.0.1`) and hex (`::ffff:7f00:1`) spellings. Validation happens after DNS resolution, not against the literal hostname string, so a hostname that resolves to a private address is blocked even if it looks public. Non-`http(s)` schemes (`file://`, `ftp://` and so on) are always rejected.
 
-   To explicitly permit an internal target (e.g. a staging host), set
-   `SSRF_ALLOWLIST_HOSTS` in `.env.local` to a comma-separated, case-insensitive list
-   of exact hostnames:
+   To permit an internal target such as a staging host, set `SSRF_ALLOWLIST_HOSTS` in `.env.local` to a comma-separated, case-insensitive list of exact hostnames:
    ```env
    # .env.local
    SSRF_ALLOWLIST_HOSTS=staging.example.internal,localhost
    ```
 
-4. **Rate limiting** *(built in, tunable/disable-able)*:
-   `POST /api/analyze` enforces a per-client-IP token bucket — 20 requests per minute
-   by default — guarding the expensive Chromium render / AI enrichment path. Cache hits
-   don't count against the limit, since they do no render/AI work at all; only a cache
-   miss or `forceRefresh` request consumes a token. Once a client's bucket is empty, the
-   route returns `429` with a `Retry-After` header (seconds until the next token refills).
-   The store is bounded to at most `RATE_LIMIT_MAX_BUCKETS` distinct client IDs, so a
-   high-cardinality traffic pattern (e.g. spoofed `X-Forwarded-For` headers) can't grow
-   the limiter's own memory usage without bound. Tune or disable it via `.env.local`:
+4. Rate limiting (built in; you can tune it or turn it off). `POST /api/analyze` enforces a token bucket per client IP, 20 requests per minute by default, which guards the expensive Chromium render and AI enrichment path. Cache hits don't count against the limit, because they do no render or AI work at all. Only a cache miss or a `forceRefresh` request consumes a token. Once a client's bucket is empty, the route returns `429` with a `Retry-After` header (seconds until the next token refills). The store is bounded to at most `RATE_LIMIT_MAX_BUCKETS` distinct client IDs, so a high-cardinality traffic pattern (spoofed `X-Forwarded-For` headers, say) can't grow the limiter's own memory usage without bound. Tune or disable it via `.env.local`:
    ```env
    # .env.local
    RATE_LIMIT_MAX_REQUESTS=20
@@ -132,96 +105,63 @@ Distill includes a modern Next.js web application featuring:
    RATE_LIMIT_DISABLED=true   # disable entirely, e.g. for local dev
    ```
 
----
+## Running the application
 
-## Running the Application
+### Development server
 
-### Development Server
 ```bash
 npm run dev
 ```
+
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### Production Build
+### Production build
+
 ```bash
 npm run build
 npm run start
 ```
 
-### Docker Container
-Distill includes a multi-stage Dockerfile pre-configured with Playwright browser dependencies:
+### Docker
+
+The Dockerfile is multi-stage and already has Playwright's browser dependencies in it:
+
 ```bash
 docker build -t distill .
 docker run -p 3000:3000 -e GEMINI_API_KEY="..." distill
-# …or with OpenRouter instead:
+# or with OpenRouter instead:
 docker run -p 3000:3000 -e OPENROUTER_API_KEY="..." distill
 ```
 
-### Continuous Integration
-`.github/workflows/ci.yml` runs on every push and pull request to `main`: Node 20, `npm ci`,
-`playwright install --with-deps chromium`, then `typecheck` → `lint` → `build` → `eval`. No API key is
-present in CI, so anything that only passes with a key set will fail there — which is exactly
-why `npm run eval` is fully offline and deterministic.
+### Continuous integration
 
----
+`.github/workflows/ci.yml` runs on every push and pull request to `main`: Node 20, `npm ci`, `playwright install --with-deps chromium`, then `typecheck` → `lint` → `build` → `eval`. There is no API key in CI, so anything that only passes with a key set will fail there. That is why `npm run eval` is fully offline and deterministic.
 
-## Deploying Publicly — Hardening Guide
+## Deploying publicly: hardening guide
 
 ### Threat model
 
-Distill navigates a real headless Chromium browser to arbitrary user-submitted URLs — the classic
-SSRF (server-side request forgery) surface. A malicious submission could aim that browser at the
-operator's internal network, or at a cloud metadata endpoint (`169.254.169.254` on AWS/GCP/Azure)
-that can leak instance credentials. Defending against this is layered: built-in protections first,
-network sandboxing second, and auth/limits at the edge third.
+Distill navigates a real headless Chromium browser to arbitrary URLs that users submit. That is the classic SSRF (server-side request forgery) surface. A malicious submission could aim the browser at the operator's internal network, or at a cloud metadata endpoint (`169.254.169.254` on AWS/GCP/Azure) that can leak instance credentials. The defence comes in layers: built-in protections first, network sandboxing second, and auth and limits at the edge third.
 
-### Layer 1 — built-in protections
+### Layer 1: built-in protections
 
-- **SSRF guard**: before navigating anywhere, Distill DNS-resolves the submitted hostname and
-  fails closed if the resolved address is loopback, private, or link-local — see Setup &
-  Configuration §3 above for the full range list and the `SSRF_ALLOWLIST_HOSTS` opt-out.
-- **Redirect re-validation**: the guard is re-applied to the `Location` target of every `3xx`
-  response Chromium receives during navigation. The check is *awaited* before the render is ever
-  treated as safe to use — every redirect-validation promise is collected and `Promise.allSettled`
-  is run before `renderUrl` returns or hands the page to capture, closing the *race* a
-  fire-and-forget check would have (a fast-resolving malicious hostname can no longer complete
-  navigation before the check finishes). It does **not** prevent the request to the redirect
-  target from being sent: Playwright's `page.route()` interception — which would run *before*
-  Chromium issues a request — was evaluated and found not to see server-side redirect hops at all
-  (Playwright's own docs: route handlers are "only called for the first url if the response is a
-  redirect"; confirmed as intentional by a maintainer for the identical case, not a bug we could
-  work around). So the request to a redirect target is always issued and its response received
-  before this check can act, exactly as before — what changed is that detection is now reliable
-  every time instead of racing navigation. Nor does it close the underlying TOCTOU: our check
-  resolves the hostname once via `dns.lookup`, but Chromium performs its own independent DNS
-  resolution when it actually connects — a DNS-rebinding attacker whose second answer differs from
-  the first can still cause the request to reach a private target. Network-level egress filtering
-  (Layer 2, below) is what actually stops both of those cases; treat this control as a reliable
-  fast-fail for the common case, not a hard boundary.
-- **Rate limiting**: `POST /api/analyze` enforces a per-client token bucket (`RATE_LIMIT_*` env
-  vars), returning `429` + `Retry-After` once exhausted — see Setup & Configuration §4 above.
-  Honestly: the bucket store is in-memory per process, so a horizontally-scaled deployment (N
-  instances behind a load balancer) enforces N independent limits, not one global cap. A shared
-  store (e.g. Redis) would be required to close that gap; it's not built in.
+The SSRF guard runs before any navigation. Distill DNS-resolves the submitted hostname and fails closed if the resolved address is loopback, private, or link-local. Step 3 of [Setup and configuration](#setup-and-configuration) has the full range list and the `SSRF_ALLOWLIST_HOSTS` opt-out.
 
-### Layer 2 — network-restrict the container
+Redirects get the same check. The guard is re-applied to the `Location` target of every `3xx` response that Chromium receives during navigation, and the check is awaited before the render is treated as safe to use: every redirect-validation promise is collected, and `Promise.allSettled` runs before `renderUrl` returns or hands the page to capture. That closes the race a fire-and-forget check would have, where a fast-resolving malicious hostname completes navigation before the check finishes.
 
-The built-in SSRF guard validates the submitted URL and the target of any `3xx` redirect. It does
-**not** cover everything else the browser does: once Chromium starts rendering, the page's own
-subresource requests (images, scripts, stylesheets, iframes) and JS-initiated `fetch`/`XHR` calls
-all ride the browser session without being re-checked. The cross-origin stylesheet refetch in
-`styleDump` likewise issues its own requests from the rendered page's context.
+It does not prevent the request to the redirect target from being sent. Playwright's `page.route()` interception would run before Chromium issues a request, but we evaluated it and it doesn't see server-side redirect hops at all. Playwright's own docs say route handlers are "only called for the first url if the response is a redirect", and a maintainer confirmed that as intentional for the identical case, so it isn't a bug we could work around. The request to a redirect target is therefore always issued, and its response received, before this check can act. What the awaited check buys is detection that is reliable every time instead of racing navigation.
 
-The guard is also subject to a TOCTOU / DNS-rebinding race: it resolves the hostname once via
-`dns.lookup` and validates *that* result, but Chromium performs its own, independent DNS
-resolution when it actually navigates. A rebinding DNS name can answer with a public address at
-check time and a private one (e.g. `169.254.169.254`) at navigation time, passing the guard while
-still reaching internal targets. No in-process check can close this race — network-level egress
-restriction on the container is the real mitigation, for this and for the subresource gap above.
+It doesn't close the underlying TOCTOU either. Our check resolves the hostname once via `dns.lookup`, but Chromium does its own independent DNS resolution when it actually connects, so a DNS-rebinding attacker whose second answer differs from the first can still get the request to a private target. Network-level egress filtering (Layer 2, below) is what actually stops both of those cases. Treat this control as a reliable fast-fail for the common case, not a hard boundary.
 
-Example: block the container's route to cloud metadata and RFC1918 private ranges via the
-`DOCKER-USER` iptables chain on the Docker host (consulted for all traffic leaving Docker
-networks):
+Rate limiting is the third built-in. `POST /api/analyze` enforces a per-client token bucket (the `RATE_LIMIT_*` env vars) and returns `429` with `Retry-After` once it is exhausted; see step 4 of [Setup and configuration](#setup-and-configuration). It has a real gap, though. The bucket store is in memory per process, so a horizontally scaled deployment (N instances behind a load balancer) enforces N independent limits, not one global cap. Closing that gap would take a shared store such as Redis, and that isn't built in.
+
+### Layer 2: network-restrict the container
+
+The built-in SSRF guard validates the submitted URL and the target of any `3xx` redirect. It does not cover everything else the browser does. Once Chromium starts rendering, the page's own subresource requests (images, scripts, stylesheets, iframes) and JS-initiated `fetch`/`XHR` calls all ride the browser session without being re-checked. The cross-origin stylesheet refetch in `styleDump` likewise issues its own requests from the rendered page's context.
+
+The guard is also subject to a TOCTOU / DNS-rebinding race. It resolves the hostname once via `dns.lookup` and validates that result, but Chromium performs its own, independent DNS resolution when it actually navigates. A rebinding DNS name can answer with a public address at check time and a private one (`169.254.169.254`, for instance) at navigation time, which passes the guard and still reaches internal targets. No in-process check can close this race. Network-level egress restriction on the container is the real mitigation, for this and for the subresource gap above.
+
+For example, on the Docker host you can block the container's route to cloud metadata and the RFC1918 private ranges through the `DOCKER-USER` iptables chain:
 
 ```bash
 # Block container egress to cloud metadata + private ranges (DOCKER-USER
@@ -232,55 +172,37 @@ iptables -I DOCKER-USER -d 172.16.0.0/12  -j DROP
 iptables -I DOCKER-USER -d 192.168.0.0/16 -j DROP
 ```
 
-An internal network + egress proxy, or a cloud-native egress firewall (security groups / VPC
-firewall rules), achieves the same result. Whichever mechanism you use, remember that any host
-you add to `SSRF_ALLOWLIST_HOSTS` needs a corresponding hole in the egress rules, or the guard
-will let the request through only for the network layer to drop it anyway.
+An internal network with an egress proxy, or a cloud-native egress firewall (security groups, VPC firewall rules), gets you the same result. Whichever mechanism you use, any host you add to `SSRF_ALLOWLIST_HOSTS` needs a matching hole in the egress rules. Otherwise the guard lets the request through and the network layer drops it anyway.
 
-### Layer 3 — front the API
+### Layer 3: front the API
 
-`POST /api/analyze` is unauthenticated by design (see Setup & Configuration above) — that's an
-intentional MVP scope decision, not an oversight. Before exposing it publicly, put a reverse proxy
-(nginx, Caddy, Cloudflare, etc.) in front to provide TLS and auth (basic auth, an OAuth proxy, or
-API keys). This also matters for rate limiting: the limiter trusts the first `X-Forwarded-For`
-entry (falling back to `X-Real-IP`) as the client identity, so a direct-exposed deployment lets
-any client spoof that header and dodge its own limit. Accurate per-client limits require a
-trusted reverse proxy that sets or overwrites `X-Forwarded-For` itself, rather than passing through
-whatever the client sent.
+`POST /api/analyze` is unauthenticated by design (see [Setup and configuration](#setup-and-configuration)). That was an MVP scope decision. Before exposing it publicly, put a reverse proxy (nginx, Caddy, Cloudflare or similar) in front of it to provide TLS and auth (basic auth, an OAuth proxy, or API keys).
 
----
+The proxy matters for rate limiting too. The limiter trusts the first `X-Forwarded-For` entry (falling back to `X-Real-IP`) as the client identity, so on a directly exposed deployment any client can spoof that header and dodge its own limit. Accurate per-client limits need a trusted reverse proxy that sets or overwrites `X-Forwarded-For` itself and doesn't pass through whatever the client sent.
 
-## Scripts & CLI Commands
+## Scripts
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Starts Next.js development server at `http://localhost:3000`. |
+| `npm run dev` | Starts the Next.js development server at `http://localhost:3000`. |
 | `npm run build` | Builds the Next.js production application. |
 | `npm run start` | Runs the production Next.js server. |
-| `npm run lint` | Runs ESLint (`eslint .`) code checks. |
-| `npm run typecheck` | Validates TypeScript types (`tsc --noEmit`). |
-| `npm run eval` | Evaluates extraction heuristics against corpus fixtures (`eval/corpus`) offline without a live browser. |
-| `npm run eval:ai` | Performs stability checks on AI interpretation outputs across multiple runs. |
-| `npm run eval:capture` | Captures fresh corpus screenshots and DOM/style dumps for evaluation fixtures. |
+| `npm run lint` | Runs ESLint (`eslint .`). |
+| `npm run typecheck` | Checks TypeScript types (`tsc --noEmit`). |
+| `npm run eval` | Scores the extraction heuristics against the corpus fixtures (`eval/corpus`), offline and without a live browser. |
+| `npm run eval:ai` | Checks that AI interpretation outputs are stable across multiple runs. |
+| `npm run eval:capture` | Captures fresh corpus screenshots and DOM/style dumps for the evaluation fixtures. |
 
----
+## Testing and evaluation
 
-## Testing & Evaluation
+This project has no unit test framework. `npm run eval` is the correctness gate for extraction logic. It replays the committed captures in `eval/corpus/<slug>/capture.json` against hand-authored `eval/corpus/<slug>/expected.yaml`, entirely offline: no browser, no network, no API key.
 
-There is no unit test framework in this project — `npm run eval` is the correctness gate for
-extraction logic. It replays committed captures in `eval/corpus/<slug>/capture.json` against
-hand-authored `eval/corpus/<slug>/expected.yaml`, entirely offline: no browser, no network, no
-API key. Both lanes are scored — palette (0.5) / typography (0.3) / structure (0.2) for captures
-carrying a DOM harvest, palette (0.6) / typography (0.4) for those without — and the run is gated
-twice: an absolute per-site floor, plus a rule that no site may regress below `eval/baseline.json`.
+Both lanes are scored. Captures that carry a DOM harvest are weighted palette 0.5, typography 0.3 and structure 0.2. Captures without one are weighted palette 0.6 and typography 0.4. The run is gated twice, by an absolute floor per site and by a rule that no site may regress below `eval/baseline.json`.
 
-Workflow when changing any extractor (`lib/extract/**`, `lib/emit.ts`, `lib/analyze.ts`):
+When you change an extractor (`lib/extract/**`, `lib/emit.ts`, `lib/analyze.ts`):
 
 1. Make the change.
-2. Run `npm run eval` — it must pass unchanged unless the score change is the *intended* result of your fix.
-3. Only then refresh the baseline deliberately: `UPDATE_BASELINE=1 npm run eval`.
+2. Run `npm run eval`. It must pass unchanged unless the score change is the intended result of your fix.
+3. Only then refresh the baseline, deliberately: `UPDATE_BASELINE=1 npm run eval`.
 
-New optional lanes are additive by construction: old committed fixtures simply won't populate the
-new field, and the code must treat that as "nothing observed" rather than erroring. Verify new
-extraction logic against a synthetic local fixture rather than re-capturing the corpus.
-
+New optional lanes are additive by construction. Old committed fixtures simply won't populate the new field, and the code must treat that as "nothing observed" rather than erroring. Verify new extraction logic against a synthetic local fixture instead of re-capturing the corpus.

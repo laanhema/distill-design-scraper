@@ -2,7 +2,9 @@
 
 Generated from `TODO.md` on 2026-10-04.
 Extended from `.agents/reviews/codebase-analysis-review.md` on 2026-10-13 (TODO-6 to TODO-22, one per finding).
-Last Updated: 2026-10-13
+Extended from the conversation on 2026-10-14 (TODO-23 and TODO-24, follow-ups of TODO-12 that the owner agreed to).
+Extended from the conversation on 2026-10-14 (TODO-25, a follow-up of TODO-13 that the owner agreed to).
+Last Updated: 2026-10-14
 
 ## Status
 
@@ -884,3 +886,132 @@ The set of capture artifacts is declared three times and copied field by field t
 
 - Blocked by: None
 - Blocks: None
+
+---
+
+## [TODO-23] Add a permanent two-origin check of the cross-origin stylesheet pass
+
+**GitHub**: #196
+**Status**: pending
+**Type**: Technical
+**GitHub Label**: technical
+**Priority**: Medium
+**Complexity**: Medium
+**Phase**: Backlog
+**Labels**: technical, tooling, states, extraction
+**Source**: `TODO.md:6` — "Add a permanent two-origin check of the cross-origin stylesheet pass to the verify skill: a second origin in the fixture server and a `drive.ts` scenario."
+
+### Description
+
+The second pass of `collectStyleDump` refetches cross-origin stylesheets and recovers their hover/focus states and keyframes. `npm run eval` replays frozen captures and CI runs nothing else, so no committed check executes that pass: TODO-12 was proved by a scratch script that was deleted afterwards. Add a check to the verify skill that can be rerun with one command.
+
+### Acceptance Criteria
+
+- [ ] The verify fixture server serves a stylesheet from a second origin, and a fixture page links it.
+- [ ] A `verify.sh drive` scenario analyzes that page and checks that the hover/focus states and the keyframes of the cross-origin sheet are in the report.
+- [ ] The scenario fails on a tree where the cross-origin pass is disabled, shown once before the change is merged. (inferred)
+- [ ] The scenario also covers a cross-origin sheet that never answers: the analysis completes, and that sheet is skipped. (inferred)
+- [ ] The feature map and the scenario table of the verify `SKILL.md` list the new scenario. (inferred)
+- [ ] `npm run check` passes. (inferred)
+
+### Technical Notes
+
+- The scratch script of TODO-12 is embedded verbatim in `.agents/plans/completed/todo-12-fetch-cross-origin-stylesheets-concurrently-plan.md`, under "End-to-End Verification". It checks one fetch per sheet per capture, stylesheet order, a sheet that never answers, and a sheet that stalls in its body. `.agents/reports/cross-origin-states-spike.md` describes the first two-origin fixture.
+- Files: `.claude/skills/verify/scripts/fixture-server.mjs` (one origin today), `verify.sh` (starts it at line 71, writes `FIXTURE_PORT` and `FIXTURE_URL` to `.verify/current.env`, doctor check at line 115), `drive.ts` (scenarios at lines 140-313, dispatch at lines 337-341), `features/README.md`, `SKILL.md`.
+- A second port on `127.0.0.1` is a different origin, and the app already runs with `SSRF_ALLOWLIST_HOSTS=127.0.0.1`. The refetch itself is outside the SSRF guard (README, "Layer 2 — network-restrict the container").
+- The fixture server serves `eval/fixtures/`. A new page there is not scored by eval unless `eval/corpus.ts` lists it; do not add it to the corpus, and do not refresh the committed captures.
+- The verify proof standard applies: drive the real UI or `/api/analyze`, not `collectStyleDump` directly.
+- CI does not run the verify skill, so this check stays a manual gate. Assumption: that is enough for "permanent".
+- `drive.ts` is type-checked and linted with the repo.
+
+### Dependencies
+
+- Blocked by: None
+- Blocks: None
+- Related: TODO-12 (#176)
+
+---
+
+## [TODO-24] Warn when a cross-origin stylesheet refetch times out
+
+**GitHub**: #197
+**Status**: pending
+**Type**: Enhancement
+**GitHub Label**: enhancement
+**Priority**: Medium
+**Complexity**: Small
+**Phase**: Backlog
+**Labels**: enhancement, extraction, states
+**Source**: `TODO.md:7` — "Log a `console.warn` when a cross-origin stylesheet refetch times out (not on a 404), so that a stalled host is visible in the server log."
+
+### Description
+
+`fetchCrossOriginSheet` gives each cross-origin stylesheet 5 s and turns every failure into a silent skip. A host that is slow or stalled therefore removes hover/focus states and keyframes from the report, and the server log does not say why. Log a warning for a timeout, as the other best-effort passes of `lib/ingest.ts` do for their failures.
+
+### Acceptance Criteria
+
+- [ ] A cross-origin sheet whose refetch times out produces a `console.warn` that names the sheet's URL and the timeout.
+- [ ] A sheet that answers with a status that is not ok, or with an empty body, is still skipped without a log line.
+- [ ] The warning appears once per sheet per analysis; the dark-scheme pass does not repeat it. (inferred)
+- [ ] The analysis still completes, and the report is the same as without the warning. (inferred)
+- [ ] `npm run check` passes. (inferred)
+
+### Technical Notes
+
+- `fetchCrossOriginSheet` is at `lib/extract/styleDump.ts:128-146`; its `.catch(() => null)` swallows every rejection. `CROSS_ORIGIN_SHEET_TIMEOUT_MS` is at line 114.
+- Playwright's `request.get` rejects on a timeout and resolves on a non-ok status, so the two cases already take different branches. A refused connection or a DNS failure also rejects; the warning must tell a timeout from those.
+- Assumption: other request failures (refused connection, DNS) stay silent, because the owner asked for the timeout only.
+- The promise is cached per capture in `CrossOriginSheetCache`, so a warning in the fetch itself is logged once for both passes.
+- Pattern: the `console.warn` calls of the best-effort passes at `lib/ingest.ts:160`, `:189`, `:279`, `:316`.
+- `npm run eval` does not run this path. Check it with a scratch script against a local server that never answers (`AGENTS.md`, "Manually verifying extraction changes"), or with the scenario of TODO-23 when it exists.
+
+### Dependencies
+
+- Blocked by: None
+- Blocks: None
+- Related: TODO-12 (#176), TODO-23
+
+---
+
+## [TODO-25] Remove the native Gemini provider path and run the AI lane over OpenRouter only
+
+**GitHub**: #199
+**Status**: pending
+**Type**: Technical
+**GitHub Label**: technical
+**Priority**: Medium
+**Complexity**: Medium
+**Phase**: Backlog
+**Labels**: technical, ai-lane, cleanup
+**Source**: `TODO.md:8` — "Remove the native Gemini provider path so that the AI lane runs over OpenRouter only: delete `callGeminiModel`, the `GEMINI_API_KEY` and `GEMINI_MODEL` variables, the Gemini-only `thinkingLevel` knob, and the `@google/genai` dependency, and update the tooling and the docs that name Gemini as a provider."
+
+### Description
+
+`callModel` has two provider paths, and the native Gemini one is never taken while `OPENROUTER_API_KEY` is set, which is how the owner runs the app. Keeping it costs a second path to verify (TODO-13 was blocked on it), a Gemini-only `thinkingLevel` knob that the OpenRouter path ignores with a warning, and the `@google/genai` dependency. Remove it, so that the AI lane has one provider, OpenRouter, which still routes to Gemini models.
+
+### Acceptance Criteria
+
+- [ ] `callModel` has one path, OpenRouter: `callGeminiModel`, `AI_MODEL`, and every read of `GEMINI_API_KEY` and `GEMINI_MODEL` are gone from the code, and `@google/genai` is removed from `package.json` and the lockfile.
+- [ ] `ModelCall` has no `thinkingLevel` field, the three callers do not pass one, and the once-per-process warning about it is gone.
+- [ ] The tooling and the docs name OpenRouter as the only provider: the README, `techstack.md`, `docs/architecture/orchestration.md`, the PRD, the verify skill, the skip message of `npm run eval:ai`, and the setup hint in the UI.
+- [ ] All three AI lanes still return a validated reply over OpenRouter: `npm run eval:ai` passes, and a `VERIFY_AI=1` run of the verify skill shows an applied interpretation for a URL and an inferred structure for an image.
+- [ ] `npm run check` passes.
+
+### Technical Notes
+
+- `lib/aiLane.ts`: the SDK import at line 10, the re-export of `ThinkingLevel` at 18, `AI_MODEL` at 21, `aiLaneAvailable` at 25 (reads both keys), the Gemini key check at 45-50, `thinkingLevel` in `ModelCall` at 73, the warning at 91-97, `callGeminiModel` up to line 202, and the dispatch in `callModel` at 211-216.
+- The callers that pass `thinkingLevel`: `lib/interpret.ts:151`, `lib/extract/structure/structureAI.ts:168`, `lib/extract/structureFromImage.ts:99`. The OpenRouter path already ignores it, so removing it does not change how the app runs with an OpenRouter key; the live run of the fourth criterion confirms it.
+- Messages that name the Gemini key: `lib/analyze.ts:279`, `app/page.tsx:428`, `eval/stability.ts:16` and `:93`. Comments: `lib/extract/structureFromImage.ts:16`, `lib/extract/structure/structureAI.ts:184`, `eval/run.ts:62`, `lib/extract/imageMediaType.ts:18`, and `lib/interpret.ts:36` and `:62-66` (the sentence about Gemini's documented keywords, added for TODO-13, no longer applies).
+- Tooling: `.claude/skills/verify/scripts/verify.sh:79` sets both keys empty; `.claude/skills/verify/SKILL.md:28` and `features/analyze-images.md:11` describe them.
+- Docs: `README.md:68-92` (the provider list and the `.env.local` options) and `:155` (the `docker run` example), `techstack.md:28` and `:57-58`, `docs/architecture/orchestration.md:7` and `:9`, and `.agents/PRDs/PRD.md`.
+- The default model `google/gemini-3.5-flash` at `lib/aiLane.ts:89` is an OpenRouter model id and stays.
+- Assumption (owner approved): a setup that has only `GEMINI_API_KEY` gets the same no-key behavior as a setup with no key, with no migration message.
+- The README's option A, a free Gemini key with no credit card, goes away: a person who is given the app needs an OpenRouter key. That touches the open question of TODO-3.
+- CI has no key, so nothing in `npm run check` reaches a provider; the live checks need `OPENROUTER_API_KEY`.
+- The plans, reports and reviews under `.agents/` that mention Gemini are history and are not edited.
+
+### Dependencies
+
+- Blocked by: None
+- Blocks: None
+- Related: TODO-13 (#177), TODO-3 (#158)

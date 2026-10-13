@@ -12,7 +12,7 @@ import { promises as dns } from "dns";
  * `dns.lookup` at submission time, but Chromium re-resolves independently when
  * it navigates — a rebinding DNS name can answer public here and private
  * there. That gap is out of scope for this in-process guard; the mitigation is
- * network-layer egress filtering (README "Layer 2 — network-restrict the
+ * network-layer egress filtering (README "Layer 2: network-restrict the
  * container").
  */
 
