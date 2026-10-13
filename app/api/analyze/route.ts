@@ -16,6 +16,11 @@ import {
 } from "@/lib/security/rateLimiter";
 import { UnsafeUrlError } from "@/lib/security/ssrfGuard";
 import { DegenerateImageError } from "@/lib/extract/imagePalette";
+import {
+  MAX_IMAGES,
+  type AnalyzeSuccess,
+  type AnalyzeFailure,
+} from "@/lib/api";
 
 // Playwright needs the full Node runtime + a real Chromium binary — never Edge.
 export const runtime = "nodejs";
@@ -25,7 +30,7 @@ export const maxDuration = 60;
 
 // Bound the measured-lane palette merge; the AI lane applies its own, tighter
 // cap (MAX_INTERPRET_IMAGES in lib/interpret.ts) on top of whatever's accepted here.
-const MAX_IMAGES = 6;
+// MAX_IMAGES is imported from "@/lib/api" as the shared ceiling.
 
 // Request-body ceiling, sized from what a legitimate request can carry:
 // MAX_IMAGES uploads, each base64-encoded (≈4/3 inflation), at a generous
@@ -95,7 +100,10 @@ export async function POST(request: Request) {
   const rawBody = await readBodyWithinLimit(request);
   if (rawBody === null) {
     return NextResponse.json(
-      { error: `Request body exceeds the ${MAX_REQUEST_BODY_BYTES}-byte limit.` },
+      {
+        ok: false,
+        error: `Request body exceeds the ${MAX_REQUEST_BODY_BYTES}-byte limit.`,
+      } satisfies AnalyzeFailure,
       { status: 413 },
     );
   }
@@ -105,7 +113,7 @@ export async function POST(request: Request) {
     rawJson = JSON.parse(rawBody);
   } catch {
     return NextResponse.json(
-      { error: "Request body must be JSON." },
+      { ok: false, error: "Request body must be JSON." } satisfies AnalyzeFailure,
       { status: 400 },
     );
   }
@@ -115,7 +123,10 @@ export async function POST(request: Request) {
     const error = parsed.error.issues
       .map((i) => `Invalid ${i.path.length > 0 ? i.path.join(".") : "body"}: ${i.message}`)
       .join("; ");
-    return NextResponse.json({ error }, { status: 400 });
+    return NextResponse.json(
+      { ok: false, error } satisfies AnalyzeFailure,
+      { status: 400 },
+    );
   }
 
   const body: AnalyzeBody = parsed.data;
@@ -131,7 +142,10 @@ export async function POST(request: Request) {
 
   if (!url && images.length === 0) {
     return NextResponse.json(
-      { error: "Missing 'url' or 'images' in request body." },
+      {
+        ok: false,
+        error: "Missing 'url' or 'images' in request body.",
+      } satisfies AnalyzeFailure,
       { status: 400 },
     );
   }
@@ -153,7 +167,7 @@ export async function POST(request: Request) {
   } catch (err) {
     if (err instanceof RateLimitExceededError) {
       return NextResponse.json(
-        { ok: false, error: err.message },
+        { ok: false, error: err.message } satisfies AnalyzeFailure,
         { status: 429, headers: { "Retry-After": String(err.retryAfterSeconds) } },
       );
     }
@@ -192,7 +206,7 @@ export async function POST(request: Request) {
             ? cleaned[0].raw
             : `data:image/png;base64,${cleaned[0].clean}`,
         },
-      };
+      } satisfies AnalyzeSuccess;
 
       // Don't cache a transient structure failure — replaying it verbatim for
       // the full TTL would hide a one-off vision-model flake/timeout from a
@@ -246,7 +260,7 @@ export async function POST(request: Request) {
           (shot) => `data:image/png;base64,${shot}`,
         ),
       },
-    };
+    } satisfies AnalyzeSuccess;
 
     // Don't cache a transient structure failure — replaying it verbatim for
     // the full TTL would hide a one-off flake/timeout from a resubmission
@@ -257,12 +271,18 @@ export async function POST(request: Request) {
     return NextResponse.json(responsePayload);
   } catch (err) {
     if (err instanceof UnsafeUrlError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: err.message } satisfies AnalyzeFailure,
+        { status: 400 },
+      );
     }
     // Degenerate image upload (fully transparent / unreadable): the input is
     // at fault, not the pipeline — answer with an actionable 422, not a 502.
     if (err instanceof DegenerateImageError) {
-      return NextResponse.json({ ok: false, error: err.message }, { status: 422 });
+      return NextResponse.json(
+        { ok: false, error: err.message } satisfies AnalyzeFailure,
+        { status: 422 },
+      );
     }
     // §9: surface a clear error, never fabricate results — but keep internals
     // out of it. Raw error messages from the render/AI pipeline can carry
@@ -273,7 +293,10 @@ export async function POST(request: Request) {
     // client-facing and actionable.
     console.error("Analyze pipeline error:", err);
     return NextResponse.json(
-      { ok: false, error: "Analysis failed due to an internal error. Please try again." },
+      {
+        ok: false,
+        error: "Analysis failed due to an internal error. Please try again.",
+      } satisfies AnalyzeFailure,
       { status: 502 },
     );
   }
