@@ -1,0 +1,5 @@
+# Frontend (`app/page.tsx`)
+
+One client component, no state library: URL-or-images input, then a three-tab result view (`preview` / `tokens` / `structure`, the structure tab present only when a `structureReport` came back). The markdown download acts on the *active* tab, and the Tailwind download calls `emitTailwindTheme(report)` client-side. When a response arrives without structure, the tab selection falls back to `preview` rather than pointing at a pane that no longer exists.
+
+UI colours come from the semantic tokens in `app/distill-theme.css` (imported by `app/globals.css`): use role classes like `bg-surface`, `text-ink-muted`, `border-line`, `bg-action text-on-action` — never raw palette classes (`neutral-*`, `red-*`, …) or `dark:` colour variants, since each token already switches on `prefers-color-scheme` / `<html data-theme>`. `grep -nE "neutral-|dark:" app/page.tsx app/layout.tsx` should print nothing. Which role to use where is documented in `.agents/design-system/distill-design-system/design-system/README.md`; to add a role, add `--name` to all three blocks of the theme file plus `--color-name: var(--name);` in `@theme inline`.

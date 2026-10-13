@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run lint && npm run build && npm run eval",
+    "test": "npm run check",
     "eval": "tsx eval/run.ts",
     "eval:ai": "tsx eval/stability.ts",
     "eval:capture": "tsx eval/capture.ts",
