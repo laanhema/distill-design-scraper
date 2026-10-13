@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import {
   analyzeImages,
   analyzeUrl,
-  extractStructureFromCapture,
   modeSchema,
   type AnalyzeMode,
 } from "@/lib/analyze";
@@ -225,31 +224,21 @@ export async function POST(request: Request) {
     }
 
     // Single Playwright render yields capture containing styleDump + rawHarvestNode (§4).
-    const { report, markdown, capture, meta, refinements } =
-      await analyzeUrl(url!, mode);
-
-    let structureReport = null;
-    let structureUnavailableReason: string | undefined;
-    if (mode === "structure" || mode === "both") {
-      try {
-        // `both` mode passes the already-built design report so the structure
-        // lane can cross-link components to tokens (§P3-1); `structure`-only
-        // mode has no design report to link against.
-        structureReport = await extractStructureFromCapture(
-          capture,
-          mode === "both" ? report : undefined,
-        );
-      } catch (err) {
-        console.warn("Structure extraction error:", err);
-        structureUnavailableReason = "Structure extraction failed for this page.";
-      }
-    }
+    const {
+      report,
+      markdown,
+      capture,
+      meta,
+      refinements,
+      structureReport,
+      structureUnavailableReason,
+    } = await analyzeUrl(url!, mode);
 
     const responsePayload = {
       ok: true,
       report,
       markdown,
-      structureReport,
+      structureReport: structureReport ?? null,
       structureUnavailableReason,
       refinements,
       meta: {

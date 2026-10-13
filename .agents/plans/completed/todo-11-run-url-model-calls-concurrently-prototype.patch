@@ -1,0 +1,306 @@
+diff --git a/app/api/analyze/route.ts b/app/api/analyze/route.ts
+index 9d354d0..3fe5697 100644
+--- a/app/api/analyze/route.ts
++++ b/app/api/analyze/route.ts
+@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
+ import {
+   analyzeImages,
+   analyzeUrl,
+-  extractStructureFromCapture,
+   modeSchema,
+   type AnalyzeMode,
+ } from "@/lib/analyze";
+@@ -225,31 +224,21 @@ export async function POST(request: Request) {
+     }
+ 
+     // Single Playwright render yields capture containing styleDump + rawHarvestNode (§4).
+-    const { report, markdown, capture, meta, refinements } =
+-      await analyzeUrl(url!, mode);
+-
+-    let structureReport = null;
+-    let structureUnavailableReason: string | undefined;
+-    if (mode === "structure" || mode === "both") {
+-      try {
+-        // `both` mode passes the already-built design report so the structure
+-        // lane can cross-link components to tokens (§P3-1); `structure`-only
+-        // mode has no design report to link against.
+-        structureReport = await extractStructureFromCapture(
+-          capture,
+-          mode === "both" ? report : undefined,
+-        );
+-      } catch (err) {
+-        console.warn("Structure extraction error:", err);
+-        structureUnavailableReason = "Structure extraction failed for this page.";
+-      }
+-    }
++    const {
++      report,
++      markdown,
++      capture,
++      meta,
++      refinements,
++      structureReport,
++      structureUnavailableReason,
++    } = await analyzeUrl(url!, mode);
+ 
+     const responsePayload = {
+       ok: true,
+       report,
+       markdown,
+-      structureReport,
++      structureReport: structureReport ?? null,
+       structureUnavailableReason,
+       refinements,
+       meta: {
+diff --git a/lib/analyze.ts b/lib/analyze.ts
+index 14dc367..ec74598 100644
+--- a/lib/analyze.ts
++++ b/lib/analyze.ts
+@@ -7,7 +7,11 @@ import { buildRecipes } from "@/lib/extract/recipes";
+ import { buildStates } from "@/lib/extract/states";
+ import { extractMotion } from "@/lib/extract/motion";
+ import { extractImagePalette } from "@/lib/extract/imagePalette";
+-import { extractStructure } from "@/lib/extract/structure";
++import {
++  extractStructure,
++  extractStructureThroughStage7,
++  finalizeStructure,
++} from "@/lib/extract/structure";
+ import { structureFromImages } from "@/lib/extract/structureFromImage";
+ import { buildReport, renderMarkdown } from "@/lib/emit";
+ import {
+@@ -338,6 +342,8 @@ export async function analyzeUrl(
+ ): Promise<AnalyzeResult & {
+   capture: Capture;
+   refinements: RefinementChange[];
++  structureReport?: StructureReport;
++  structureUnavailableReason?: string;
+   meta: {
+     finalUrl: string;
+     title: string;
+@@ -353,18 +359,68 @@ export async function analyzeUrl(
+   // A "structure"-only caller has no use for the identity/imageMood AI pass
+   // over the palette-mood report, so skip it rather than paying for both.
+   const wantsTokenEnrichment = mode === "tokens" || mode === "both";
+-  const enriched = await enrichWithAI(
+-    measured,
+-    [
+-      capture.viewportShot,
+-      ...subsampleEvenly(capture.scrollShots ?? [], 3),
+-    ],
+-    { requested: wantsTokenEnrichment },
+-  );
++  const wantsStructure = mode === "structure" || mode === "both";
++
++  // Run the two model calls concurrently: Track A token enrichment and
++  // Track B structure Stage 7 labelling start together via Promise.all (#175).
++  // The labelling call needs nothing from the enriched report.
++  const [enriched, preliminaryOutcome] = await Promise.all([
++    enrichWithAI(
++      measured,
++      [
++        capture.viewportShot,
++        ...subsampleEvenly(capture.scrollShots ?? [], 3),
++      ],
++      { requested: wantsTokenEnrichment },
++    ),
++    wantsStructure
++      ? capture.rawHarvestNode
++        ? extractStructureThroughStage7({
++            rawHarvestNode: capture.rawHarvestNode,
++            viewport: capture.viewport,
++            responsiveHarvests: capture.responsiveHarvests,
++          })
++            .then((preliminary) => ({ preliminary, error: undefined }))
++            .catch((err) => {
++              console.warn("Structure extraction error:", err);
++              return { preliminary: undefined, error: err as unknown };
++            })
++        : Promise.resolve({
++            preliminary: undefined,
++            error: new Error("Capture does not contain rawHarvestNode for structure extraction."),
++          })
++      : Promise.resolve({ preliminary: undefined, error: undefined }),
++  ]);
++
++  let structureReport: StructureReport | undefined;
++  let structureUnavailableReason: string | undefined;
++
++  if (wantsStructure) {
++    if (preliminaryOutcome.preliminary) {
++      try {
++        structureReport = finalizeStructure(preliminaryOutcome.preliminary, {
++          sourceUrl: capture.source.ref,
++          capturedAt: capture.source.capturedAt,
++          viewport: capture.viewport,
++          secondaryViewports: capture.responsiveHarvests?.map((h) => h.viewport),
++          dump: mode === "both" ? capture.styleDump : undefined,
++          report: mode === "both" ? enriched.report : undefined,
++        });
++      } catch (err) {
++        console.warn("Structure extraction error:", err);
++        structureUnavailableReason = "Structure extraction failed for this page.";
++      }
++    } else {
++      structureUnavailableReason = "Structure extraction failed for this page.";
++    }
++  }
++
+   return {
+     report: enriched.report,
+     markdown: enriched.markdown,
+     refinements: enriched.refinements,
++    structureReport,
++    structureUnavailableReason,
+     capture,
+     meta: {
+       finalUrl: render.finalUrl,
+diff --git a/lib/extract/structure/index.ts b/lib/extract/structure/index.ts
+index f5f1d5c..c0c2cdc 100644
+--- a/lib/extract/structure/index.ts
++++ b/lib/extract/structure/index.ts
+@@ -1,3 +1,4 @@
++
+ import { pruneAndCollapse } from "./pruner";
+ import { squashWrapperChains } from "./squash";
+ import { detectRepetition } from "./repetition";
+@@ -6,9 +7,15 @@ import { runStructureAILabeller } from "./structureAI";
+ import { emitStructureReport } from "./structureEmit";
+ import { linkComponentsToTokens } from "./tokenLink";
+ import { annotateRegionMetrics } from "./regionMetrics";
+-import { diffResponsive } from "./responsive";
++import { diffResponsive, type ResponsiveDeltas } from "./responsive";
+ import { buildSectionDigests } from "./sections";
+-import type { StructureReport, RawHarvestNode, ResponsiveHarvest } from "../structureSchema";
++import type {
++  StructureReport,
++  RawHarvestNode,
++  ResponsiveHarvest,
++  PrunedNode,
++  ComponentDef,
++} from "../structureSchema";
+ import type { StyleDump } from "../styleDump";
+ import type { Report } from "@/lib/schema";
+ 
+@@ -29,20 +36,41 @@ export interface ExtractStructureOptions {
+   responsiveHarvests?: ResponsiveHarvest[];
+ }
+ 
++export interface ExtractStructurePreliminaryOptions {
++  rawHarvestNode: RawHarvestNode;
++  viewport?: { width: number; height: number };
++  responsiveHarvests?: ResponsiveHarvest[];
++  forceHeuristicNaming?: boolean;
++}
++
++export interface PreliminaryStructure {
++  labeledRoot: PrunedNode;
++  components: Record<string, ComponentDef>;
++  naming: "heuristic" | "ai";
++  sectionDescriptions?: Record<string, string>;
++  responsive?: ResponsiveDeltas;
++}
++
++export interface FinalizeStructureOptions {
++  sourceUrl?: string;
++  capturedAt?: string;
++  viewport?: { width: number; height: number };
++  secondaryViewports?: Array<{ width: number; height: number }>;
++  dump?: StyleDump;
++  report?: Report;
++}
++
+ /**
+- * Structure Extraction Pipeline Orchestrator (§5b)
+- * Executes Stages 1-9 to produce a `layout-structure` report.
++ * Execute Stages 3 through 7b of the structure pipeline.
++ * Does not depend on the design tokens report, so this can start concurrently
++ * with token AI enrichment on the URL path (#175).
+  */
+-export async function extractStructure(
+-  options: ExtractStructureOptions,
+-): Promise<StructureReport> {
++export async function extractStructureThroughStage7(
++  options: ExtractStructurePreliminaryOptions,
++): Promise<PreliminaryStructure> {
+   const {
+     rawHarvestNode,
+-    sourceUrl = "http://localhost",
+     viewport = { width: 1440, height: 900 },
+-    capturedAt = new Date().toISOString(),
+-    dump,
+-    report,
+     responsiveHarvests,
+     forceHeuristicNaming,
+   } = options;
+@@ -82,6 +110,39 @@ export async function extractStructure(
+         })
+       : undefined;
+ 
++  return {
++    labeledRoot,
++    components,
++    naming,
++    sectionDescriptions,
++    responsive,
++  };
++}
++
++/**
++ * Execute Stages 8a through 10 of the structure pipeline.
++ * Binds the preliminary structure to the (optionally AI-enriched) design report.
++ */
++export function finalizeStructure(
++  preliminary: PreliminaryStructure,
++  options: FinalizeStructureOptions,
++): StructureReport {
++  const {
++    labeledRoot,
++    components,
++    naming,
++    sectionDescriptions,
++    responsive,
++  } = preliminary;
++  const {
++    sourceUrl = "http://localhost",
++    viewport = { width: 1440, height: 900 },
++    capturedAt = new Date().toISOString(),
++    dump,
++    report,
++    secondaryViewports,
++  } = options;
++
+   // Stage 8a: Region Metrics — replace raw region heights with vertical
+   // padding intent where the height itself isn't the point (§P7-2).
+   const metricsRoot = annotateRegionMetrics({
+@@ -109,7 +170,7 @@ export async function extractStructure(
+   return emitStructureReport({
+     sourceUrl,
+     viewport,
+-    secondaryViewports: responsiveHarvests?.map((h) => h.viewport),
++    secondaryViewports,
+     capturedAt,
+     fidelity: "measured",
+     naming,
+@@ -120,3 +181,21 @@ export async function extractStructure(
+     sections,
+   });
+ }
++
++/**
++ * Structure Extraction Pipeline Orchestrator (§5b)
++ * Executes Stages 1-10 to produce a `layout-structure` report.
++ */
++export async function extractStructure(
++  options: ExtractStructureOptions,
++): Promise<StructureReport> {
++  const preliminary = await extractStructureThroughStage7(options);
++  return finalizeStructure(preliminary, {
++    sourceUrl: options.sourceUrl,
++    viewport: options.viewport,
++    capturedAt: options.capturedAt,
++    dump: options.dump,
++    report: options.report,
++    secondaryViewports: options.responsiveHarvests?.map((h) => h.viewport),
++  });
++}

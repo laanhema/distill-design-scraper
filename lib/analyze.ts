@@ -7,7 +7,11 @@ import { buildRecipes } from "@/lib/extract/recipes";
 import { buildStates } from "@/lib/extract/states";
 import { extractMotion } from "@/lib/extract/motion";
 import { extractImagePalette } from "@/lib/extract/imagePalette";
-import { extractStructure } from "@/lib/extract/structure";
+import {
+  extractStructure,
+  extractStructureThroughStage7,
+  finalizeStructure,
+} from "@/lib/extract/structure";
 import { structureFromImages } from "@/lib/extract/structureFromImage";
 import { buildReport, renderMarkdown } from "@/lib/emit";
 import {
@@ -338,6 +342,8 @@ export async function analyzeUrl(
 ): Promise<AnalyzeResult & {
   capture: Capture;
   refinements: RefinementChange[];
+  structureReport?: StructureReport;
+  structureUnavailableReason?: string;
   meta: {
     finalUrl: string;
     title: string;
@@ -353,18 +359,71 @@ export async function analyzeUrl(
   // A "structure"-only caller has no use for the identity/imageMood AI pass
   // over the palette-mood report, so skip it rather than paying for both.
   const wantsTokenEnrichment = mode === "tokens" || mode === "both";
-  const enriched = await enrichWithAI(
-    measured,
-    [
-      capture.viewportShot,
-      ...subsampleEvenly(capture.scrollShots ?? [], 3),
-    ],
-    { requested: wantsTokenEnrichment },
-  );
+  const wantsStructure = mode === "structure" || mode === "both";
+
+  // Run the two model calls concurrently: Track A token enrichment and
+  // Track B structure Stage 7 labelling start together via Promise.all (#175).
+  // The labelling call needs nothing from the enriched report.
+  const [enriched, preliminaryOutcome] = await Promise.all([
+    enrichWithAI(
+      measured,
+      [
+        capture.viewportShot,
+        ...subsampleEvenly(capture.scrollShots ?? [], 3),
+      ],
+      { requested: wantsTokenEnrichment },
+    ),
+    wantsStructure
+      ? capture.rawHarvestNode
+        ? extractStructureThroughStage7({
+            rawHarvestNode: capture.rawHarvestNode,
+            viewport: capture.viewport,
+            responsiveHarvests: capture.responsiveHarvests,
+          })
+            .then((preliminary) => ({ preliminary }))
+            .catch((err) => {
+              console.warn("Structure extraction error:", err);
+              return { preliminary: undefined };
+            })
+        : (() => {
+            console.warn(
+              "Structure extraction error:",
+              new Error("Capture does not contain rawHarvestNode for structure extraction."),
+            );
+            return Promise.resolve({ preliminary: undefined });
+          })()
+      : Promise.resolve({ preliminary: undefined }),
+  ]);
+
+  let structureReport: StructureReport | undefined;
+  let structureUnavailableReason: string | undefined;
+
+  if (wantsStructure) {
+    if (preliminaryOutcome.preliminary) {
+      try {
+        structureReport = finalizeStructure(preliminaryOutcome.preliminary, {
+          sourceUrl: capture.source.ref,
+          capturedAt: capture.source.capturedAt,
+          viewport: capture.viewport,
+          secondaryViewports: capture.responsiveHarvests?.map((h) => h.viewport),
+          dump: mode === "both" ? capture.styleDump : undefined,
+          report: mode === "both" ? enriched.report : undefined,
+        });
+      } catch (err) {
+        console.warn("Structure extraction error:", err);
+        structureUnavailableReason = "Structure extraction failed for this page.";
+      }
+    } else {
+      structureUnavailableReason = "Structure extraction failed for this page.";
+    }
+  }
+
   return {
     report: enriched.report,
     markdown: enriched.markdown,
     refinements: enriched.refinements,
+    structureReport,
+    structureUnavailableReason,
     capture,
     meta: {
       finalUrl: render.finalUrl,
