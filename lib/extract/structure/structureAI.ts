@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { PrunedNode, ComponentDef, OntologyType } from "../structureSchema";
 import { ONTOLOGY_TYPES } from "../structureSchema";
-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } from "@/lib/aiLane";
 import { findDigestBands } from "./sections";
 
 export const aiStructureResponseSchema = z.object({
@@ -164,8 +164,6 @@ Return strict JSON matching this Zod schema:
     user: prompt,
     jsonSchema: STRUCTURE_SCHEMA,
     maxOutputTokens: 4000,
-    // Gemini-only pin — has no effect over OpenRouter (logged once by aiLane.ts).
-    thinkingLevel: ThinkingLevel.LOW,
   });
 
   const raw = parseJsonLoose(text);
@@ -181,7 +179,7 @@ export async function runStructureAILabeller(
 ): Promise<StructureAIResult> {
   // Eval-harness short-circuit (DIST-013): when the caller forces heuristic
   // naming, skip the AI path entirely — before `aiLaneAvailable()` so no AI
-  // calls are made. Keeps `npm run eval` offline even when `GEMINI_API_KEY` is
+  // calls are made. Keeps `npm run eval` offline even when `OPENROUTER_API_KEY` is
   // set, and suppresses DIST-030's `sectionDescriptions` (only produced on the
   // AI path).
   if (opts?.forceHeuristicNaming) {

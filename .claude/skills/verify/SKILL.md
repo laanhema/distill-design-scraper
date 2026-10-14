@@ -25,7 +25,7 @@ Read [`features/README.md`](features/README.md) before driving. It holds the fea
 - **Fixture server** (`scripts/fixture-server.mjs`): serves `eval/fixtures/*.html` (`clean-light`, `dark-mode`, `adversarial-shell`) on `http://127.0.0.1:<FIXTURE_PORT>/`. This is verification scaffolding. It gives the app a known page to analyze without the network.
 - **App**: `next dev -p <APP_PORT> -H 127.0.0.1` with:
   - `SSRF_ALLOWLIST_HOSTS=127.0.0.1`, so the SSRF guard allows the fixture server. Every other private address is still blocked, and the `error` scenario depends on that.
-  - `GEMINI_API_KEY=` and `OPENROUTER_API_KEY=` set empty, so the AI lane is **off**. Next never overrides an env var that is already defined, so `.env.local` keys are ignored. The run stays deterministic, free, and offline. Start with `VERIFY_AI=1 verify.sh up` to keep the `.env.local` keys. That run makes real paid model calls.
+  - `OPENROUTER_API_KEY=` set empty, so the AI lane is **off**. Next never overrides an env var that is already defined, so the `.env.local` key is ignored. The run stays deterministic, free, and offline. Start with `VERIFY_AI=1 verify.sh up` to keep the `.env.local` key. That run makes real paid model calls.
   - Any other env var you prefix on `up` reaches the app, for example `RATE_LIMIT_MAX_REQUESTS=2 verify.sh up` or `RATE_LIMIT_DISABLED=1 verify.sh up`.
 
 Both ports are random free ports unless you set `APP_PORT` or `FIXTURE_PORT`. The instance is ready when `up` prints `ready: app http://127.0.0.1:<port> …`; run `up` with its output unpiped or redirected to a file, because the detached servers keep a pipe such as `| tail` open and the call then does not return until `down`. The first request compiles the page, so allow up to about 30s. `up` polls `GET /` until the `<h1>Distill</h1>` shell renders, or fails after 120s and names the log.
@@ -50,6 +50,8 @@ It also prints `run`, `head` (`-dirty` when tracked files changed) and `ai-lane`
 ## Drive
 
 `verify.sh drive <scenario>` runs `scripts/drive.ts`, a headless Playwright Chromium driver, against the running instance. It runs Chromium with real scrollbars, so a scrollbar appearing shifts layout as it does for a user. It uses only user-visible handles: button names (`URL Input`, `Image Input`, `Analyze`, `Analyze Images`, `Design System Preview`, `Design System Markdown`, `Layout Structure Markdown`, `Download Design System .md`, `Download Layout Structure .md`, `Download Tailwind @theme`, `Remove image N`), the URL box's placeholder `https://stripe.com`, the file input `#image-input` (hidden behind the drop-zone label), thumbnail `img` alt text equal to the file name, and the error text `Couldn't analyze this input.`.
+
+Every scenario runs at 1280×900, except `tab-layout`, which resizes to each `--widths` value and screenshots all three tabs there.
 
 | Scenario | Flags (defaults) | Proves |
 | --- | --- | --- |

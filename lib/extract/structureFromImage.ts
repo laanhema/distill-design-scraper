@@ -4,7 +4,7 @@ import { ONTOLOGY_TYPES, type PrunedNode, type StructureReport } from "./structu
 import { buildFallbackComponentMap } from "./structure/structureAI";
 import { emitStructureReport } from "./structure/structureEmit";
 import { detectImageMediaType, type ImageMediaType } from "./imageMediaType";
-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } from "@/lib/aiLane";
 
 /**
  * §P6-2 step 2 — Vision structure lane. There is no DOM for an uploaded image,
@@ -13,7 +13,7 @@ import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, w
  * naming conventions so a `both`-mode-style skeleton reads the same whether it
  * came from a live render or an upload, but it is a one-shot generation (there
  * is no heuristic fallback possible without a DOM to walk), gated entirely on
- * `GEMINI_API_KEY`, and always stamped `fidelity: "inferred"`.
+ * `OPENROUTER_API_KEY`, and always stamped `fidelity: "inferred"`.
  */
 
 const MAX_TOKENS = 4096;
@@ -95,8 +95,6 @@ async function requestOnce(
     system: SYSTEM_PROMPT,
     user: "Infer the layout skeleton for this design as strict JSON.",
     maxOutputTokens: MAX_TOKENS,
-    // Gemini-only pin — has no effect over OpenRouter (logged once by aiLane.ts).
-    thinkingLevel: ThinkingLevel.MEDIUM,
   });
 
   const raw = parseJsonLoose(text);

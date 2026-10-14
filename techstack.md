@@ -15,7 +15,7 @@ single-app monolith — no separate backend service. The whole app surface is:
 Everything else is plain TypeScript modules under `lib/` (~30 files) and `eval/`.
 Path alias `@/*` → project root (`tsconfig.json`).
 
-## Runtime dependencies (9 total — deliberately thin)
+## Runtime dependencies (8 total — deliberately thin)
 
 | Package               | Version                 | Role                                                                                                                                |
 | --------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
@@ -25,7 +25,6 @@ Path alias `@/*` → project root (`tsconfig.json`).
 | `sharp`               | ^0.35.3                 | image pipeline — pixel quantization for palette area-weighting, panorama tile stitching, upload format sniffing                     |
 | `culori`              | ^4.0.2                  | perceptual color math (Lab/OKLCH, ΔE) — all color decisions go through `lib/color.ts`, never raw RGB                                |
 | `zod`                 | ^4.4.3                  | **the schema source of truth** (`lib/schema.ts`, `lib/extract/structureSchema.ts`) — also the shape gate on every AI response       |
-| `@google/genai`       | ^2.13.0                 | Gemini SDK — the only model SDK, isolated to `lib/aiLane.ts`                                                                        |
 | `js-yaml`             | ^5.2.1                  | YAML frontmatter emit/parse for the report contract                                                                                 |
 
 ## Dev / build tooling
@@ -52,12 +51,10 @@ npm run eval:ai         # stability check on AI-lane outputs across repeated run
 
 ## Notable architectural details
 
-**Two AI providers behind one seam.** Despite only `@google/genai` being a dependency,
-`lib/aiLane.ts` also speaks to OpenRouter over plain `fetch` (`/chat/completions`) — no SDK
-needed. If `OPENROUTER_API_KEY` is set it wins; otherwise the Gemini SDK path. Both default
-to a Gemini 3.5 Flash-generation model (`GEMINI_MODEL` / `OPENROUTER_MODEL` override each
-independently). No other file is allowed to import a model SDK, inline a model id, or scrape
-JSON out of a model response.
+**One AI provider, no SDK.** `lib/aiLane.ts` speaks to OpenRouter over plain `fetch`
+(`/chat/completions`), so no model SDK is a dependency. The model defaults to
+`google/gemini-3.5-flash`, and `OPENROUTER_MODEL` overrides it. No other file is allowed to
+call a model provider, inline a model id, or scrape JSON out of a model response.
 
 **Playwright is excluded from Next's bundler** (`serverExternalPackages: ["playwright",
 "playwright-core"]` in `next.config.mjs`) because it spawns a real browser binary off disk

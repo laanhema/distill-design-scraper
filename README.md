@@ -62,11 +62,9 @@ The web app is built with Next.js.
 
 - Node.js 18+ (CI runs Node 20; developed and tested on Node 20 and 22)
 - Chromium, which Playwright installs automatically during `npm install`
-- An AI provider key, which is optional. The AI lane needs one (`identity`, `imageMood`, semantic structural refinement, and vision-inferred structure from images). Without a key, deterministic token extraction works fully offline. Two providers are supported behind one seam:
-  - Google Gemini: `GEMINI_API_KEY`, model defaults to `gemini-3.5-flash`, overridable via `GEMINI_MODEL`. A free-tier key that needs no credit card is available at https://aistudio.google.com/apikey.
-  - OpenRouter: `OPENROUTER_API_KEY`, model selectable via `OPENROUTER_MODEL` (defaults to `google/gemini-3.5-flash`).
+- An OpenRouter API key, which is optional. The AI lane needs one (`identity`, `imageMood`, semantic structural refinement, and vision-inferred structure from images). Without a key, deterministic token extraction works fully offline. OpenRouter is the only provider: set `OPENROUTER_API_KEY`, and choose the model with `OPENROUTER_MODEL` (it defaults to `google/gemini-3.5-flash`).
 
-  If both keys are set, OpenRouter wins. Structured output is requested on both paths. OpenRouter sends a real (non-strict) `response_format: json_schema`, but provider support for it varies by the routed model, and Zod is the real shape gate on both paths either way. `thinkingLevel` (thinking-effort capping) remains Gemini-only. A lane that sends one over OpenRouter is logged once per process rather than silently ignored.
+  Structured output is requested with a real (non-strict) `response_format: json_schema`. Support for it varies by the routed model, and Zod is the real shape gate either way.
 
 ## Setup and configuration
 
@@ -76,13 +74,9 @@ The web app is built with Next.js.
    ```
    `npm install` also runs `playwright install chromium` through a postinstall hook.
 
-2. Configure environment variables (optional). Create a `.env.local` file in the project root to enable the AI interpretation lane. Pick one provider:
+2. Configure environment variables (optional). Create a `.env.local` file in the project root to enable the AI interpretation lane:
    ```env
-   # .env.local, option A: Google Gemini (free tier, no credit card)
-   GEMINI_API_KEY=...
-   GEMINI_MODEL=gemini-3.5-flash   # optional; this is the default
-
-   # option B: OpenRouter (takes precedence if both are set)
+   # .env.local
    OPENROUTER_API_KEY=...
    OPENROUTER_MODEL=google/gemini-3.5-flash   # optional; this is the default
    ```
@@ -128,8 +122,6 @@ The Dockerfile is multi-stage and already has Playwright's browser dependencies 
 
 ```bash
 docker build -t distill .
-docker run -p 3000:3000 -e GEMINI_API_KEY="..." distill
-# or with OpenRouter instead:
 docker run -p 3000:3000 -e OPENROUTER_API_KEY="..." distill
 ```
 

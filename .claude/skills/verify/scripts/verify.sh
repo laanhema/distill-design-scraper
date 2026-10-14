@@ -74,9 +74,9 @@ cmd_up() {
   APP_PGID=""
   write_state  # recorded before anything can fail, so `down` can always clean up
 
-  # AI lane off by default: empty keys win over .env.local (Next never overrides
-  # an env var that is already defined). VERIFY_AI=1 keeps the .env.local keys.
-  local ai_env=(GEMINI_API_KEY= OPENROUTER_API_KEY=)
+  # AI lane off by default: an empty key wins over .env.local (Next never overrides
+  # an env var that is already defined). VERIFY_AI=1 keeps the .env.local key.
+  local ai_env=(OPENROUTER_API_KEY=)
   [ "${VERIFY_AI:-}" = "1" ] && ai_env=()
   (cd "$REPO" && setsid env "${ai_env[@]}" \
       SSRF_ALLOWLIST_HOSTS=127.0.0.1 NEXT_TELEMETRY_DISABLED=1 \
