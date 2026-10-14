@@ -75,7 +75,7 @@ The subsystem write-ups are in `docs/architecture/`; "Start here by task" above 
 | Verification and test automation scripts must be strictly typechecked | `tsconfig.json` includes `".claude/skills/verify/scripts/**/*.ts"` | Types (Level 2) |
 | Do not run `npm run build` or `npm run check` while a `verify.sh` dev server is running | `prebuild` script runs `scripts/guard-build.mjs` which exits non-zero naming `verify.sh down` | Tooling / Build guard (Level 2) |
 | Request payloads to `POST /api/analyze` must be validated before access | `analyzeBodySchema.safeParse` in `app/api/analyze/route.ts` | Schema / Runtime validation (Level 2) |
-| Hand-written eval specs must not carry a key the scorer does not read | `expectedSpecSchema` (`z.strictObject`) parsed in `loadExpectedSpec` in `eval/run.ts` | Schema / Runtime validation (Level 2) |
+| Hand-written eval specs must not carry a key the spec schema does not define | `expectedSpecSchema` (`z.strictObject`) parsed in `loadExpectedSpec` in `eval/run.ts` | Schema / Runtime validation (Level 2) |
 | Measured extraction scores must not regress below committed baselines | `npm run eval` regression gate across required fixtures in CI | Eval / Test gate (Level 3) |
 | Result tab bar action buttons must not shift layout on tab switch | `scenarioTabLayout` in `.claude/skills/verify/scripts/drive.ts` | Test / Verification (Level 3) |
 | Frontmatter and Markdown body must never drift | Generated from the same report object via `buildReport` and `renderMarkdown` | Architecture (Level 1) |
