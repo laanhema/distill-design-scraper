@@ -1,12 +1,14 @@
 import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { load as yamlLoad } from "js-yaml";
+import { z } from "zod";
 import { extractFromCapture, extractStructureFromCapture, type Capture } from "@/lib/analyze";
 import { CORPUS } from "./corpus";
 import {
   scorePalette,
   scoreTypography,
   combinedScore,
+  expectedSpecSchema,
   type ExpectedSpec,
 } from "./score";
 import { scoreStructure } from "./scoreStructure";
@@ -41,13 +43,29 @@ interface SiteResult {
   notes: string[];
 }
 
+/** Reads a hand-written spec and rejects any key the schema does not know:
+ *  a misspelt key would otherwise drop that part of the spec, and the
+ *  scorers count a missing part as a full score. */
+function loadExpectedSpec(slug: string, expectedPath: string): ExpectedSpec {
+  const parsed = expectedSpecSchema.safeParse(
+    yamlLoad(readFileSync(expectedPath, "utf8")),
+  );
+  if (!parsed.success) {
+    throw new Error(
+      `eval/corpus/${slug}/expected.yaml does not match the spec schema:\n` +
+        z.prettifyError(parsed.error),
+    );
+  }
+  return parsed.data;
+}
+
 async function scoreSite(slug: string): Promise<SiteResult | null> {
   const capturePath = here(`corpus/${slug}/capture.json`);
   const expectedPath = here(`corpus/${slug}/expected.yaml`);
   if (!existsSync(capturePath) || !existsSync(expectedPath)) return null;
 
   const capture = JSON.parse(readFileSync(capturePath, "utf8")) as Capture;
-  const expected = yamlLoad(readFileSync(expectedPath, "utf8")) as ExpectedSpec;
+  const expected = loadExpectedSpec(slug, expectedPath);
 
   const { report } = await extractFromCapture(capture);
   const pal = scorePalette(report.palette, expected.palette);

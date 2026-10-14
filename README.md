@@ -187,7 +187,7 @@ The proxy matters for rate limiting too. The limiter trusts the first `X-Forward
 
 ## Testing and evaluation
 
-This project has no unit test framework. `npm run eval` is the correctness gate for extraction logic. It replays the committed captures in `eval/corpus/<slug>/capture.json` against hand-authored `eval/corpus/<slug>/expected.yaml`, entirely offline: no browser, no network, no API key.
+This project has no unit test framework. `npm run eval` is the correctness gate for extraction logic. It replays the committed captures in `eval/corpus/<slug>/capture.json` against hand-authored `eval/corpus/<slug>/expected.yaml`, entirely offline: no browser, no network, no API key. Each `expected.yaml` is checked against a strict schema when it is loaded, so a misspelt key fails the run and names the key.
 
 Both lanes are scored. Captures that carry a DOM harvest are weighted palette 0.5, typography 0.3 and structure 0.2. Captures without one are weighted palette 0.6 and typography 0.4. The run is gated twice, by an absolute floor per site and by a rule that no site may regress below `eval/baseline.json`.
 

@@ -1,6 +1,7 @@
 import { deltaE, parseColor } from "@/lib/color";
+import { z } from "zod";
 import type { Palette, Typography } from "@/lib/schema";
-import type { ExpectedStructureSpec } from "./scoreStructure";
+import { expectedStructureSpecSchema } from "./scoreStructure";
 
 /**
  * Scoring for the measured lane (§10). Objective diffs against `expected.yaml`:
@@ -11,18 +12,24 @@ import type { ExpectedStructureSpec } from "./scoreStructure";
 /** ΔE under which an extracted color counts as matching the expected one. */
 const PALETTE_DELTA_E_TOLERANCE = 12;
 
-export interface ExpectedSpec {
-  name: string;
-  bucket: string;
-  palette: Record<string, string>;
-  typography?: {
-    bodyFamily?: string;
-    scale?: Record<string, number>;
-  };
+/** The shape of a hand-written `expected.yaml`. Strict at every level: an
+ *  unknown (e.g. misspelt) key would otherwise drop that part of the spec,
+ *  and the scorers count a missing part as a full score. */
+export const expectedSpecSchema = z.strictObject({
+  name: z.string(),
+  bucket: z.string(),
+  palette: z.record(z.string(), z.string()),
+  typography: z
+    .strictObject({
+      bodyFamily: z.string().optional(),
+      scale: z.record(z.string(), z.number()).optional(),
+    })
+    .optional(),
   /** Optional structure spec (DIST-013) — when present, the structure lane
    *  is scored against it and folded into `combinedScore`. */
-  structure?: ExpectedStructureSpec;
-}
+  structure: expectedStructureSpecSchema.optional(),
+});
+export type ExpectedSpec = z.infer<typeof expectedSpecSchema>;
 
 export interface PaletteScore {
   matched: number;
