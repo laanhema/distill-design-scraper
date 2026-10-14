@@ -11,6 +11,12 @@ import { CORPUS } from "./corpus";
  * (Jaccard overlap above a threshold). This catches temperature/prompt
  * regressions without a "correct" answer.
  *
+ * The interpretation lane pins its temperature (`TEMPERATURE` in
+ * `lib/interpret.ts`): at the provider default, the routed model words the same
+ * reading differently on each run, and these floors failed on 4 of 4 runs that
+ * way (#200). A failure here therefore first means the pin was lost or the
+ * routed model ignores it.
+ *
  * Unlike `npm run eval` (the measured lane, offline and CI-gated), this makes
  * live model calls, so it is opt-in: `npm run eval:ai`, and a no-op without an
  * OPENROUTER_API_KEY. Screenshots come from the committed captures, so only the

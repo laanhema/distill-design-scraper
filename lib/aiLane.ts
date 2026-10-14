@@ -30,6 +30,12 @@ export interface ModelCall {
    * thinking prelude plus the answer.
    */
   maxOutputTokens: number;
+  /**
+   * Sent as `temperature` when set; omitted, the routed model samples at its
+   * own default (1.0 on Gemini). A lane whose answer should not change between
+   * identical requests sets it low.
+   */
+  temperature?: number;
 }
 
 /**
@@ -101,6 +107,7 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
       model,
       messages,
       max_tokens: opts.maxOutputTokens,
+      ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
       ...(opts.jsonSchema
         ? {
             response_format: {

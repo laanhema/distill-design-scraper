@@ -37,6 +37,12 @@ import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } 
 // own for the prelude and the answer.
 const MAX_TOKENS = 2048;
 
+// The same page should read the same way on every run: the identity is a
+// reading of measured tokens and one screenshot, not a creative draft. Without
+// it, the routed model samples at its default (1.0 on Gemini) and words the
+// same reading differently each time, which `npm run eval:ai` measures (#200).
+const TEMPERATURE = 0;
+
 const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
 You are given a screenshot of a rendered page (or an image) plus a JSON summary of
 tokens that have ALREADY been measured deterministically from it. Your job is to
@@ -143,6 +149,7 @@ async function requestOnce(
     user: `${promptNote}\n\n${summary}\n\nInterpret its identity and imageMood, and refine any mislabelled color roles.`,
     jsonSchema: OUTPUT_SCHEMA,
     maxOutputTokens: MAX_TOKENS,
+    temperature: TEMPERATURE,
   });
 
   // The `json_schema` response format should return clean JSON, but a fence
