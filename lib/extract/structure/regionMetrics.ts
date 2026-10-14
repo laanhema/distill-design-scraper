@@ -5,15 +5,12 @@ import { findMatchingStyleNode } from "./styleMatch";
 import { nearestScaleValue } from "./scaleMatch";
 
 /**
- * Stage 8a — Region Metrics (§P7-2)
- * `ontology.ts` stamps every region with its raw measured height (`h Npx`) —
- * useful as an intermediate value, but the wrong thing to hand a rebuilder:
- * it encodes "content was this tall at 1440×900", not the designer's intent.
- * This pass replaces that raw tag with the transferable signal:
- *   - viewport-pinned bands (sticky/fixed headers) — height IS the intent, kept as-is.
- *   - near-viewport-height heroes — height IS the intent (fills the fold), noted as `h 100vh`.
- *   - ordinary content regions — replaced with vertical padding (`padY Npx`),
- *     the rhythm a rebuild can actually reuse at any content length.
+ * Stage 8a — Region Metrics. A raw region height (`h Npx`) encodes "content
+ * was this tall at 1440×900", not the designer's intent, so it is replaced:
+ *   - sticky/fixed bands keep their height (the height IS the intent);
+ *   - near-viewport-height heroes become `h 100vh`;
+ *   - ordinary regions become vertical padding (`padY Npx`), which a rebuild
+ *     can reuse at any content length.
  */
 
 /** Height-to-viewport ratio above which a region reads as "fills the fold". */
@@ -67,9 +64,8 @@ export function annotateRegionMetrics(input: RegionMetricsInput): PrunedNode {
   return walk(input.root);
 }
 
-/** Vertical padding for a content region: measured directly when the style
- *  dump is available, else recovered from bounds math against its own
- *  (already-processed) children. */
+/** Measured directly when the style dump is available, else recovered from
+ *  bounds math against the region's children. */
 function derivePadY(
   node: PrunedNode,
   children: PrunedNode[],
@@ -91,11 +87,9 @@ function derivePadY(
   if (top === null || bottom === null) {
     if (children.length === 0) return null;
     const last = children[children.length - 1];
-    // A repetition-collapsed representative (`detectRepetition`) keeps only
-    // its first occurrence's own bounds — not the full repeated group's span
-    // — so treating it as "the last child" wildly overstates the bottom gap
-    // when the group wraps onto further rows (e.g. a 2-row card grid). Bounds
-    // math is unreliable here; bail rather than emit a fabricated number.
+    // A repetition-collapsed representative keeps only its first occurrence's
+    // bounds, which overstates the bottom gap of a wrapping group (e.g. a
+    // 2-row card grid); bail rather than emit a fabricated number.
     if (last.instanceCount && last.instanceCount > 1) return null;
     const first = children[0];
     if (!first.bounds || !last.bounds) return null;

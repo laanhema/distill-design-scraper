@@ -1,26 +1,20 @@
 import { z } from "zod";
 
 /**
- * The report schema (§3). Frontmatter is the contract; the human body is
- * derived from it, so they never drift. Zod guards both the measured tokens we
- * assemble here and, later (§6), the AI's JSON before it is merged in.
- *
- * Phase 1 populates the measured lanes (palette, typography) and stamps every
- * section with `provenance`. The interpretive lanes (identity, imageMood) and
- * spacing/radius/elevation arrive in later phases; they are optional here so a
- * Phase-1 report validates without faking what it hasn't measured.
+ * The report schema. Frontmatter is the contract; the human body is derived
+ * from it, so they never drift. Zod guards both the measured tokens and the
+ * AI's JSON before it is merged in. Every section carries a `provenance`, and
+ * a lane that was not measured is optional and omitted, never faked.
  */
 
 export const PROVENANCE = ["measured", "inferred", "ai"] as const;
 export const provenanceSchema = z.enum(PROVENANCE);
 
 /**
- * The 7 core roles the AI lane may permute in a role refinement (§6). The
- * roles below in `COLOR_ROLES`' tail are evidence-gated — `on-primary` is
- * derived, and the semantic states need measured usage context — so the model
- * is never allowed to assign them. `OUTPUT_SCHEMA` in `lib/interpret.ts` is
- * generated from `aiResponseSchema`, whose `role` is `refinableColorRoleSchema`,
- * so the enum sent to the model is this const and the two can't drift.
+ * The roles the AI lane may permute in a role refinement. The rest of
+ * `COLOR_ROLES` are evidence-gated (`on-primary` is derived, the semantic
+ * states need measured usage context), so the model never assigns them. The
+ * enum sent to the model is generated from this const, so the two can't drift.
  */
 export const REFINABLE_COLOR_ROLES = [
   "background",
@@ -36,9 +30,9 @@ export const COLOR_ROLES = [
   ...REFINABLE_COLOR_ROLES,
   // Not a scored role (never assigned by `assignRoles`) — the modal text
   // color measured on primary-background elements, added directly as a
-  // swatch (§P8-2). Kept in the same enum so it validates as a normal Swatch.
+  // swatch. Kept in the same enum so it validates as a normal Swatch.
   "on-primary",
-  // Semantic states (§P5-1): assigned only on strong evidence (hue band +
+  // Semantic states: assigned only on strong evidence (hue band +
   // usage context — an alert/status role or an aria-invalid element), never
   // synthesized from `primary`. Absent when no such evidence exists.
   "success",
@@ -54,13 +48,13 @@ export const swatchSchema = z.object({
   hex: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   role: colorRoleSchema.optional(),
   usage: z.string().optional(),
-  /** Share of painted screenshot pixels credited to this color (§5). */
+  /** Share of painted screenshot pixels credited to this color. */
   areaWeight: z.number().min(0).max(1),
   /** True when the color was recovered from pixels but missing from the DOM
    *  reads (a gradient/image color CSS couldn't see). */
   imageSourced: z.boolean().optional(),
   /** Set only when this swatch wasn't actually measured — e.g. `on-primary`
-   *  picked by contrast because no real button text was observed (§P8-2).
+   *  picked by contrast because no real button text was observed.
    *  Omitted (implicitly "measured") for every ordinary role swatch. */
   provenance: z.enum(["measured", "inferred"]).optional(),
 });
@@ -104,7 +98,7 @@ export type TypeToken = (typeof TYPE_TOKENS)[number];
 export const typeScaleStepSchema = z.object({
   token: z.enum(TYPE_TOKENS),
   sizePx: z.number(),
-  /** Computed size at the 390px responsive harvest (§P5-2 item 4), only
+  /** Computed size at the 390px responsive harvest, only
    *  present when it differs enough from `sizePx` to be a real responsive
    *  choice rather than rounding noise. */
   sizePxMobile: z.number().optional(),
@@ -150,14 +144,10 @@ export const elevationSchema = z.object({
 export type Elevation = z.infer<typeof elevationSchema>;
 
 /**
- * Component recipes (§P8-1): the base look of the handful of element classes
- * a rebuild needs verbatim, aggregated as the modal observed value per class
- * from the style dump. `bg`/`text`/`border` are palette-role names when the
+ * Component recipes. `bg`/`text`/`border` are palette-role names when the
  * measured color matches a swatch (nearest ΔE), else the raw hex — never a
- * fabricated role. `variant` is the bg-role-derived cluster label (e.g.
- * `primary`, `transparent`), present only when an element class kept more
- * than one variant cluster — a single-variant class has nothing to
- * distinguish, so the field is omitted rather than stamped redundantly.
+ * fabricated role. `variant` (e.g. `primary`, `transparent`) is present only
+ * when an element class kept more than one variant cluster.
  */
 export const RECIPE_ELEMENTS = ["Button", "TextLink", "Input", "Card", "NavItem", "Badge"] as const;
 export type RecipeElement = (typeof RECIPE_ELEMENTS)[number];
@@ -183,12 +173,9 @@ export const recipesSchema = z.object({
 export type Recipes = z.infer<typeof recipesSchema>;
 
 /**
- * Interactive states (§P5-1): declared `:hover`/`:focus-visible` deltas read
- * straight from the CSSOM (never computed/interpolated), attributed to the
- * palette role of the element's own base color. `target` is a `ColorRole`
- * rather than a free string on purpose — an entry only exists when the base
- * color actually matched a real swatch, so this lane can never point at a
- * role that isn't in the palette.
+ * Interactive states: declared `:hover`/`:focus-visible` deltas read straight
+ * from the CSSOM. `target` is a `ColorRole`, not a free string, on purpose: an
+ * entry only exists when the base color matched a real swatch.
  */
 export const STATE_KINDS = ["hover", "focus"] as const;
 export type StateKind = (typeof STATE_KINDS)[number];
@@ -213,7 +200,6 @@ export const statesSchema = z.object({
 });
 export type States = z.infer<typeof statesSchema>;
 
-/** Motion / transition tokens (§P6): declared CSS transitions & animations. */
 export const MOTION_KINDS = ["transition", "animation"] as const;
 export type MotionKind = (typeof MOTION_KINDS)[number];
 
@@ -247,7 +233,7 @@ export const motionSchema = z.object({
 });
 export type Motion = z.infer<typeof motionSchema>;
 
-// ── Interpretive lanes (§6, AI). Stamped `provenance: ai`; optional so a
+// ── Interpretive lanes. Stamped `provenance: ai`; optional so a
 // measured-only report (or an API-key-less run) validates without faking them.
 
 export const identitySchema = z.object({
@@ -270,13 +256,13 @@ export const reportSchema = z.object({
   source: z.object({
     type: z.enum(["url", "image"]),
     ref: z.string(),
-    /** Every source name, only present for a multi-image analysis (§P6-1) —
+    /** Every source name, only present for a multi-image analysis —
      *  `ref` stays a single human-readable summary for existing consumers. */
     refs: z.array(z.string()).optional(),
     capturedAt: z.string(),
   }),
   palette: paletteSchema,
-  /** A second palette from a `prefers-color-scheme: dark` render (§P8-3),
+  /** A second palette from a `prefers-color-scheme: dark` render,
    *  only present when the background actually shifted — a single-scheme
    *  site never gets a fabricated second palette. */
   paletteDark: paletteSchema.optional(),
@@ -288,7 +274,7 @@ export const reportSchema = z.object({
   recipes: recipesSchema.optional(),
   states: statesSchema.optional(),
   motion: motionSchema.optional(),
-  // Optional interpretive lanes (§6); present once the AI lane has run.
+  // Optional interpretive lanes; present once the AI lane has run.
   identity: identitySchema.optional(),
   imageMood: imageMoodSchema.optional(),
 });
@@ -298,12 +284,9 @@ export * from "@/lib/extract/structureSchema";
 
 
 /**
- * The AI's raw JSON contract (§6). This guards the *model output* before it is
- * merged into the report — provenance is stamped by us, never trusted from the
- * model, so it isn't part of this shape. `roleRefinements` is Stage E (§5): the
- * model may relabel an existing hex's role, never introduce or alter a hex.
- * `lib/interpret.ts` also generates the JSON Schema it sends to the provider
- * from this schema (#177), so a bound stated here is stated to the model too.
+ * The AI's raw JSON contract, checked before the output is merged. Provenance
+ * is stamped by us, never trusted from the model, so it isn't part of this
+ * shape. A bound stated here is also sent to the provider (`OUTPUT_SCHEMA`).
  */
 export const aiResponseSchema = z.object({
   identity: z.object({
@@ -319,7 +302,7 @@ export const aiResponseSchema = z.object({
     .array(
       z.object({
         hex: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-        // Only the 7 core roles are AI-refinable — see REFINABLE_COLOR_ROLES.
+        // Only the core roles are AI-refinable — see REFINABLE_COLOR_ROLES.
         role: refinableColorRoleSchema,
       }),
     )

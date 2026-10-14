@@ -9,10 +9,6 @@ function shadowMagnitude(raw: string): number {
   return matches.reduce((sum, m) => sum + Math.abs(parseFloat(m)), 0);
 }
 
-/**
- * Phase 4: Spacing, Radius, and Elevation deterministic extraction (§5).
- */
-
 export interface ExtractedTokens {
   spacing?: Spacing;
   radius?: Radius;
@@ -43,7 +39,6 @@ function extractSpacing(dump: StyleDump): Spacing | undefined {
     }
   }
 
-  // Find candidate base unit (4 or 8)
   let div8Count = 0;
   let div4Count = 0;
 
@@ -54,10 +49,8 @@ function extractSpacing(dump: StyleDump): Spacing | undefined {
 
   const baseUnitPx = div8Count >= div4Count && div8Count > 0 ? 8 : 4;
 
-  // Snap each observed value onto the nearest multiple of the base unit
-  // (within ±1px); anything else is noise (stray margins, etc.) and dropped.
-  // Frequencies of values snapping to the same multiple are summed, so the
-  // ranking below reflects real usage of that rhythm step, not raw magnitude.
+  // Values within ±1px of a base-unit multiple snap onto it (their counts sum);
+  // anything else is noise and dropped.
   const snapped = new Map<number, number>();
   for (const [val, freq] of counts.entries()) {
     const nearestMultiple = Math.round(val / baseUnitPx) * baseUnitPx;
@@ -95,7 +88,6 @@ function extractRadius(dump: StyleDump): Radius | undefined {
     const raw = node.layout.borderRadius.trim();
     if (!raw || raw === "0px" || raw === "0") continue;
 
-    // Normalize pill/circle radiuses
     let normalized = raw;
     if (raw === "50%" || raw.includes("999") || raw.includes("9999")) {
       normalized = "9999px";
@@ -118,7 +110,6 @@ function extractRadius(dump: StyleDump): Radius | undefined {
     counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
   }
 
-  // Sort radiuses: numeric values ascending, then 9999px at the end
   const sortedScale = Array.from(counts.keys()).sort((a, b) => {
     if (a === "9999px") return 1;
     if (b === "9999px") return -1;

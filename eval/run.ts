@@ -14,15 +14,10 @@ import {
 import { scoreStructure } from "./scoreStructure";
 
 /**
- * Eval runner (§10). Replays each committed capture offline, runs the measured
- * extraction lane, diffs against `expected.yaml`, and prints per-site +
- * aggregate scores. Wired into CI as a regression gate over the extractor:
- *
- *   • every scored site must clear an absolute floor, and
- *   • no site's combined score may drop below the committed baseline.
- *
- * Refresh the baseline deliberately after an intended improvement:
- *   UPDATE_BASELINE=1 npm run eval
+ * Eval runner: replays each committed capture offline against
+ * `expected.yaml`. Every site must clear an absolute floor, and no site's
+ * combined score may drop below the committed baseline. Refresh the baseline
+ * only after an intended improvement: UPDATE_BASELINE=1 npm run eval
  */
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
@@ -75,9 +70,8 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
   let structureMisses: string[] = [];
   if (capture.rawHarvestNode) {
     try {
-      // Force the heuristic Stage 7 fallback (DIST-013) so the eval path
-      // never makes AI calls — keeps `npm run eval`
-      // offline and deterministic even when `OPENROUTER_API_KEY` is set.
+      // Force the heuristic Stage 7 fallback so `npm run eval` stays offline
+      // and deterministic even when `OPENROUTER_API_KEY` is set.
       const structReport = await extractStructureFromCapture(
         capture,
         undefined,
@@ -87,11 +81,9 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
       structureScore = structResult.combined;
       structureMisses = structResult.misses;
     } catch (err) {
-      // A structure-extraction/scoring failure is a real regression —
-      // force `structureScore = 0` so `combinedScore` drops by 0.2
-      // (well past REGRESSION_EPS) instead of silently falling back to
-      // the old palette-only weighting (which would yield 1.0 on these
-      // perfect-palette/perfect-type fixtures and keep the gate green).
+      // A structure-lane crash is a real regression: `structureScore = 0`
+      // drops `combinedScore` by 0.2 (well past REGRESSION_EPS), where the
+      // palette+type-only weighting would keep these fixtures at 1.0.
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`  ⚠ structure lane error for ${slug}: ${msg}`);
       structureScore = 0;
@@ -161,7 +153,6 @@ async function main() {
     process.exit(1);
   }
 
-  // Per-site table.
   console.log("\nDistill eval — measured lane (§10)\n");
   for (const r of results) {
     const typ = r.scaleAccuracy === null ? "  —  " : fmtPct(r.scaleAccuracy);

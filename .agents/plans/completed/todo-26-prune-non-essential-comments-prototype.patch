@@ -1,0 +1,331 @@
+diff --git a/lib/ingest.ts b/lib/ingest.ts
+index 15645ab..c75162f 100644
+--- a/lib/ingest.ts
++++ b/lib/ingest.ts
+@@ -10,45 +10,28 @@ import type { RawHarvestNode, ResponsiveHarvest } from "@/lib/extract/structureS
+ import { assertSafeUrl } from "@/lib/security/ssrfGuard";
+ 
+ /**
+- * Phase 0 ingestion: render a URL in headless Chromium and capture screenshots.
+- *
+- * This module is intentionally the single seam through which a live page enters
+- * the pipeline. Later phases (§5 extraction) will read `getComputedStyle` off
+- * the same rendered `Page` before it is torn down — so the shape here is built
+- * to grow: navigate → settle → dismiss banners → capture, then hand back both
+- * pixels (screenshots) and, eventually, a DOM style dump from one render.
++ * The single seam through which a live page enters the pipeline: every
++ * screenshot, the style dump and the DOM harvests come off one render.
+  */
+ 
+ export interface CaptureArtifacts {
+   /** Above-the-fold screenshot, PNG bytes as base64. */
+   viewportShot: string;
+-  /** Per-node computed-style dump read off the same render (§5 extraction). */
+   styleDump: StyleDump;
+-  /** DOM harvest tree for layout-structure extraction (Track B). */
+   rawHarvestNode?: RawHarvestNode;
+-  /** Secondary-viewport DOM harvests off the same session (§P5-2). */
+   responsiveHarvests?: ResponsiveHarvest[];
+-  /** Dark-color-scheme render off the same session (§P8-3) — whether it's
+-   *  actually a *different* scheme (vs. a single-scheme site) is decided in
+-   *  the extraction lane, not here. */
++  /** Whether this is actually a *different* scheme (vs. a single-scheme site)
++   *  is decided in the extraction lane, not here. */
+   darkCapture?: { viewportShot: string; styleDump: StyleDump };
+-  /** Additional screenshots scrolled toward the bottom of the page, same
+-   *  session, top-to-bottom order — the complete gapless viewport-tall tile
+-   *  set (one per viewport-height step, plus a possibly shorter final crop)
+-   *  used by the AI lane for full-page coverage. Omitted when the page fits
+-   *  in one viewport (nothing more to see). */
++  /** The gapless viewport-tall tiles below the first, top to bottom (the last
++   *  may be a shorter crop), for the AI lane's full-page coverage. Omitted
++   *  when the page fits in one viewport. */
+   scrollShots?: string[];
+-  /** Single seamless full-page screenshot stitched from gapless viewport
+-   *  tiles captured toward the bottom, same session — feeds the area-weight
+-   *  pixel pass and the frontend gallery. Deliberately NOT Playwright's
+-   *  native `page.screenshot({ fullPage: true })`: that internally
+-   *  scroll-and-stitches too, but is known to duplicate `position: fixed`/
+-   *  sticky elements at tile boundaries on tall pages — this manual
+-   *  tile-and-composite path avoids that. (An earlier revision of this file
+-   *  also captured the native `fullPage` shot as a literal fallback; it was
+-   *  removed because nothing ever read it — see DIST-051 — but the
+-   *  duplication problem it would have reintroduced is still real, so don't
+-   *  bring it back as a "simplification.") Omitted when the page fits in one
++  /** Full-page screenshot stitched from the viewport tiles, for the
++   *  area-weight pixel pass and the frontend gallery. Deliberately not
++   *  Playwright's `page.screenshot({ fullPage: true })`, which duplicates
++   *  `position: fixed`/sticky elements at tile boundaries on tall pages; don't
++   *  switch to it as a simplification. Omitted when the page fits in one
+    *  viewport, or on capture failure. */
+   panoramaShot?: string;
+ }
+@@ -56,18 +39,13 @@ export interface CaptureArtifacts {
+ export interface RenderResult extends CaptureArtifacts {
+   /** URL after any redirects. */
+   finalUrl: string;
+-  /** Document title of the rendered page. */
+   title: string;
+-  /** Viewport used for the capture. */
+   viewport: { width: number; height: number };
+-  /** How long the render took, ms. */
+   elapsedMs: number;
+-  /** Whether a consent/cookie banner was clicked away. */
+   bannerDismissed: boolean;
+ }
+ 
+ export interface RenderOptions {
+-  /** Hard ceiling on navigation, ms. Default 30s. */
+   navTimeoutMs?: number;
+   viewport?: { width: number; height: number };
+ }
+@@ -75,12 +53,11 @@ export interface RenderOptions {
+ const DEFAULT_VIEWPORT = { width: 1440, height: 900 };
+ const DEFAULT_NAV_TIMEOUT = 30_000;
+ 
+-// A realistic desktop UA reduces (never eliminates) headless blocking. §12 risk.
++// A realistic desktop UA reduces (never eliminates) headless blocking.
+ const USER_AGENT =
+   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+   "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+ 
+-/** Common "accept cookies" affordances, matched case-insensitively by text. */
+ const CONSENT_BUTTON_PATTERNS = [
+   /^accept all$/i,
+   /^accept cookies$/i,
+@@ -94,9 +71,9 @@ const CONSENT_BUTTON_PATTERNS = [
+ ];
+ 
+ /**
+- * Best-effort consent-banner dismissal. Returns true if something was clicked.
+- * Deliberately conservative: one quick pass, short timeouts, never throws —
+- * a page that has no banner (or a stubborn one) must not fail the whole render.
++ * Returns true if something was clicked. One quick pass with short timeouts
++ * that never throws: a page with no banner (or a stubborn one) must not fail
++ * the whole render.
+  */
+ async function dismissConsentBanner(page: Page): Promise<boolean> {
+   for (const pattern of CONSENT_BUTTON_PATTERNS) {
+@@ -104,25 +81,19 @@ async function dismissConsentBanner(page: Page): Promise<boolean> {
+       const button = page.getByRole("button", { name: pattern }).first();
+       if (await button.isVisible({ timeout: 500 })) {
+         await button.click({ timeout: 1500 });
+-        // Let any dismissal animation settle before we screenshot.
+         await page.waitForTimeout(400);
+         return true;
+       }
+-    } catch {
+-      // Not present / not clickable — try the next pattern.
+-    }
++    } catch {}
+   }
+   return false;
+ }
+ 
+-/** Secondary viewports for the responsive diff (§P5-2) — mobile (390×844) and
+- *  tablet (768×1024), captured narrowest-first. */
+ const RESPONSIVE_VIEWPORTS: Array<{ width: number; height: number }> = [
+   { width: 390, height: 844 },
+   { width: 768, height: 1024 },
+ ];
+ 
+-/** Computed h1/h2 font sizes at the current viewport (§P5-2 item 4). */
+ async function measureHeadingSizesPx(page: Page): Promise<Record<string, number>> {
+   return page.evaluate(() => {
+     const sizes: Record<string, number> = {};
+@@ -137,12 +108,9 @@ async function measureHeadingSizesPx(page: Page): Promise<Record<string, number>
+ }
+ 
+ /**
+- * Cheap second (and third) pass in the same session: resize, let media
+- * queries settle, harvest — never a screenshot or style dump, since the
+- * responsive diff only needs measured layout, not repainted pixels. Restores
+- * the original viewport before returning so every later capture step still
+- * sees the primary render. Best-effort per viewport: one failing resize
+- * shouldn't drop the others.
++ * Harvest only, never a screenshot or style dump: the responsive diff needs
++ * measured layout, not pixels. Restores the primary viewport, which every
++ * later capture step relies on.
+  */
+ async function captureResponsiveHarvests(
+   page: Page,
+@@ -166,14 +134,8 @@ async function captureResponsiveHarvests(
+ }
+ 
+ /**
+- * Dark-color-scheme pass off the same session (§P8-3) — same cheap pattern as
+- * the responsive harvest, but a screenshot + style dump instead of a DOM
+- * harvest, since the palette lane needs pixels and computed colors, not
+- * layout. Whether the result is actually a *different* scheme (vs. a
+- * single-scheme site that ignores `prefers-color-scheme`) is a call for the
+- * extraction lane, not this capture step. `sheetCache` is the capture's one
+- * cross-origin stylesheet cache: this dump re-parses the CSS text that the
+- * light dump already fetched instead of downloading each sheet again.
++ * `sheetCache` is the capture's one cross-origin stylesheet cache: this dump
++ * re-parses the CSS text that the light dump already fetched.
+  */
+ async function captureDarkScheme(
+   page: Page,
+@@ -193,23 +155,12 @@ async function captureDarkScheme(
+   }
+ }
+ 
+-/** Safety cap on how far down we tile-capture, expressed as a multiple of
+- *  viewport height — guards against pathological infinite-scroll pages
+- *  blowing up capture time / stitched-image memory. ~12 viewports covers
+- *  virtually all marketing/landing/product pages. */
++/** Cap on the tile capture, in viewport heights: bounds capture time and
++ *  stitched-image memory on infinite-scroll pages. */
+ const MAX_PANORAMA_VIEWPORTS = 12;
+ 
+ /**
+- * Full-page panorama pass, same session: walks the page in contiguous,
+- * non-overlapping viewport-tall tiles from just past the top down to the true
+- * bottom (capped at MAX_PANORAMA_VIEWPORTS), then stitches every tile
+- * (including the already-captured top-of-page shot) into one seamless PNG via
+- * sharp. Returns the discrete tiles (`scrollShots`, kept at full resolution
+- * for the AI lane) and the stitched composite (`panoramaShot`, used for pixel
+- * area-weighting + the frontend gallery). Short pages that fit in one
+- * viewport yield neither — nothing more to see, nothing to stitch, matching
+- * the "omit, don't fabricate" convention used elsewhere in this file.
+- * Best-effort: a failure logs and returns whatever was captured so far;
++ * Best-effort: a failure logs and returns the tiles captured so far, and the
+  * scroll position is always restored.
+  */
+ async function captureFullPageTiles(
+@@ -257,9 +208,6 @@ async function captureFullPageTiles(
+       scrollShots.push(croppedBuf.toString("base64"));
+     }
+ 
+-    // tileBuffers is strictly top-to-bottom: tile at array index i starts at
+-    // i * viewport.height px from the top for every tile, including the
+-    // (possibly shorter) cropped final tile — no special-casing needed here.
+     const panoramaBuf = await sharp({
+       create: {
+         width: viewport.width,
+@@ -285,11 +233,8 @@ async function captureFullPageTiles(
+ }
+ 
+ /**
+- * Everything after navigation: dismiss banners, nudge lazy content, capture
+- * the viewport screenshot, and read the computed-style dump off the *same*
+- * settled render (§9). Factored out so the eval harness can drive it against
+- * local fixture pages without going through the http(s)-only `renderUrl`
+- * front door.
++ * Everything after navigation. Separate from `renderUrl` so the eval harness
++ * can drive it against local fixture pages without the SSRF guard.
+  */
+ export async function capturePage(
+   page: Page,
+@@ -297,8 +242,7 @@ export async function capturePage(
+   const primaryViewport = page.viewportSize() ?? DEFAULT_VIEWPORT;
+   const bannerDismissed = await dismissConsentBanner(page);
+ 
+-  // Nudge lazy/scroll-triggered content, then return to the top for the
+-  // above-the-fold shot.
++  // Nudge lazy/scroll-triggered content into loading.
+   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+   await page.waitForTimeout(500);
+   await page.evaluate(() => window.scrollTo(0, 0));
+@@ -354,57 +298,27 @@ export async function renderUrl(
+       viewport,
+       userAgent: USER_AGENT,
+       deviceScaleFactor: 1,
+-      // Explicit, not left to the OS/CI default (§P8-3) — the dark-scheme
+-      // pass needs a known "light" baseline to actually be a second sample.
++      // Explicit, not the OS/CI default: the dark-scheme pass needs a known
++      // light baseline to be a second sample.
+       colorScheme: "light",
+     });
+     const page = await context.newPage();
+ 
+-    // Redirect-target guard, awaited (not fire-and-forget): a naive
+-    // `page.on("response", async (response) => { ... })` listener races
+-    // `page.goto()` resolving, because Playwright does not await `on()`
+-    // handlers — a fast-answering malicious hostname could complete
+-    // navigation before the async `assertSafeUrl` check finished. We close
+-    // that race by pushing every redirect-validation promise into
+-    // `pendingRedirectValidations` and explicitly `Promise.allSettled`-ing
+-    // all of them before ever treating the navigation as safe to capture —
+-    // every redirect hop's response necessarily arrives (and so its listener
+-    // fires) before `domcontentloaded` for the final destination, so this
+-    // wait is guaranteed to cover every validation this navigation will ever
+-    // trigger.
+-    //
+-    // `page.route()` interception — Playwright's own preferred, awaited
+-    // mechanism for validating a request *before* it's sent — was evaluated
+-    // here and rejected: Playwright's documentation states plainly that "the
+-    // handler will only be called for the first url if the response is a
+-    // redirect" (playwright-core `Page.route()` docs), confirmed as
+-    // "working as designed" by a maintainer for the identical case on
+-    // `context.route()` (microsoft/playwright#34994). A server-side redirect
+-    // hop during `page.goto()` is Chromium's own browser-process-level
+-    // auto-follow, which Playwright's CDP-based route() interception cannot
+-    // see at all — so it could not have validated a redirect target before
+-    // Chromium issued that request, and would have silently done nothing for
+-    // the exact case this guard exists for. (A route()-based variant was
+-    // prototyped and empirically confirmed to fire once for the initial URL
+-    // and never again for the redirect hop, even though navigation completed
+-    // via that hop.)
++    // Redirect-target guard. Playwright does not await `on()` handlers, so a
++    // fast redirect could finish navigating before `assertSafeUrl` resolves:
++    // every validation is collected and `Promise.allSettled` before the render
++    // counts as safe. Each hop's response arrives before `domcontentloaded`,
++    // so that wait covers every validation the navigation triggers.
+     //
+-    // Consequence: the request to a redirect target is always issued, and
+-    // its response is received, before this check can act — same as before
+-    // this fix, and the same as it would be under a route()-based mechanism
+-    // too, since that mechanism cannot observe the request at all. What
+-    // this fix changes is reliability of *detection*: we now always finish
+-    // validating before deciding the render is safe to use, instead of
+-    // racing that decision against navigation resolving. `page.close()`
+-    // inside the handler is a best-effort early-abort — it makes an
+-    // in-flight `page.goto()` reject sooner and limits how long a malicious
+-    // page's JS gets to run, not a guarantee the request was never sent.
++    // `page.route()` cannot replace this: it fires only for the first URL of a
++    // redirect chain (Playwright docs; microsoft/playwright#34994), since
++    // Chromium follows server-side redirects itself. So the redirect target's
++    // request is always sent before this check acts; `page.close()` only
++    // aborts early and limits how long the page's JS runs.
+     //
+-    // Chromium's own independent DNS resolution at connect time (vs. our
+-    // validation-time `dns.lookup`) remains a residual TOCTOU/DNS-rebinding
+-    // gap, unrelated to the race and equally out of scope here — network-
+-    // level egress filtering (README "Layer 2") is the load-bearing boundary
+-    // for both this gap and that one.
++    // Chromium re-resolves DNS at connect time, so DNS rebinding remains a
++    // residual gap; network egress filtering (README "Layer 2") is the real
++    // boundary for it.
+     let redirectSsrfError: Error | null = null;
+     const pendingRedirectValidations: Promise<void>[] = [];
+     page.on("response", (response) => {
+@@ -426,8 +340,7 @@ export async function renderUrl(
+       }
+     });
+ 
+-    // `domcontentloaded` is the reliable gate; `networkidle` is best-effort on
+-    // top of it because chatty/analytics-heavy sites may never fully idle.
++    // `networkidle` is best-effort: chatty/analytics-heavy sites never idle.
+     try {
+       await page.goto(url, { waitUntil: "domcontentloaded", timeout: navTimeout });
+     } catch (err) {
+@@ -443,9 +356,7 @@ export async function renderUrl(
+     }
+     try {
+       await page.waitForLoadState("networkidle", { timeout: 8_000 });
+-    } catch {
+-      // Never idled — proceed with whatever has painted so far.
+-    }
++    } catch {}
+ 
+     const { bannerDismissed, ...artifacts } = await capturePage(page);
+ 
+@@ -461,7 +372,6 @@ export async function renderUrl(
+     await context.close();
+     return result;
+   } finally {
+-    // Always release the browser, even on nav timeout / crash.
+     if (browser) await browser.close();
+   }
+ }

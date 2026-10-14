@@ -3,38 +3,27 @@ import type { ResponsiveDeltas } from "./responsive";
 import { bandPart, structuralPart } from "./annotationSegments";
 
 /**
- * Stage 9 — Section Digest (#34 / DIST-028)
- * Ordered, measured per-band summary of the page: `SiteHeader`, each direct
- * child of `MainContent` (a collapsed repeated group like `SectionCard ×7`
- * stays **one** entry carrying `instances: 7`), `SiteFooter`. Every field is
- * joined from an already-measured upstream artifact — Stage 8a region metrics
- * (`band`), the typed tree's flex/grid annotations (`layout`), a counted
- * subtree walk (`contents`), Stage 8b token hints and Stage 7b responsive
- * deltas (joined by component names in the subtree). An absent input yields
- * an omitted field, never a guess; a page with no identifiable main region
- * yields no digest at all.
+ * Stage 9 — Section Digest: an ordered, measured per-band summary of the page.
+ * A collapsed repeated group like `SectionCard ×7` stays **one** entry. Every
+ * field is joined from an already-measured upstream artifact; an absent input
+ * yields an omitted field, never a guess.
  */
 
 const HEADING_TAGS = ["h1", "h2", "h3", "h4"];
 
 export interface BuildSectionDigestsInput {
-  /** Metrics-annotated (Stage 8a) labeled root. */
   root: PrunedNode;
   /** Stage 8b token hints — only present in `both` mode. */
   tokenHints?: Map<string, string>;
   /** Stage 7b responsive deltas — only present when secondary-viewport
    *  harvests ran and produced real deltas. */
   responsive?: ResponsiveDeltas;
-  /** Stage 7 AI one-line intent descriptions keyed by band node id
-   *  (#36 / DIST-030) — only present when `naming: "ai"`. */
   descriptions?: Record<string, string>;
 }
 
-/** Band identity keys off measured landmark/tag first — the final
- *  `componentName` may come from the AI pass and is only a fallback.
+/** Keys off measured landmark/tag, not the (possibly AI) `componentName`.
  *  Header/footer are searched outside `exclude` (the main subtree): a
- *  section-level `<header>`/`<footer>` inside an article or section is
- *  content, not a page band. */
+ *  `<header>` inside an article is content, not a page band. */
 function findBand(
   root: PrunedNode,
   kind: "header" | "main" | "footer",
@@ -69,9 +58,8 @@ function findBand(
   return found;
 }
 
-/** First multi-child flex/grid annotation found descending into the section
- *  (the band node itself counts — after squashing, its own annotation may be
- *  the real content grid). */
+/** The band node itself counts: after squashing, its own annotation may be
+ *  the real content grid. */
 function findContentLayout(band: PrunedNode): string | undefined {
   const own = structuralPart(band.layoutAnnotation);
   if (own && band.children.length > 1) return own;
@@ -86,10 +74,8 @@ function plural(n: number, singular: string, pluralForm?: string): string {
   return `${n} ${n === 1 ? singular : (pluralForm ?? `${singular}s`)}`;
 }
 
-/** Counted subtree summary: headings, paragraphs, CTA rows, images, and
- *  nested repeated groups. Counts come from the (representative) subtree as
- *  measured — a collapsed group's multiplicity reads as its `×N` entry, never
- *  as extrapolated counts. */
+/** Counts come from the (representative) subtree as measured: a collapsed
+ *  group reads as its `×N` entry, never as extrapolated counts. */
 function summarizeContents(band: PrunedNode): string | undefined {
   let headings = 0;
   let paragraphs = 0;
@@ -126,8 +112,6 @@ function summarizeContents(band: PrunedNode): string | undefined {
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
-/** Unique component names in the subtree, in document order — the join key
- *  for both the token-hint and responsive-delta lookups. */
 function subtreeComponentNames(band: PrunedNode): string[] {
   const names: string[] = [];
   const seen = new Set<string>();
@@ -151,9 +135,7 @@ function joinTokenHints(names: string[], tokenHints: Map<string, string>): strin
   return parts.length > 0 ? parts.join(" · ") : undefined;
 }
 
-/** Narrowest-first, same wording as `buildResponsiveSectionText` in
- *  structureEmit.ts (numeric string keys sort ascending in plain-object
- *  iteration regardless of insertion order). */
+/** Narrowest-first, same wording as `buildResponsiveSectionText`. */
 function joinResponsiveDeltas(names: string[], responsive: ResponsiveDeltas): string | undefined {
   const parts: string[] = [];
   for (const name of names) {
@@ -166,12 +148,10 @@ function joinResponsiveDeltas(names: string[], responsive: ResponsiveDeltas): st
 }
 
 /**
- * The digest's band list: `SiteHeader`, each direct child of `MainContent`,
- * `SiteFooter` — empty when the page has no identifiable main region (band
- * identity would be a guess; the whole lane omits rather than fabricates).
- * Single source used by BOTH Stage 9 (`buildSectionDigests`) and the Stage 7
- * AI prompt (#36 / DIST-030), so the prompt's digest list and the emitted
- * digest can never disagree about which nodes are sections.
+ * `SiteHeader`, each direct child of `MainContent`, `SiteFooter` — empty when
+ * the page has no identifiable main region (band identity would be a guess).
+ * Single source for BOTH Stage 9 and the Stage 7 AI prompt, so the two can
+ * never disagree about which nodes are sections.
  */
 export function findDigestBands(root: PrunedNode): PrunedNode[] {
   const main = findBand(root, "main");
@@ -229,9 +209,6 @@ export function buildSectionDigests(
   return digests;
 }
 
-/** Plain-text rendering of the digest list for `StructureReport.sectionsText`
- *  (#34). Body placement in the markdown document is DIST-029 — this is only
- *  the formatted artifact, derived from the same digest objects. */
 export function formatSectionDigests(digests: SectionDigest[]): string {
   return digests
     .map((d) => {

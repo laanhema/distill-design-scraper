@@ -13,21 +13,17 @@ import { ROLE_USAGE } from "@/lib/extract/palette";
 import type { Color } from "culori";
 
 /**
- * Phase 3 — Image input measured palette extraction (§5, §8).
- * Extracts a measured palette directly from an image file/buffer via Sharp pixel
- * sampling and perceptual color clustering in Lab/OKLCH.
+ * Image input measured palette extraction: Sharp pixel sampling and perceptual
+ * color clustering in Lab/OKLCH.
  */
 
 const SAMPLE_SIZE = 320;
 const MERGE_DELTA_E = 2.5;
 
 /**
- * Thrown when no color clusters could be extracted from any supplied image —
- * every image was either unreadable (sharp couldn't decode it) or carried no
- * opaque pixels (e.g. a fully transparent PNG). The provenance contract
- * ("measured, never faked") forbids inventing swatches for that case, and the
- * report schema requires a palette, so the honest outcome is a typed error
- * the API route can map to a clean 4xx (issue #22).
+ * Thrown when no image yielded a color cluster (unreadable, or no opaque
+ * pixels). "Measured, never faked" forbids inventing swatches and the schema
+ * requires a palette, so the route maps this to a clean 4xx.
  */
 export class DegenerateImageError extends Error {}
 
@@ -38,13 +34,11 @@ interface ImageColorCluster {
   areaWeight: number;
 }
 
-/** One image's clusters and the number of pixels they were counted from. */
 interface QuantizedImage {
   clusters: ImageColorCluster[];
   pixelCount: number;
 }
 
-/** Merge a color observation into a cluster list, by perceptual ΔE (§5 Stage B). */
 function mergeInto(clusters: ImageColorCluster[], color: Color, hexStr: string, count: number) {
   for (const cluster of clusters) {
     if (deltaE(cluster.color, color) <= MERGE_DELTA_E) {
@@ -56,22 +50,11 @@ function mergeInto(clusters: ImageColorCluster[], color: Color, hexStr: string, 
 }
 
 /**
- * Quantize one image's pixels into perceptual color clusters (raw counts, not
- * yet area-weighted).
- *
- * Two bounded stages (issue #21): a per-pixel ΔE merge against a growing
- * cluster list is O(pixels × clusters), and a noise/gradient image where
- * nothing merges at ΔE ≤ 2.5 makes that unbounded. Instead:
- *
- *  1. Histogram pass — integer-only 4-bit-per-channel RGB bucketing (same
- *     scheme as `palette.ts`'s `farBuckets`), capped at 4096 buckets by
- *     construction; no color math inside the pixel loop.
- *  2. Merge pass — ΔE-merge the bucket *centroids* (count-weighted mean color
- *     per bucket), largest bucket first so dominant colors seed the clusters.
- *
- * Worst case is now 4096 centroids through the ΔE merge, regardless of image
- * content. Cluster counts still sum to the number of opaque pixels, which
- * `extractImagePalette`'s area-weighting relies on.
+ * Two bounded stages, because a per-pixel ΔE merge against a growing cluster
+ * list is O(pixels × clusters), unbounded on a noise/gradient image: an
+ * integer-only histogram (≤ 4096 buckets, no color math in the pixel loop),
+ * then a ΔE merge of the bucket centroids, largest first. Cluster counts still
+ * sum to the opaque pixel count, which the area weighting relies on.
  */
 async function quantizeImage(buffer: Buffer): Promise<QuantizedImage> {
   const { data, info } = await sharp(buffer)
@@ -94,7 +77,6 @@ async function quantizeImage(buffer: Buffer): Promise<QuantizedImage> {
     const b = data[i + 2];
     const a = data[i + 3];
 
-    // Ignore transparent or near-transparent pixels
     if (a < 180) continue;
 
     const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
@@ -134,11 +116,8 @@ export async function extractImagePalette(
     typeof img === "string" ? Buffer.from(img, "base64") : img,
   );
 
-  // Quantize each image independently, then merge across images by ΔE so a
-  // color that recurs across screenshots is counted once, not once per image.
-  // A single unreadable image (sharp can't decode it) is skipped with a
-  // warning rather than failing the whole upload — the remaining images still
-  // contribute their clusters (issue #22).
+  // A color that recurs across images merges into one cluster. An unreadable
+  // image is skipped with a warning rather than failing the whole upload.
   const perImage = await Promise.all(
     buffers.map((buffer) =>
       quantizeImage(buffer).catch((err): QuantizedImage => {
@@ -154,26 +133,21 @@ export async function extractImagePalette(
     }
   }
 
-  // Zero clusters across every image (all transparent and/or unreadable):
-  // there is nothing measured to report, and fabricating swatches would
-  // violate the provenance contract — fail honestly instead.
+  // Nothing measured: fail honestly rather than fabricate swatches.
   if (clusters.length === 0) {
     throw new DegenerateImageError(
       "No colors could be extracted from the supplied image(s) — they may be fully transparent or not valid images.",
     );
   }
 
-  // Calculate area weights across the combined pixel pool
   const totalPixelCount = perImage.reduce((acc, p) => acc + p.pixelCount, 0);
   const validPixels = clusters.reduce((acc, c) => acc + c.count, 0) || totalPixelCount;
   for (const c of clusters) {
     c.areaWeight = c.count / validPixels;
   }
 
-  // Sort clusters by area weight descending
   clusters.sort((a, b) => b.areaWeight - a.areaWeight);
 
-  // Step 2: Assign roles to top clusters
   const swatches: Swatch[] = [];
   const assignedHexes = new Set<string>();
 
@@ -269,9 +243,8 @@ export async function extractImagePalette(
   // Any role not assigned above (muted, border, on-primary, success, warning,
   // danger) is omitted outright: pixel clusters carry no usage evidence for
   // those roles, and "measured, never faked" forbids filling them from
-  // arbitrary leftovers (§P5-1 — assigned only on strong evidence).
+  // arbitrary leftovers.
 
-  // Compute contrast pairs
   const contrast: ContrastPair[] = [];
   const textSwatch = swatches.find((s) => s.role === "text");
   const primarySwatch = swatches.find((s) => s.role === "primary");

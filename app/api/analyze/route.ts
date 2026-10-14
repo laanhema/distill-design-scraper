@@ -27,18 +27,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Bound the measured-lane palette merge; the AI lane applies its own, tighter
-// cap (MAX_INTERPRET_IMAGES in lib/interpret.ts) on top of whatever's accepted here.
-// MAX_IMAGES is imported from "@/lib/api" as the shared ceiling.
+// MAX_IMAGES (`@/lib/api`) bounds the measured-lane palette merge; the AI lane
+// applies its own, tighter cap (MAX_INTERPRET_IMAGES in lib/interpret.ts) on top
+// of whatever's accepted here.
 
-// Request-body ceiling, sized from what a legitimate request can carry:
-// MAX_IMAGES uploads, each base64-encoded (≈4/3 inflation), at a generous
-// per-image wire ceiling. 8 MiB of encoded payload per image ≈ 6 MiB of raw
-// image — far above any real design screenshot — and absorbs the JSON
-// envelope (url/mode/names) riding along. Anything larger gets a 413 before
-// JSON.parse / base64 decode, so attacker-sized buffers never reach sharp,
-// the palette pipeline, or Playwright. App Router route handlers don't apply
-// the legacy `bodyParser` size config, so this is enforced explicitly.
+// Request-body ceiling: MAX_IMAGES base64 uploads (≈4/3 inflation) at 8 MiB
+// each (≈6 MiB raw, far above any real screenshot), which also absorbs the
+// JSON envelope. Anything larger gets a 413 before JSON.parse / base64 decode,
+// so attacker-sized buffers never reach sharp, the palette pipeline, or
+// Playwright. App Router route handlers don't apply the legacy `bodyParser`
+// size config, so this is enforced explicitly.
 const MAX_IMAGE_PAYLOAD_BYTES = 8 * 1024 * 1024;
 const MAX_REQUEST_BODY_BYTES = MAX_IMAGES * MAX_IMAGE_PAYLOAD_BYTES;
 
@@ -60,17 +58,14 @@ const analyzeBodySchema = z.object({
 type AnalyzeBody = z.infer<typeof analyzeBodySchema>;
 
 function stripDataUrlPrefix(image: string): string {
-  // Subtype must cover multi-token MIME types — `svg+xml` (the `+`) was the
-  // original gap, and dots/dashes appear in e.g. `vnd.microsoft.icon`.
+  // Subtype must cover multi-token MIME types: `svg+xml`, and dots/dashes in
+  // e.g. `vnd.microsoft.icon`.
   return image.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "");
 }
 
-/** Reads the request body, enforcing MAX_REQUEST_BODY_BYTES. Returns null
- *  when the limit is exceeded — either declared up front via Content-Length,
- *  or observed while streaming (chunked bodies carry no Content-Length, so
- *  the header alone can't be trusted to exist or be honest). On breach the
- *  stream is cancelled rather than drained, so the rest of an oversized body
- *  is never buffered. */
+/** Returns null past MAX_REQUEST_BODY_BYTES, declared via Content-Length or
+ *  observed while streaming (a chunked body has no Content-Length, and the
+ *  header can lie). On breach the stream is cancelled, never drained. */
 async function readBodyWithinLimit(request: Request): Promise<string | null> {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > MAX_REQUEST_BODY_BYTES) {
@@ -192,22 +187,17 @@ export async function POST(request: Request) {
         structureUnavailableReason,
         refinements,
         // No `viewportShots` here: the uploads are not sent back to the client
-        // that sent them, nor held in the cache for the TTL (#179).
+        // that sent them, nor held in the cache for the TTL.
         meta: {
           ...meta,
           capturedAt: report.source.capturedAt,
         },
       } satisfies AnalyzeSuccess;
 
-      // Don't cache a transient structure failure — replaying it verbatim for
-      // the full TTL would hide a one-off vision-model flake/timeout from a
-      // resubmission seconds later (§ code review finding #3). A missing AI
-      // key is different: it's a persistent condition (nothing about a retry
-      // fixes it without a config change), so it's safe — and cheap — to
-      // cache. `aiLaneAvailable()` is the same check `analyzeImages` used to
-      // choose the wording; re-running it here (env vars are static for the
-      // life of the process) is enough to tell the two reasons apart without
-      // adding a second field to the response just to carry this bit (DIST-050).
+      // Don't cache a transient structure failure: replaying it for the full
+      // TTL would hide a one-off vision-model flake from a resubmission. A
+      // missing AI key is persistent, so that failure is safe to cache; env
+      // vars are static, so re-running `aiLaneAvailable()` tells the two apart.
       const structureFailureIsTransient = Boolean(structureUnavailableReason) && aiLaneAvailable();
       if (!structureFailureIsTransient) {
         setCache(cacheKey, responsePayload);
@@ -215,7 +205,6 @@ export async function POST(request: Request) {
       return NextResponse.json(responsePayload);
     }
 
-    // Single Playwright render yields capture containing styleDump + rawHarvestNode (§4).
     const {
       report,
       markdown,
@@ -242,9 +231,7 @@ export async function POST(request: Request) {
       },
     } satisfies AnalyzeSuccess;
 
-    // Don't cache a transient structure failure — replaying it verbatim for
-    // the full TTL would hide a one-off flake/timeout from a resubmission
-    // seconds later (mirrors the image path, § code review finding #3).
+    // Don't cache a transient structure failure (see the image path above).
     if (!structureUnavailableReason) {
       setCache(cacheKey, responsePayload);
     }
@@ -264,12 +251,11 @@ export async function POST(request: Request) {
         { status: 422 },
       );
     }
-    // §9: surface a clear error, never fabricate results — but keep internals
-    // out of it. Raw error messages from the render/AI pipeline can carry
-    // internal details (Playwright/Chromium errors, file paths, upstream API
-    // responses), so the full error goes to server logs only and the client
-    // gets a fixed generic message (issue #27 / review S6). The typed
-    // branches above stay verbatim: those messages are deliberately
+    // Surface a clear error, never fabricate results, but keep internals out
+    // of it: raw render/AI pipeline errors can carry Playwright/Chromium
+    // details, file paths and upstream API responses, so the full error goes
+    // to server logs only and the client gets a fixed generic message. The
+    // typed branches above stay verbatim: those messages are deliberately
     // client-facing and actionable.
     console.error("Analyze pipeline error:", err);
     return NextResponse.json(

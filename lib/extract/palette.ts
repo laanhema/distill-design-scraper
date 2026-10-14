@@ -22,16 +22,16 @@ import type {
 import { COLOR_ROLES } from "@/lib/schema";
 
 /**
- * Palette extraction — the staged, channel-aware, score-based pipeline (§5).
+ * Palette extraction — the staged, channel-aware, score-based pipeline.
  *
  *   A  Collect & attribute   colors tagged with the channel they came from
- *   B  Merge near-duplicates  ΔE ≈ 2.5 → canonical colors ("247 greys" → few)
+ *   B  Merge near-duplicates  ΔE ≤ MERGE_DELTA_E → canonical colors ("247 greys" → few)
  *   —  Area weight            credit screenshot pixels to canonical colors
  *   C  Score per role         every (color, role) pair scored, not first-wins
  *   D  Resolve with guardrails assign in dependency order under hard constraints
  *
- * Stage E (AI relabelling) is Phase 2 and never runs here — Phase 1 is the
- * measured lane only. All color math is perceptual (Lab / OKLCH), never RGB.
+ * Stage E (AI relabelling) runs in `lib/interpret.ts`, never here. All color
+ * math is perceptual (Lab / OKLCH), never RGB.
  */
 
 // Stage B near-duplicate threshold. Kept low (near the just-noticeable ΔE)
@@ -43,14 +43,10 @@ const PIXEL_MATCH_LAB = 15; // Lab distance under which a pixel "is" a color.
 const PIXEL_MATCH_LAB_SQ = PIXEL_MATCH_LAB * PIXEL_MATCH_LAB;
 const PIXEL_SAMPLE_WIDTH = 640; // Downscale screenshot for the area pass.
 const IMAGE_COLOR_MIN_SHARE = 0.02; // Min pixel share to surface a CSS-missed color.
-// Size of the area pass's per-call nearest-color cache, as a power of two: a
-// direct-mapped table of 2^16 slots in typed arrays, where each RGB value has
-// one slot and a new value overwrites the slot's previous one. A UI screenshot
-// holds a few thousand distinct RGB values and nearly all of them keep their
-// slot. A photograph-heavy page can hold millions, and there a growing map
-// costs more memory and time than the Lab math it saves, while a fixed table
-// costs one array read and write per pixel. The cache only skips repeated
-// work, so neither its size nor an overwrite changes a result.
+// The area pass's nearest-color cache: a fixed direct-mapped table of 2^16
+// slots, not a growing map, because a photograph-heavy page can hold millions
+// of distinct RGB values (a UI screenshot holds a few thousand). The cache only
+// skips repeated work, so neither its size nor an overwrite changes a result.
 const NEAREST_CACHE_BITS = 16;
 const MIN_TEXT_CONTRAST = 4.5; // WCAG AA; hard guardrail for the `text` role.
 // Below this pixel share a swatch is effectively never painted on screen.
@@ -63,19 +59,16 @@ interface Canonical {
   color: Color;
   hex: string;
   lab: [number, number, number];
-  /** Observation counts per channel across the DOM walk. */
   channels: Record<ColorChannel, number>;
-  /** Total DOM observations (sum over channels). */
   total: number;
-  /** Observations that occurred on interactive/CTA elements. */
   interactive: number;
   /** Share of painted screenshot pixels credited to this color (0–1). */
   areaWeight: number;
   /** True when recovered from pixels but absent from the DOM (gradient/image). */
   imageSourced: boolean;
   /** Observations on nodes flagged `alert`/`status`/`aria-invalid` — the
-   *  usage-context evidence semantic (success/warning/danger) roles require
-   *  (§P5-1), never assigned from hue alone. */
+   *  usage-context evidence semantic (success/warning/danger) roles require,
+   *  never assigned from hue alone. */
   semanticContext: number;
 }
 
@@ -94,7 +87,6 @@ function collectCanonical(dump: StyleDump): Canonical[] {
     interactive: boolean,
     semanticContext: boolean,
   ) => {
-    // Merge into an existing canonical color if perceptually near-identical.
     for (const c of canon) {
       if (deltaE(c.color, color) <= MERGE_DELTA_E) {
         c.channels[channel]++;
@@ -130,7 +122,7 @@ function collectCanonical(dump: StyleDump): Canonical[] {
   return canon;
 }
 
-// ── Area weight: credit screenshot pixels to the canonical set (§5) ──────────
+// ── Area weight: credit screenshot pixels to the canonical set ──────────────
 
 async function assignAreaWeights(
   canon: Canonical[],
@@ -155,14 +147,10 @@ async function assignAreaWeights(
   const step = info.channels; // 3 (RGB) or 4 (RGBA)
   totalPixels += info.width * info.height;
 
-  // Nearest canonical index per RGB value, or -1 when no canonical color is
-  // within PIXEL_MATCH_LAB. A screenshot repeats few RGB values over many
-  // pixels, so the Lab conversion and the scan over `canon` run once per value
-  // rather than once per pixel. Valid for this call only: the answer depends on
-  // `canon`, which must not change while the loop runs (the image-sourced
-  // colors are appended after it). `slotKey` holds the RGB value that owns
-  // each slot (-1 for an empty slot, which no 24-bit key equals) and
-  // `slotMatch` holds that value's answer.
+  // Nearest canonical index per RGB value (-1: none within PIXEL_MATCH_LAB).
+  // Valid for this call only: `canon` must not change while the loop runs
+  // (image-sourced colors are appended after it). An empty slot's key is -1,
+  // which no 24-bit RGB key equals.
   const slotKey = new Int32Array(1 << NEAREST_CACHE_BITS).fill(-1);
   const slotMatch = new Int32Array(1 << NEAREST_CACHE_BITS);
   const slotShift = 32 - NEAREST_CACHE_BITS;
@@ -228,7 +216,6 @@ async function assignAreaWeights(
         g: bucket.g / 255,
         b: bucket.b / 255,
       };
-      // Don't duplicate a color we already have under the merge threshold.
       if (canon.some((c) => deltaE(c.color, color) <= MERGE_DELTA_E)) continue;
       canon.push({
         color,
@@ -288,7 +275,7 @@ function mutedScore(c: Canonical): number {
   return Math.log1p(c.total) * areaPenalty;
 }
 
-/** True when hue `h` falls within `[lo, hi]`, wrapping past 360°. */
+/** Wraps past 360°. */
 function inHueBand(h: number, lo: number, hi: number): boolean {
   return lo <= hi ? h >= lo && h <= hi : h >= lo || h <= hi;
 }
@@ -303,7 +290,7 @@ const SEMANTIC_HUE_BANDS: Record<"success" | "warning" | "danger", [number, numb
 
 /** Requires *both* a matching hue band and real usage-context evidence
  *  (an `alert`/`status`/`aria-invalid` node) — a red brand color with no such
- *  evidence never becomes `danger` (§P5-1). */
+ *  evidence never becomes `danger`. */
 function semanticScore(c: Canonical, band: [number, number]): number {
   if (c.semanticContext === 0) return 0;
   if (isNeutral(c.color)) return 0;
@@ -350,10 +337,8 @@ function assignRoles(canon: Canonical[]): Map<ColorRole, Canonical> {
   const background = pick("background", backgroundScore);
 
   // Semantic roles claim their color *before* the generic surface/primary/
-  // accent scorers run: `semanticScore` only fires on real alert/invalid
-  // usage-context evidence, so a color that clears it is authoritatively
-  // success/warning/danger and must not be swallowed by a broader role first
-  // just because nothing else was competing for it (§P5-1).
+  // accent scorers: `semanticScore` only fires on real usage-context evidence,
+  // so such a color must not be swallowed by a broader role first.
   pick("danger", (c) => semanticScore(c, SEMANTIC_HUE_BANDS.danger));
   pick("warning", (c) => semanticScore(c, SEMANTIC_HUE_BANDS.warning));
   pick("success", (c) => semanticScore(c, SEMANTIC_HUE_BANDS.success));
@@ -361,7 +346,7 @@ function assignRoles(canon: Canonical[]): Map<ColorRole, Canonical> {
   pick(
     "surface",
     backgroundScore,
-    (c) => distinct(c, background), // surface must be perceptually distinct
+    (c) => distinct(c, background),
   );
 
   pick(
@@ -428,7 +413,7 @@ function buildContrast(
   }
 
   // The two pairings a rebuild needs most: what goes on a card, and what goes
-  // on a primary button (§P8-2) — `text on background` alone doesn't answer
+  // on a primary button — `text on background` alone doesn't answer
   // either.
   const surface = assigned.get("surface");
   if (surface) {
@@ -446,11 +431,9 @@ function buildContrast(
   return pairs;
 }
 
-/** Modal text color measured directly on primary-background elements — i.e.
- *  nodes whose own computed background is (perceptually) the primary color
- *  *and* whose own computed text color was observed (a direct text child).
- *  Wrapped button labels (text on a child <span>) won't show up here; that's
- *  a miss, not a wrong answer — the inferred fallback covers it (§P8-2). */
+/** Modal text color of nodes whose own background is the primary color and
+ *  that carry their own text. A label wrapped in a child <span> is a miss,
+ *  not a wrong answer — the inferred fallback covers it. */
 function findMeasuredOnPrimary(dump: StyleDump, primaryColor: Color): Color | null {
   const counts = new Map<string, { count: number; color: Color }>();
   for (const node of dump.nodes) {
@@ -487,21 +470,16 @@ function contrastFallback(against: Color): Color {
 
 export interface PaletteInput {
   dump: StyleDump;
-  /** Base64 PNG of the viewport screenshot, for the area-weight pixel pass. */
   screenshotPngBase64: string;
 }
 
-// Background-shift threshold (§P8-3): below this ΔE, a `colorScheme: "dark"`
-// render is perceptually the same page as the light render — i.e. the site
-// doesn't actually support `prefers-color-scheme`. Kept well above
-// `MERGE_DELTA_E` (near-duplicate) since this guards against reporting a
-// second palette that isn't real, not against merging near-identical colors.
+// Below this background ΔE, a `colorScheme: "dark"` render is the same page,
+// i.e. the site ignores `prefers-color-scheme`. Well above `MERGE_DELTA_E`:
+// this guards against reporting a second palette that isn't real.
 const DARK_SCHEME_BACKGROUND_DELTA_E = 10;
 
-/** Runs the same measured palette pipeline over a `colorScheme: "dark"`
- *  capture, then discards it silently unless the background actually shifted
- *  — never fabricate a second scheme for a site that ignores
- *  `prefers-color-scheme` (§P8-3). */
+/** Discards the dark palette unless the background actually shifted — never
+ *  fabricate a second scheme for a single-scheme site. */
 export async function extractDarkPalette(
   darkInput: PaletteInput,
   lightPalette: Palette,
@@ -543,7 +521,7 @@ export async function extractPalette({
     });
   }
 
-  // On-primary (§P8-2): measured when a real button's text color is directly
+  // On-primary: measured when a real button's text color is directly
   // observable, else honestly stamped `inferred` — never silently guessed.
   const primary = assigned.get("primary");
   let onPrimary: { color: Color } | null = null;

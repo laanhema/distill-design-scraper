@@ -5,27 +5,18 @@ import { aiLaneAvailable, interpret } from "@/lib/interpret";
 import { CORPUS } from "./corpus";
 
 /**
- * AI-lane stability eval (§10). The interpretive lane has no golden label, so
- * we use **stability as the proxy for quality**: run each input 3× and assert
- * the `identity.adjectives` set and `archetype` stay consistent across runs
- * (Jaccard overlap above a threshold). This catches temperature/seed/prompt
- * regressions without a "correct" answer.
+ * AI-lane stability eval. The interpretive lane has no golden label, so
+ * **stability is the proxy for quality**: each input runs 3× and the
+ * `identity.adjectives` set and `archetype` must overlap (Jaccard) above a
+ * threshold.
  *
- * The interpretation lane pins its temperature (`TEMPERATURE`) and its seed
- * (`SEED`, both in `lib/interpret.ts`). At the provider default, the routed
- * model words the same reading differently on each run, and these floors
- * failed on the last 4 runs on `main` that way (#200). On the code default
- * `google/gemini-3.5-flash`, temperature 0 alone still did not repeat a reply
- * until a seed was sent, and the seed holds only on Google AI Studio, which
- * `callModel` therefore prefers for a seeded call (#209). A failure here
- * therefore first means that the pin or the seed was lost, or that OpenRouter
- * routed the calls past AI Studio (an AI Studio outage falls back to another
- * endpoint, where the seed does not hold).
+ * The lane pins `TEMPERATURE` and `SEED` (`lib/interpret.ts`; see
+ * `ModelCall.seed` for why both). A failure here first means the pin or the
+ * seed was lost, or OpenRouter routed past Google AI Studio, the only endpoint
+ * where the seed holds.
  *
- * Unlike `npm run eval` (the measured lane, offline and CI-gated), this makes
- * live model calls, so it is opt-in: `npm run eval:ai`, and a no-op without an
- * OPENROUTER_API_KEY. Screenshots come from the committed captures, so only the
- * AI lane varies between runs.
+ * Makes live model calls, so it is opt-in (`npm run eval:ai`) and a no-op
+ * without an OPENROUTER_API_KEY. Screenshots come from the committed captures.
  */
 
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));

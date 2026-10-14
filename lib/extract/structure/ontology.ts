@@ -1,8 +1,8 @@
 import type { PrunedNode, OntologyType } from "../structureSchema";
 
 /**
- * Stage 6 — Type against Ontology (§5b)
- * Heuristically assigns provisional ontology types & default names from the vocabulary.
+ * Stage 6 — Type against Ontology: heuristically assigns provisional ontology
+ * types & default names from the vocabulary.
  */
 export function assignOntologyTypes(
   node: PrunedNode,
@@ -12,9 +12,8 @@ export function assignOntologyTypes(
 ): PrunedNode {
   const childInsideFooter =
     insideFooter || node.tagName === "footer" || node.landmark === "contentinfo";
-  // Identity predicate for "is this node itself a landmark of any of the four
-  // kinds" — reused both to thread `insideRegion` to children and as the gate
-  // condition itself, so there's exactly one definition of "landmark-like".
+  // The one definition of "landmark-like", used both for the gate and to
+  // thread `insideRegion` to children.
   const isLandmarkNode = Boolean(
     node.landmark || (node.tagName && ["header", "nav", "main", "footer"].includes(node.tagName)),
   );
@@ -28,11 +27,9 @@ export function assignOntologyTypes(
   let layoutAnnotation = node.layoutAnnotation;
 
   // 1. Landmarks -> region. Gated on ancestor identity, not tree depth: a
-  // depth threshold (`depth <= 1`) is only a proxy for "already squashed to
-  // a page band" — it breaks the moment a wrapper div has a sibling that
-  // keeps Stage 4b squash from collapsing it away (DIST-063). Testing
-  // "no strict ancestor already matched this predicate" instead generalizes
-  // to any wrapper depth, mirroring how `insideFooter` is threaded above.
+  // depth threshold (`depth <= 1`) breaks the moment a wrapper div has a
+  // sibling that keeps Stage 4b squash from collapsing it away. "No strict
+  // ancestor already matched this predicate" works at any wrapper depth.
   if (!insideRegion && isLandmarkNode) {
     provisionalType = "region";
     // The depth-0 root is the whole page (`document.body`, or whatever the
@@ -45,17 +42,15 @@ export function assignOntologyTypes(
       else if (node.tagName === "main" || node.landmark === "main") name = "MainContent";
     }
 
-    // Region heights give a rebuild vertical rhythm (header/footer bands,
-    // hero height, etc.) that the flex/grid annotation alone doesn't convey.
-    // (Stage 8a replaces this raw tag with a padY/100vh note where the raw
-    // height itself isn't the intent — §P7-2.) Only measurable off a real
-    // DOM render — a vision-inferred node has no bounds to derive it from.
+    // Region heights give a rebuild vertical rhythm that the flex/grid
+    // annotation alone doesn't convey (Stage 8a refines this raw tag). A
+    // vision-inferred node has no bounds, so it gets none.
     if (node.bounds) {
       const heightTag = `h ${Math.round(node.bounds.height)}px`;
       layoutAnnotation = layoutAnnotation ? `${layoutAnnotation} · ${heightTag}` : heightTag;
     }
   }
-  // 1b. Button/link groups -> composite "CtaRow" (§P5-3). Checked ahead of the
+  // 1b. Button/link groups -> composite "CtaRow". Checked ahead of the
   // tag-based leaf bucket below because the wrapper is often a bare <p> — its
   // tag alone would otherwise mislabel a real action row as plain text.
   else if (isCtaRow(childrenTyped)) {
@@ -81,7 +76,7 @@ export function assignOntologyTypes(
     else if (node.tagName === "button") name = "Button";
     else if (node.isInteractive) name = "Button";
     // A heuristic name of "P" carries no more meaning than "Text" — collapse
-    // it, keeping the real tag in the machine block only (§P5-3).
+    // it, keeping the real tag in the machine block only.
     else if (node.tagName === "p") name = "Text";
   }
   // 3. Repeated units -> content-block
@@ -187,16 +182,14 @@ function isHeroSection(node: PrunedNode, childrenTyped: PrunedNode[]): boolean {
   if (!node.bounds || node.bounds.y >= HERO_Y_THRESHOLD_PX) return false;
   // A container that itself wraps a page-level region (header/main/footer)
   // is a page shell, not hero content, even if an h1 happens to live
-  // somewhere inside it (e.g. an unsquashable wrapper div, DIST-063).
+  // somewhere inside it (e.g. an unsquashable wrapper div).
   if (childrenTyped.some((c) => c.provisionalType === "region")) return false;
   return containsTag(childrenTyped, "h1");
 }
 
-/** A container whose only content is one repeated card-like block is a card
- *  grid, whatever its own tag/layout — a more transferable name than the
- *  generic layout-derived "GridSection" (§P5-3). The repeated child must
- *  actually be a card (carry the `*Card` suffix) — a run of repeated text
- *  spans (e.g. counter digits) doesn't make its wrapper a "CardGrid". */
+/** A container whose only content is one repeated `*Card` block is a card
+ *  grid, whatever its own tag/layout; repeated text spans (e.g. counter
+ *  digits) don't make their wrapper a "CardGrid". */
 function isCardGrid(childrenTyped: PrunedNode[]): boolean {
   return (
     childrenTyped.length === 1 &&
@@ -206,8 +199,6 @@ function isCardGrid(childrenTyped: PrunedNode[]): boolean {
   );
 }
 
-/** A <nav> whose children are entirely link atoms is a nav link group, not
- *  just "Nav" (§P5-3). */
 function isNavLinksGroup(childrenTyped: PrunedNode[]): boolean {
   return childrenTyped.length > 0 && childrenTyped.every((c) => c.componentName === "TextLink");
 }

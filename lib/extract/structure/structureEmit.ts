@@ -13,38 +13,31 @@ import { formatSectionDigests } from "./sections";
 export interface StructureEmitInput {
   sourceUrl: string;
   viewport: { width: number; height: number };
-  /** Secondary viewports captured alongside the primary render (§P5-2), for
-   *  the header's `viewports:` line. */
+  /** Secondary viewports captured alongside the primary render, for the
+   *  header's `viewports:` line. */
   secondaryViewports?: { width: number; height: number }[];
   capturedAt: string;
   fidelity: "measured" | "inferred";
-  /** Whether component names came from the AI pass or the heuristic
-   *  fallback (§P7-1). */
   naming: "ai" | "heuristic";
   root: PrunedNode;
   components: Record<string, ComponentDef>;
-  /** Per-component design-token hints (§P3-1), only present in `both` mode. */
+  /** Per-component design-token hints, only present in `both` mode. */
   tokenHints?: Map<string, string>;
-  /** Per-component layout deltas across captured viewports (§P5-2). */
   responsive?: ResponsiveDeltas;
-  /** Ordered Stage 9 section digests (#34 / DIST-028) — only present when the
-   *  measured pipeline produced at least one band. */
+  /** Only present when the measured pipeline produced at least one band. */
   sections?: SectionDigest[];
 }
 
 /**
- * Stage 8 — Structure Emit (§3, family 2)
- * Formats the ASCII skeleton, component map, and machine JSON block into the target report.
+ * Stage 10 — Structure Emit: formats the ASCII skeleton, component map, and
+ * machine JSON block into the target report.
  */
 
-/** Body skeleton renders depth-capped (#35 / DIST-029) — the full tree still
- *  lives in the `skeletonAscii` field and the machine block; the body only
- *  needs enough levels to orient the reader. Depth 1 = the root line. */
+/** Depth cap of the body skeleton (1 = the root line); the full tree stays in
+ *  `skeletonAscii` and the machine block. */
 const BODY_SKELETON_MAX_DEPTH = 3;
 
-/** Ontology types shown in the `## Components` body section (#35 / DIST-029) —
- *  atoms and generic containers (`FlexContainerCard` etc.) stay
- *  machine-block-only. */
+/** Atoms and generic containers stay machine-block-only. */
 const BODY_COMPONENT_TYPES = new Set(["region", "content-block", "composite"]);
 
 export function emitStructureReport(input: StructureEmitInput): StructureReport {
@@ -82,14 +75,12 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
   const skeletonAscii = buildAsciiSkeleton(root);
   const skeletonDetailAscii = buildAsciiSkeleton(root, BODY_SKELETON_MAX_DEPTH);
 
-  // 2. Build Component Map Text (body-filtered to region/content-block/composite)
   const componentMapText = buildComponentMapText(mergedComponents);
 
   // 2b. Format the digest once — the body section and the `sectionsText` field
   // share this single artifact so the two can never drift.
   const sectionsText = hasSections ? formatSectionDigests(sections!) : undefined;
 
-  // 3. Build Machine Block JSON
   const treeNodes = buildMachineTreeNodes([root], fidelity);
   const machineBlock: StructureMachineBlock = {
     reportKind: "layout-structure",
@@ -110,7 +101,6 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
   // Track B validates its own contract too, same as the design-tokens report.
   structureMachineBlockSchema.parse(machineBlock);
 
-  // 4. Assemble Full Markdown Document
   let hostname = sourceUrl;
   try {
     hostname = new URL(sourceUrl).hostname;
@@ -128,8 +118,7 @@ export function emitStructureReport(input: StructureEmitInput): StructureReport 
     : "";
 
   // Conditional sections carry their own leading blank line and are omitted
-  // entirely (never rendered empty) when their input is absent — the project's
-  // `if (report.<field>)` convention.
+  // entirely (never rendered empty) when their input is absent.
   const pageSectionsSection = sectionsText ? `\n\n## Page sections\n\n${sectionsText}` : "";
   const componentsSection = componentMapText
     ? `\n\n## Components\n\nEach component is defined once; the skeleton holds the instances.\n\n${componentMapText}`
@@ -170,18 +159,14 @@ ${serializeMachineBlockCompact(machineBlock)}
     },
     skeletonAscii,
     componentMapText,
-    // Same artifact as the body's `## Page sections` section — one source,
-    // no drift.
     ...(sectionsText ? { sectionsText } : {}),
     machineBlock,
     markdown,
   };
 }
 
-/** Bulleted `## Responsive` body list — one line per component with a real
- *  layout delta. Viewport order follows plain-object key iteration (numeric
- *  string keys sort ascending in JS regardless of insertion order), so this
- *  reads narrowest-first rather than capture order (§P5-2). */
+/** Reads narrowest-first, not in capture order: numeric string keys iterate
+ *  ascending in JS regardless of insertion order. */
 function buildResponsiveSectionText(responsive: ResponsiveDeltas): string {
   const lines: string[] = [];
   for (const [name, byWidth] of Object.entries(responsive)) {
@@ -191,12 +176,8 @@ function buildResponsiveSectionText(responsive: ResponsiveDeltas): string {
   return lines.join("\n");
 }
 
-/**
- * Serialize the machine block with one line per top-level key, but each
- * value compact (no pretty-printing) — the `tree` is the machine contract and
- * has to stay, but restating it pretty-printed doubled the report size for no
- * reason (P3-2).
- */
+/** One line per top-level key, each value compact: pretty-printing the `tree`
+ *  doubles the report size. */
 function serializeMachineBlockCompact(block: StructureMachineBlock): string {
   const entries = Object.entries(block).map(
     ([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)}`,
@@ -205,10 +186,9 @@ function serializeMachineBlockCompact(block: StructureMachineBlock): string {
 }
 
 /**
- * Content max-width (P2-2): the widest common width among MainContent's
- * children that's narrower than the viewport — i.e. the centered-content
- * constraint a typical `max-width` wrapper imposes, recovered from measured
- * bounds rather than CSS (which may set it on an ancestor we've collapsed).
+ * The widest common width among MainContent's children that's narrower than
+ * the viewport, recovered from measured bounds rather than CSS (which may set
+ * `max-width` on an ancestor that was collapsed).
  */
 function computeContentMaxWidth(root: PrunedNode, viewportWidth: number): number | undefined {
   const widths: number[] = [];
@@ -254,11 +234,8 @@ function computeContentMaxWidth(root: PrunedNode, viewportWidth: number): number
   return best;
 }
 
-/** ASCII tree rendering. `maxDepth` (1 = root line only) caps the recursion
- *  for the body's `## Skeleton (detail)` section — a node at the cap that
- *  still has children gets a single `…` line so the truncation is visible,
- *  never silent. Omit `maxDepth` for the full tree (the `skeletonAscii`
- *  field). */
+/** A node at `maxDepth` that still has children gets a single `…` line, so
+ *  the truncation is visible, never silent. */
 function buildAsciiSkeleton(
   node: PrunedNode,
   maxDepth?: number,
@@ -300,8 +277,6 @@ function buildAsciiSkeleton(
 function buildComponentMapText(components: Record<string, ComponentDef>): string {
   const lines: string[] = [];
   for (const [name, def] of Object.entries(components)) {
-    // Body shows intent-altitude entries only (#35 / DIST-029); atoms and
-    // generic containers remain machine-block-only.
     if (!BODY_COMPONENT_TYPES.has(def.type)) continue;
     lines.push(`### ${name} \`${def.type}\``);
     if (def.role) {

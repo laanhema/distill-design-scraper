@@ -51,8 +51,8 @@ const BLOCKED_IPV4_RANGES: Ipv4Range[] = [
   rangeToInt("172.16.0.0/12"),
   rangeToInt("192.168.0.0/16"),
   rangeToInt("169.254.0.0/16"),
-  // Beyond the literal AC list: "this network" — same class of reserved
-  // address as loopback/private, closing an obvious adjacent bypass.
+  // "This network": the same class of reserved address as loopback/private,
+  // closing an obvious adjacent bypass.
   rangeToInt("0.0.0.0/8"),
   // Carrier-grade NAT shared address space (RFC 6598) — private in practice.
   rangeToInt("100.64.0.0/10"),
@@ -70,8 +70,7 @@ function isBlockedIpv4Int(ipInt: number): boolean {
   return false;
 }
 
-/** Checks a dotted-quad IPv4 address against the blocked-range list via 32-bit integer + mask arithmetic.
- *  Exported as an independently-auditable security-predicate surface (DIST-073). */
+/** Exported as an independently-auditable security predicate. */
 export function isBlockedIpv4(ip: string): boolean {
   const ipInt = ipv4ToInt(ip);
   if (ipInt === null) return false;
@@ -79,7 +78,6 @@ export function isBlockedIpv4(ip: string): boolean {
 }
 
 function ipv6ToBigInt(ip: string): bigint | null {
-  // Expand `::` shorthand into the full 8-group form first.
   const [head, tail] = ip.split("::");
   const headGroups = head ? head.split(":") : [];
   const tailGroups = tail ? tail.split(":") : [];
@@ -108,14 +106,11 @@ function extractIpv4Mapped(ip: string): string | null {
   return match ? match[1] : null;
 }
 
-/** Checks an IPv6 address against loopback (`::1`), unique-local (`fc00::/7`), and
- *  link-local (`fe80::/10`) ranges via BigInt-based 128-bit parsing + mask.
- *  Also normalizes IPv4-mapped addresses (`::ffff:0:0/96`) by delegating to
- *  `isBlockedIpv4` on the embedded v4 address — in both the dotted form
- *  (`::ffff:127.0.0.1`, via the regex shortcut) and the hex form
- *  (`::ffff:7f00:1`, via the parsed 128-bit value) — otherwise a mapped
- *  loopback/private target would bypass the v6 checks entirely.
- *  Exported as an independently-auditable security-predicate surface (DIST-073). */
+/** IPv4-mapped addresses (`::ffff:0:0/96`) are checked against the v4 ranges
+ *  in both the dotted form (`::ffff:127.0.0.1`) and the hex form
+ *  (`::ffff:7f00:1`); otherwise a mapped loopback/private target would bypass
+ *  the v6 checks entirely. Exported as an independently-auditable security
+ *  predicate. */
 export function isBlockedIpv6(ip: string): boolean {
   const mapped = extractIpv4Mapped(ip);
   if (mapped) return isBlockedIpv4(mapped);
@@ -137,8 +132,7 @@ export function isBlockedIpv6(ip: string): boolean {
   const uniqueLocalMask = ((1n << 128n) - 1n) ^ ((1n << (128n - 7n)) - 1n);
   if ((ipInt & uniqueLocalMask) === (uniqueLocalBase & uniqueLocalMask)) return true;
 
-  // fe80::/10 — link-local, the v6 analogue of 169.254.0.0/16. Not in the
-  // AC's literal list but the same intent, so blocked here too.
+  // fe80::/10 — link-local, the v6 analogue of 169.254.0.0/16.
   const linkLocalBase = ipv6ToBigInt("fe80::")!;
   const linkLocalMask = ((1n << 128n) - 1n) ^ ((1n << (128n - 10n)) - 1n);
   if ((ipInt & linkLocalMask) === (linkLocalBase & linkLocalMask)) return true;
@@ -148,8 +142,8 @@ export function isBlockedIpv6(ip: string): boolean {
 
 /** Reads `SSRF_ALLOWLIST_HOSTS` (comma-separated exact hostnames) into a
  *  lower-cased set — a deployer's explicit trust decision to permit an
- *  internal target (e.g. staging), documented behavior rather than a code fix.
- *  Exported as an independently-auditable security-predicate surface (DIST-073). */
+ *  internal target (e.g. staging). Exported as an independently-auditable
+ *  security predicate. */
 export function parseAllowlist(): Set<string> {
   const raw = process.env.SSRF_ALLOWLIST_HOSTS ?? "";
   return new Set(

@@ -5,10 +5,7 @@ import type { RawHarvestNode } from "../structureSchema";
  *  mirrors `NODE_CAP` in `lib/extract/styleDump.ts`. */
 const NODE_CAP = 5000;
 
-/**
- * Stage 2 — Harvest (§5b)
- * Walks the rendered DOM via `page.evaluate` and returns a tree of RawHarvestNode.
- */
+/** Stage 2 — Harvest. */
 export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
   return page.evaluate((cap) => {
     let idCounter = 0;
@@ -19,7 +16,7 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
         .slice(0, 5)
         .map((c) => c.tagName.toLowerCase())
         .join(",");
-      // Bucket width and height by 10% tolerance (approx 20px buckets)
+      // 25px size buckets, so near-identical siblings share a signature.
       const bw = Math.round(w / 25) * 25;
       const bh = Math.round(h / 25) * 25;
       return `${tag}[${childrenTags}]_${bw}x${bh}`;
@@ -60,7 +57,6 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
       return text;
     }
 
-    /** Truncate to at most maxLen chars, breaking on a word boundary. */
     function truncateAtWord(text: string, maxLen: number): string {
       if (text.length <= maxLen) return text;
       const cut = text.slice(0, maxLen);
@@ -91,7 +87,6 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
       }
 
       const rect = el.getBoundingClientRect();
-      // Drop 0 width/height nodes
       if (rect.width <= 0 && rect.height <= 0) {
         return null;
       }
@@ -119,7 +114,6 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
         }
       }
 
-      // Check text content
       const hasDirectText = Array.from(el.childNodes).some(
         (n) => n.nodeType === Node.TEXT_NODE && (n.textContent || "").trim().length > 0
       );

@@ -1,14 +1,7 @@
 /**
- * The eval corpus (§10). A fixed set of reference pages, each paired with a
- * hand-authored `expected.yaml`, chosen to span the real failure modes.
- *
- * Two kinds of entry:
- *   • `fixture` — a local HTML page under eval/fixtures. Its capture is rendered
- *     once and *committed* to eval/corpus/<slug>/capture.json, so `npm run eval`
- *     runs fully offline in CI with a known answer.
- *   • `url` — a live reference site. Captured on demand by `npm run eval:capture`
- *     (network + a browser); the capture is git-ignored. Score it once you have
- *     authored its expected.yaml from the captured render.
+ * The eval corpus: reference pages, each with a hand-authored `expected.yaml`.
+ * A `fixture` entry's capture is committed, so `npm run eval` runs offline in
+ * CI; a `url` entry is captured on demand and its capture is git-ignored.
  */
 
 interface CorpusEntryBase {
@@ -24,14 +17,12 @@ interface CorpusEntryBase {
   optional?: boolean;
 }
 
-/** One source: a committed local fixture, or a live URL. An entry with neither does not compile; with both, capture uses the fixture. */
+/** An entry with neither source does not compile; with both, capture uses the fixture. */
 export type CorpusEntry =
   | (CorpusEntryBase & {
-      /** Local fixture filename under eval/fixtures (offline, committed capture). */
       fixture: string;
     })
   | (CorpusEntryBase & {
-      /** Live reference URL (captured on demand; capture git-ignored). */
       url: string;
     });
 

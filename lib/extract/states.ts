@@ -14,11 +14,9 @@ function display(property: string, value: string): string {
 }
 
 /**
- * Interactive states (§P5-1): the CSSOM `:hover`/`:focus-visible` deltas
- * `styleDump.ts` already read per node are attributed to a palette role (the
- * role of the node's *own* base color) and aggregated across every node that
- * shares one, taking the modal from/to per property so one outlier instance
- * can't skew the reported delta.
+ * Interactive states: per-node CSSOM deltas, attributed to the palette role of
+ * the node's *own* base color and aggregated per role, taking the modal
+ * from/to per property so one outlier can't skew the reported delta.
  */
 
 function baseColorValue(node: NodeStyle): string | undefined {
@@ -35,7 +33,6 @@ interface ChangeCount {
   count: number;
 }
 
-/** One `(role, state)` pair and its per-property from/to tallies. */
 interface StateBucket {
   target: StateEntry["target"];
   state: StateKind;

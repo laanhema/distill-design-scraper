@@ -24,10 +24,10 @@ import type { Report, StructureReport } from "@/lib/schema";
 import type { AiOutcome } from "@/lib/api";
 
 /**
- * Orchestration (§8, URL & Image pipelines). Extraction is split from rendering on
- * purpose: `extractFromCapture` takes only the captured artifacts (style dump +
- * screenshot), so the eval harness (§10) can replay a cached render offline and
- * exercise every heuristic without launching a browser.
+ * Orchestration of the URL and image pipelines. Extraction is split from
+ * rendering on purpose: `extractFromCapture` takes only the captured artifacts,
+ * so the eval harness can replay a cached render offline and exercise every
+ * heuristic without launching a browser.
  */
 
 export interface Capture extends CaptureArtifacts {
@@ -92,7 +92,7 @@ export async function extractFromCapture(
 
 /**
  * Run the structure lane over an already-captured page. Pass `report` (the
- * already-built design-tokens report) in `both` mode to enable the P3-1
+ * already-built design-tokens report) in `both` mode to enable the
  * component → token cross-link; omitted, the structure report has no hints.
  */
 export async function extractStructureFromCapture(
@@ -118,12 +118,9 @@ export async function extractStructureFromCapture(
 }
 
 /**
- * Interpretation pass (§6): run the AI lane over an already-measured report and
- * merge its identity/imageMood plus Stage E role refinements (§5). Kept
- * separate from `extractFromCapture` on purpose — the measured lane must stay
- * browser- and network-free so the eval harness can replay captures offline;
- * only the live URL/image paths reach for the model. Falls back to the measured
- * report untouched when no API key is set or the model fails (§6, §9).
+ * Interpretation pass, kept apart from `extractFromCapture` so the measured
+ * lane stays network-free for offline eval replay. Falls back to the measured
+ * report untouched when no API key is set or the model fails.
  */
 export interface EnrichWithAiOptions {
   requested?: boolean;
@@ -162,8 +159,7 @@ export async function enrichWithAI(
 
   // Spread the measured report rather than re-listing its fields: this pass
   // only *adds* interpretive lanes and swaps in the refined palette, so every
-  // measured lane must survive it untouched. Enumerating them by hand silently
-  // dropped `motion` when that lane was added — a spread can't drift.
+  // measured lane must survive it untouched, including one added later.
   const report = buildReport({
     ...measured.report,
     palette,
@@ -184,20 +180,16 @@ export interface ImageInput {
   name?: string;
 }
 
-/** What the structure lane of the image path came to: the inferred report, or
- *  the reason there is none. Both are `undefined` when structure was not
- *  requested. Every arm of the lane in `analyzeImages` is annotated with it. */
+/** Both fields are `undefined` when structure was not requested. */
 interface ImageStructureOutcome {
   structureReport: StructureReport | undefined;
   structureUnavailableReason: string | undefined;
 }
 
 /**
- * Phase 3 / §P6-1: Full image processing path ("Palette & Mood" report).
- * Accepts one or more images of the same subject — palettes are merged at the
- * pixel-cluster level (§P6-1, `extractImagePalette`) rather than averaged
- * after role-assignment, so the result is still one coherent, unique-per-role
- * palette instead of N colliding ones.
+ * Image path ("Palette & Mood" report). Several images of one subject merge at
+ * the pixel-cluster level, not after role assignment, so the result is one
+ * coherent palette instead of N colliding ones.
  */
 export async function analyzeImages(
   images: ImageInput[],
@@ -206,9 +198,6 @@ export async function analyzeImages(
   AnalyzeResult & {
     refinements: RefinementChange[];
     structureReport?: StructureReport;
-    /** Set when structure was requested but couldn't be produced — no API
-     *  key, or the vision model failed — so the caller can explain the gap
-     *  instead of silently omitting it (§P6-2 step 2). */
     structureUnavailableReason?: string;
     meta: {
       finalUrl: string;
@@ -281,8 +270,8 @@ export async function analyzeImages(
             structureReport: undefined,
             // Distinct from the vision-call failure above: this is a
             // persistent condition (no retry will fix it without config
-            // changes), not a one-off flake — see the route.ts caching gate,
-            // which relies on that distinction (DIST-050).
+            // changes), not a one-off flake — the route.ts caching gate
+            // relies on that distinction.
             structureUnavailableReason:
               "Structure inference for images requires an AI key — set OPENROUTER_API_KEY.",
           })
@@ -328,10 +317,8 @@ export function captureFromRender(
   };
 }
 
-/** Picks up to `maxCount` items evenly spread across `items` (always
- *  including the first and last), so a long top-to-bottom tile sequence
- *  still gives the AI lane full-page coverage instead of just whatever the
- *  first few happen to be. */
+/** Always includes the first and last item, so a long tile sequence still
+ *  gives the AI lane full-page coverage. */
 function subsampleEvenly<T>(items: T[], maxCount: number): T[] {
   if (items.length <= maxCount) return items;
   const result: T[] = [];
@@ -341,7 +328,7 @@ function subsampleEvenly<T>(items: T[], maxCount: number): T[] {
   return result;
 }
 
-/** Full URL path: render, extract (measured), then interpret (AI, §6). */
+/** Full URL path: render, extract (measured), then interpret (AI). */
 export async function analyzeUrl(
   url: string,
   mode: AnalyzeMode = "both",
@@ -362,14 +349,12 @@ export async function analyzeUrl(
   const render = await renderUrl(url);
   const capture = captureFromRender(render, url, capturedAt);
   const measured = await extractFromCapture(capture);
-  // A "structure"-only caller has no use for the identity/imageMood AI pass
-  // over the palette-mood report, so skip it rather than paying for both.
+  // Same structure-only skip as `analyzeImages`.
   const wantsTokenEnrichment = mode === "tokens" || mode === "both";
   const wantsStructure = mode === "structure" || mode === "both";
 
-  // Run the two model calls concurrently: Track A token enrichment and
-  // Track B structure Stage 7 labelling start together via Promise.all (#175).
-  // The labelling call needs nothing from the enriched report.
+  // Track A token enrichment and Track B Stage 7 labelling run concurrently:
+  // the labelling call needs nothing from the enriched report.
   const [enriched, preliminaryOutcome] = await Promise.all([
     enrichWithAI(
       measured,

@@ -2,7 +2,7 @@ import type { NodeStyle, StyleDump } from "@/lib/extract/styleDump";
 import type { Bounds } from "../structureSchema";
 
 /**
- * Shared bounds-overlap matcher (§P3-1 tokenLink, §P7-2 regionMetrics): finds
+ * Shared bounds-overlap matcher (tokenLink, regionMetrics): finds
  * the style-dump node that "is" a given PrunedNode by nearest bounding box,
  * within a small tolerance. Best-effort — callers treat a null match as "no
  * data", never a guess.

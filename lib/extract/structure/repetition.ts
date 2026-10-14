@@ -1,12 +1,11 @@
 import type { PrunedNode } from "../structureSchema";
 
 /**
- * Stage 5 — Detect Repetition (§5b)
- * Groups matching sibling node signatures into repeated component instances `×N`
- * and attaches instanceCount / varianceNote tags.
+ * Stage 5 — Detect Repetition: groups matching sibling node signatures into
+ * repeated component instances `×N` and attaches instanceCount / varianceNote
+ * tags.
  */
 export function detectRepetition(node: PrunedNode): PrunedNode {
-  // Process children recursively first
   const childrenProcessed = node.children.map((child) => detectRepetition(child));
 
   if (childrenProcessed.length < 2) {
@@ -16,14 +15,12 @@ export function detectRepetition(node: PrunedNode): PrunedNode {
     };
   }
 
-  // Count signature occurrences among siblings
   const signatureCounts: Record<string, number> = {};
   for (const child of childrenProcessed) {
     const key = getBaseSignature(child);
     signatureCounts[key] = (signatureCounts[key] || 0) + 1;
   }
 
-  // Group children by base signature
   const newChildren: PrunedNode[] = [];
   const processedSignatures = new Set<string>();
 
@@ -35,13 +32,11 @@ export function detectRepetition(node: PrunedNode): PrunedNode {
     if (count >= 2) {
       if (!processedSignatures.has(key)) {
         processedSignatures.add(key);
-        // Deduplicate repeated siblings into a single representative node with instanceCount = count
         newChildren.push({
           ...child,
           instanceCount: count,
         });
       } else {
-        // Skip duplicate sibling instances so the tree skeleton lists the component with ×count
         continue;
       }
     } else {

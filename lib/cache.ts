@@ -1,24 +1,18 @@
 import crypto from "crypto";
 
 /**
- * Phase 5: Simple TTL cache for analysis results (§9).
- * Caches results by SHA-256 hash of request key/artifacts.
+ * TTL cache for analysis results, keyed by a SHA-256 hash of the request.
  *
- * The store is bounded, mirroring `lib/security/rateLimiter.ts`: a cache of
- * multi-MB response payloads (base64 screenshots) keyed by request hash must
- * not itself be an unbounded-growth vector — entries whose keys are never
- * requested again would otherwise live forever, since expiry was only ever
- * checked on read. Three mechanisms keep it bounded:
+ * Bounded like `lib/security/rateLimiter.ts`: a cache of multi-MB payloads
+ * (base64 screenshots) must not be an unbounded-growth vector. Three
+ * mechanisms keep it bounded:
  *
- * - an entry cap (`CACHE_MAX_ENTRIES`, default `DEFAULT_MAX_ENTRIES`): when an
- *   insert would exceed it, expired entries are swept first (deleting them
- *   changes no observable behavior), then the least-recently-used live entry
- *   is evicted;
+ * - an entry cap (`CACHE_MAX_ENTRIES`): an insert past it sweeps expired
+ *   entries first, then evicts the least-recently-used live one;
  * - LRU recency: a `Map` iterates in insertion order, so delete + re-set on
  *   every read hit keeps the first-iterated key the least-recently-used one;
- * - a periodic sweep (`SWEEP_INTERVAL_MS`, started lazily on first write and
- *   `unref()`d so it never keeps the process alive) that removes expired
- *   entries without requiring a read.
+ * - a periodic sweep, started lazily and `unref()`d so it never keeps the
+ *   process alive, that removes expired entries nobody reads again.
  */
 
 interface CacheEntry<T> {
@@ -26,7 +20,7 @@ interface CacheEntry<T> {
   expiresAt: number;
 }
 
-const DEFAULT_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const DEFAULT_TTL_MS = 10 * 60 * 1000;
 // Cap on cached responses (tunable via CACHE_MAX_ENTRIES, mirroring
 // RATE_LIMIT_MAX_BUCKETS). Deliberately small: each entry can carry several
 // MB of base64 screenshots, so 50 entries bounds the cache to the order of a
@@ -34,14 +28,12 @@ const DEFAULT_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const DEFAULT_MAX_ENTRIES = 50;
 import { parsePositiveInteger } from "@/lib/env";
 
-// How often the periodic sweep evicts expired entries that are never re-read.
 const SWEEP_INTERVAL_MS = 60_000;
 
 const cacheStore = new Map<string, CacheEntry<unknown>>();
 
 let sweepTimer: NodeJS.Timeout | null = null;
 
-/** Removes every expired entry, regardless of whether it is ever read again. */
 function sweepExpired(): void {
   const now = Date.now();
   for (const [key, entry] of cacheStore) {
@@ -51,11 +43,7 @@ function sweepExpired(): void {
   }
 }
 
-/**
- * Enforces the entry cap before an insert: sweep expired entries first, then
- * evict least-recently-used live entries (the Map's iteration head) until a
- * slot is free. Mirrors `evictIfAtCapacity` in `lib/security/rateLimiter.ts`.
- */
+/** Sweeps expired entries first, then evicts from the Map's iteration head (LRU). */
 function evictIfAtCapacity(maxEntries: number): void {
   if (cacheStore.size < maxEntries) return;
 
@@ -83,8 +71,7 @@ export function getCache(key: string): unknown {
     return null;
   }
 
-  // Refresh recency: delete + re-set moves the entry to the end of the Map's
-  // insertion order, so the iteration head stays the LRU eviction candidate.
+  // Refresh recency (see the header).
   cacheStore.delete(key);
   cacheStore.set(key, entry);
 

@@ -8,14 +8,8 @@ import type {
 import { mode } from "./mode";
 
 /**
- * Typography extraction — measured from computed styles (§5). We resolve font
- * stacks to their first (intended) family, dedupe into families with the weight
- * sets actually observed, and cluster the observed font sizes into a canonical
- * type scale mapped onto display…small tokens.
- *
- * This is the URL lane only. Fonts are *not* recoverable from a photo, so the
- * image lane (Phase 3) produces an AI `inferred` classification instead — never
- * a measured scale — and never routes through here.
+ * Typography from computed styles — URL lane only: fonts are *not* recoverable
+ * from a photo, so the image lane never routes through here.
  */
 
 const GENERIC_FAMILIES = new Set([
@@ -32,7 +26,6 @@ const GENERIC_FAMILIES = new Set([
   "blinkmacsystemfont",
 ]);
 
-/** Split a raw `font-family` value into its ordered, unquoted stack entries. */
 function parseStack(stack: string): string[] {
   return stack
     .split(",")
@@ -66,7 +59,7 @@ interface SizeSample {
 
 
 
-/** Convert a computed px letter-spacing to an em value relative to the size. */
+/** Computed px letter-spacing as em relative to the size. */
 function letterSpacingEm(raw: string, sizePx: number): string {
   if (raw === "0" || raw === "normal") return "0";
   const px = parseFloat(raw);
@@ -77,7 +70,6 @@ function letterSpacingEm(raw: string, sizePx: number): string {
 }
 
 export function extractTypography(dump: StyleDump): Typography | undefined {
-  // Gather text samples, bucketed by rounded pixel size.
   const bySize = new Map<number, SizeSample[]>();
   const familyWeights = new Map<string, Set<number>>();
   const familyCount = new Map<string, number>();
@@ -93,7 +85,7 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
     if (!node.type) continue;
     const t = node.type;
     const size = Math.round(t.fontSizePx);
-    if (size < 6 || size > 200) continue; // ignore degenerate values
+    if (size < 6 || size > 200) continue;
     const family = firstFamily(t.fontFamily);
     if (node.tag === "h1") h1Sizes.push(size);
     if (!familyStacks.has(family)) familyStacks.set(family, t.fontFamily);
@@ -128,24 +120,17 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
   const above = sizes.filter((s) => s > bodySize);
   const below = sizes.filter((s) => s < bodySize);
 
-  // Headings: up to four distinct larger clusters. Tokens are assigned from the
-  // bottom up — the largest heading is `h1`, stepping down to h2/h3 — and the
-  // extra `display` slot is only used when there is a *fourth*, even larger
-  // cluster above h1. So a page with three heading sizes reads as h1/h2/h3, not
-  // display/h1/h2.
-  //
-  // The `h1` token is anchored to the measured size of real <h1> elements when
-  // we saw one: pure frequency can hand the slot to a small but ubiquitous
-  // h1-styled size while the one-off hero h1 gets dropped from the picks,
-  // inverting desktop vs. mobile (the mobile pass measures the h1 element
-  // directly) — DIST-031. With no <h1>-tagged samples, behaviour is unchanged.
+  // Headings: up to four larger clusters, assigned bottom up, so three heading
+  // sizes read as h1/h2/h3 and `display` is used only for a fourth. `h1` is
+  // anchored to real <h1> elements when there are any: pure frequency can drop
+  // the one-off hero h1, inverting desktop vs. mobile (the mobile pass measures
+  // the h1 element directly).
   const headingTokens: TypeToken[] = ["display", "h1", "h2", "h3"];
   let chosenAbove: number[];
   const h1Size = representativeHeadingSize(h1Sizes);
   if (h1Size !== undefined && h1Size > bodySize) {
-    // Build the picks around the real h1 size: one slot above it (`display`,
-    // only if a larger cluster exists) and up to two below it, so the
-    // bottom-up token assignment below always lands `h1` on the hero size.
+    // One slot above the real h1 and up to two below, so the bottom-up
+    // assignment always lands `h1` on the hero size.
     const freqRanked = pickSpread(above, bySize, 4);
     const larger = freqRanked.filter((s) => s > h1Size).sort((a, b) => b - a);
     const smaller = freqRanked.filter((s) => s < h1Size).sort((a, b) => b - a);
@@ -169,7 +154,6 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
     scale.push(buildStep("small", smallSize, bySize.get(smallSize)!));
   }
 
-  // Sort by size descending for a natural top-down reading order.
   scale.sort((a, b) => b.sizePx - a.sizePx);
 
   const families = resolveFamilies(familyWeights, familyCount, bySize, bodySize, familyStacks);
@@ -177,10 +161,7 @@ export function extractTypography(dump: StyleDump): Typography | undefined {
   return { provenance: "measured", families, scale };
 }
 
-/**
- * Choose up to `n` representative sizes from `candidates`, favouring the most
- * frequently used ones so a stray one-off size doesn't claim a heading slot.
- */
+/** Most frequently used first, so a stray one-off size doesn't claim a heading slot. */
 function pickSpread(
   candidates: number[],
   bySize: Map<number, SizeSample[]>,
@@ -191,11 +172,7 @@ function pickSpread(
     .slice(0, n);
 }
 
-/**
- * Representative size of the real <h1> elements: the modal size, ties broken
- * toward the larger one — the dominant/hero heading, not a smaller outlier
- * (DIST-031). Undefined when no <h1>-tagged text was observed.
- */
+/** The modal <h1> size, ties broken toward the larger (the hero heading). */
 function representativeHeadingSize(sizes: number[]): number | undefined {
   if (sizes.length === 0) return undefined;
   const counts = new Map<number, number>();
@@ -286,12 +263,11 @@ function resolveFamilies(
 }
 
 /** Below this px difference, a mobile heading size reads as rounding noise,
- *  not a deliberate responsive choice (§P5-2 item 4). */
+ *  not a deliberate responsive choice. */
 const MOBILE_SIZE_DIFF_THRESHOLD_PX = 2;
 
-/** Annotates scale steps with a measured 390px size, only where it actually
- *  differs from the desktop size — most sites don't resize headings, and a
- *  1px wobble isn't a responsive typography decision worth reporting. */
+/** Annotates scale steps with the measured 390px size only where it differs
+ *  from the desktop size by at least `MOBILE_SIZE_DIFF_THRESHOLD_PX`. */
 export function applyMobileTypeSizes(
   typography: Typography,
   mobileSizesPx: Record<string, number>,

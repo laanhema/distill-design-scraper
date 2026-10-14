@@ -1,16 +1,9 @@
 /**
- * Shared scale step matcher (DIST-067 / §12 Phase 8 P2-1).
- *
- * Snaps a measured numeric value to the nearest step in a numeric scale (e.g. `report.spacing.scale`),
- * returning `null` if no scale value lies within `tolerance`.
- *
- * Used by:
- * - `tokenLink.ts` (§P3-1): matching exact DOM gaps to spacing tokens (tight tolerance = 2px).
- *   `tokenLink` relies on returning `null` when out of tolerance so it NEVER guesses a token not in the report.
- * - `regionMetrics.ts` (§P7-2): snapping bounds-derived vertical padding averages (slack tolerance = 4px).
- *
- * Differing tolerances reflect physical inputs (exact DOM gaps vs bounds-derived averages),
- * passed explicitly per call site.
+ * Snaps a measured value to the nearest scale step, or `null` when no step lies
+ * within `tolerance` — so a caller never guesses a token that isn't in the
+ * report. Each call site passes its own tolerance for its input: exact DOM
+ * gaps take a tight 2px (`tokenLink.ts`), bounds-derived padding averages a
+ * slacker 4px (`regionMetrics.ts`).
  */
 
 export function nearestScaleValue(
