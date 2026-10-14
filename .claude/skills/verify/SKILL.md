@@ -83,7 +83,7 @@ Proof standards:
 - Drive the real user path: type into the box and click the button. Don't call extractors or `analyzeUrl` directly; that is `npm run eval` or a scratch script, not verification.
 - Capture the action and the resulting state, not only the final screen.
 - Verify side effects alongside what is visible. A download proves itself by its saved bytes matching the API payload, not by the button click. A cache hit proves itself by a near-zero `time_total` and a byte-identical body.
-- With `ai-lane off`, nothing reaches a model provider. A claim about the AI lane (`identity`, refinements, inferred image structure, `aiApplied: true`) needs a `VERIFY_AI=1` run. Say which mode a proof used.
+- With `ai-lane off`, nothing reaches a model provider. A claim about the AI lane (`identity`, refinements, inferred image structure, `aiOutcome: "applied"`) needs a `VERIFY_AI=1` run. Say which mode a proof used.
 - Cite `GIT_HEAD` from `doctor` in the proof, so the reader knows which code was driven.
 
 ## Cleanup
