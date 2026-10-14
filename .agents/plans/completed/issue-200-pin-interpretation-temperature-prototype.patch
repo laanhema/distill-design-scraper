@@ -1,0 +1,50 @@
+diff --git a/lib/aiLane.ts b/lib/aiLane.ts
+index fa59931..232460d 100644
+--- a/lib/aiLane.ts
++++ b/lib/aiLane.ts
+@@ -30,6 +30,12 @@ export interface ModelCall {
+    * thinking prelude plus the answer.
+    */
+   maxOutputTokens: number;
++  /**
++   * Sent as `temperature` when set; omitted, the routed model samples at its
++   * own default (1.0 on Gemini). A lane whose answer should not change between
++   * identical requests sets it low.
++   */
++  temperature?: number;
+ }
+ 
+ /**
+@@ -101,6 +107,7 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
+       model,
+       messages,
+       max_tokens: opts.maxOutputTokens,
++      ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
+       ...(opts.jsonSchema
+         ? {
+             response_format: {
+diff --git a/lib/interpret.ts b/lib/interpret.ts
+index 9c402d5..0f65237 100644
+--- a/lib/interpret.ts
++++ b/lib/interpret.ts
+@@ -37,6 +37,12 @@ import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure }
+ // own for the prelude and the answer.
+ const MAX_TOKENS = 2048;
+ 
++// The same page should read the same way on every run: the identity is a
++// reading of measured tokens and one screenshot, not a creative draft. Without
++// it, the routed model samples at its default (1.0 on Gemini) and words the
++// same reading differently each time, which `npm run eval:ai` measures (#200).
++const TEMPERATURE = 0;
++
+ const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
+ You are given a screenshot of a rendered page (or an image) plus a JSON summary of
+ tokens that have ALREADY been measured deterministically from it. Your job is to
+@@ -143,6 +149,7 @@ async function requestOnce(
+     user: `${promptNote}\n\n${summary}\n\nInterpret its identity and imageMood, and refine any mislabelled color roles.`,
+     jsonSchema: OUTPUT_SCHEMA,
+     maxOutputTokens: MAX_TOKENS,
++    temperature: TEMPERATURE,
+   });
+ 
+   // The `json_schema` response format should return clean JSON, but a fence

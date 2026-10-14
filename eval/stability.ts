@@ -11,6 +11,15 @@ import { CORPUS } from "./corpus";
  * (Jaccard overlap above a threshold). This catches temperature/prompt
  * regressions without a "correct" answer.
  *
+ * The interpretation lane pins its temperature (`TEMPERATURE` in
+ * `lib/interpret.ts`): at the provider default, the routed model words the same
+ * reading differently on each run, and these floors failed on the last 4 runs
+ * on `main` that way (#200). The pin was measured stable on
+ * `google/gemini-2.5-flash` only: on the code default `google/gemini-3.5-flash`,
+ * these floors still fail at temperature 0 (#209). On 2.5 Flash, a failure here
+ * therefore first means the pin was lost or the routed model ignores it; on the
+ * code default, it is the known gap of #209.
+ *
  * Unlike `npm run eval` (the measured lane, offline and CI-gated), this makes
  * live model calls, so it is opt-in: `npm run eval:ai`, and a no-op without an
  * OPENROUTER_API_KEY. Screenshots come from the committed captures, so only the
