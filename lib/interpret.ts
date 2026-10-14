@@ -145,9 +145,9 @@ async function requestOnce(
     maxOutputTokens: MAX_TOKENS,
   });
 
-  // Native JSON mode should return clean JSON, but a fence or a refusal
-  // preamble is still possible — parse loosely, then let Zod, not the model's
-  // word, be the gate.
+  // The `json_schema` response format should return clean JSON, but a fence
+  // or a refusal preamble is still possible — parse loosely, then let Zod,
+  // not the model's word, be the gate.
   const raw = parseJsonLoose(text);
   if (raw === null) return null;
 
