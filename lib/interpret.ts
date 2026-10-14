@@ -45,7 +45,8 @@ const TEMPERATURE = 0;
 
 // Temperature 0 is not enough on the code default `google/gemini-3.5-flash`:
 // the same request still got a different reading on each call until a seed was
-// sent (#209). Any fixed value works; 7 is the value that was measured.
+// sent (#209). 7 is the only value measured; after changing it, rerun
+// `npm run eval:ai`.
 const SEED = 7;
 
 const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
