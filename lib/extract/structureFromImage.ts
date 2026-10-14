@@ -147,8 +147,8 @@ export async function structureFromImages(
   // bounded by the Zod-gated response (`aiVisionStructureResponseSchema`,
   // ontology types constrained to the ONTOLOGY_TYPES enum) plus the
   // retry-then-null fallback, so injection can at worst skew the inferred
-  // skeleton's names/labels — never tool use or data exfiltration. Widening what this response can drive widens the
-  // injection blast radius.
+  // skeleton's names/labels — never tool use or data exfiltration. Widening
+  // what this response can drive widens the injection blast radius.
   const imageBlocks = imagesBase64.map((data, i) => ({
     data,
     mediaType: mediaTypes[i],

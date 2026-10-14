@@ -1,6 +1,7 @@
 /**
  * Ties go to the first value to reach the highest count; empty input returns
- * `fallback`. `recipes.ts` keeps a distinct `modal<T>(values, keyOf)` for
+ * `fallback`, or `undefined` (despite the one-argument overload's `T`).
+ * `recipes.ts` keeps a distinct `modal<T>(values, keyOf)` for
  * objects keyed by property.
  */
 

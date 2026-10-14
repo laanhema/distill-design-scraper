@@ -78,7 +78,6 @@ export interface StructureAIResult {
   sectionDescriptions?: Record<string, string>;
 }
 
-
 /** One intent line per section: the same band list Stage 9 digests. */
 type DigestListEntry = {
   id: string;

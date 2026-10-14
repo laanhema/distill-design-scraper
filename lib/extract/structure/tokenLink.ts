@@ -6,7 +6,8 @@ import type { NodeStyle, StyleDump } from "@/lib/extract/styleDump";
 
 /**
  * Stage 8b — Token Link (`both` mode only): joins components to the style dump
- * by bounds overlap, then to the report by exact token match, for a hint like
+ * by bounds overlap, then to the report by the nearest palette role or scale
+ * step within a small tolerance, for a hint like
  * `bg=surface · radius=8px · gap=24px`. No close match means no hint — this
  * never guesses a token that isn't in the report.
  */

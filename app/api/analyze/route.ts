@@ -27,8 +27,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-// Bound the measured-lane palette merge; the AI lane applies its own, tighter
-// cap (MAX_INTERPRET_IMAGES in lib/interpret.ts) on top of whatever's accepted here.
+// MAX_IMAGES (`@/lib/api`) bounds the measured-lane palette merge; the AI lane
+// applies its own, tighter cap (MAX_INTERPRET_IMAGES in lib/interpret.ts) on top
+// of whatever's accepted here.
 
 // Request-body ceiling: MAX_IMAGES base64 uploads (≈4/3 inflation) at 8 MiB
 // each (≈6 MiB raw, far above any real screenshot), which also absorbs the
