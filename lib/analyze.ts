@@ -276,7 +276,7 @@ export async function analyzeImages(
             // changes), not a one-off flake — see the route.ts caching gate,
             // which relies on that distinction (DIST-050).
             structureUnavailableReason:
-              "Structure inference for images requires an AI key — set GEMINI_API_KEY or OPENROUTER_API_KEY." as
+              "Structure inference for images requires an AI key — set OPENROUTER_API_KEY." as
                 | string
                 | undefined,
           })

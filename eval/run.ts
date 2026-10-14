@@ -59,7 +59,7 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
     try {
       // Force the heuristic Stage 7 fallback (DIST-013) so the eval path
       // never makes AI calls — keeps `npm run eval`
-      // offline and deterministic even when `GEMINI_API_KEY` is set.
+      // offline and deterministic even when `OPENROUTER_API_KEY` is set.
       const structReport = await extractStructureFromCapture(
         capture,
         undefined,

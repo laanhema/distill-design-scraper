@@ -425,14 +425,14 @@ function Preview({
 
       {meta.aiOutcome === "no-key" && (
         <p className="rounded-md border border-line bg-surface-sunken px-3.5 py-2 text-xs text-ink-muted">
-          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-ink-code">GEMINI_API_KEY</code> or <code className="font-mono text-ink-code">OPENROUTER_API_KEY</code> in <code className="font-mono text-ink-code">.env.local</code> to enable optional AI vision enrichment (§7). Get a free Gemini key at{" "}
+          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-ink-code">OPENROUTER_API_KEY</code> in <code className="font-mono text-ink-code">.env.local</code> to enable optional AI vision enrichment (§7). Get an OpenRouter key at{" "}
           <a
-            href="https://aistudio.google.com/apikey"
+            href="https://openrouter.ai/keys"
             target="_blank"
             rel="noreferrer"
             className="underline hover:text-ink"
           >
-            aistudio.google.com/apikey
+            openrouter.ai/keys
           </a>.
         </p>
       )}

@@ -1,0 +1,1051 @@
+diff --git a/.claude/skills/verify/scripts/verify.sh b/.claude/skills/verify/scripts/verify.sh
+index 3d51135..6b4f8f8 100755
+--- a/.claude/skills/verify/scripts/verify.sh
++++ b/.claude/skills/verify/scripts/verify.sh
+@@ -74,9 +74,9 @@ cmd_up() {
+   APP_PGID=""
+   write_state  # recorded before anything can fail, so `down` can always clean up
+ 
+-  # AI lane off by default: empty keys win over .env.local (Next never overrides
+-  # an env var that is already defined). VERIFY_AI=1 keeps the .env.local keys.
+-  local ai_env=(GEMINI_API_KEY= OPENROUTER_API_KEY=)
++  # AI lane off by default: an empty key wins over .env.local (Next never overrides
++  # an env var that is already defined). VERIFY_AI=1 keeps the .env.local key.
++  local ai_env=(OPENROUTER_API_KEY=)
+   [ "${VERIFY_AI:-}" = "1" ] && ai_env=()
+   (cd "$REPO" && setsid env "${ai_env[@]}" \
+       SSRF_ALLOWLIST_HOSTS=127.0.0.1 NEXT_TELEMETRY_DISABLED=1 \
+diff --git a/app/page.tsx b/app/page.tsx
+index 67724fa..ac36d8c 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -425,14 +425,14 @@ function Preview({
+ 
+       {meta.aiOutcome === "no-key" && (
+         <p className="rounded-md border border-line bg-surface-sunken px-3.5 py-2 text-xs text-ink-muted">
+-          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-ink-code">GEMINI_API_KEY</code> or <code className="font-mono text-ink-code">OPENROUTER_API_KEY</code> in <code className="font-mono text-ink-code">.env.local</code> to enable optional AI vision enrichment (§7). Get a free Gemini key at{" "}
++          💡 <strong>Setup Hint:</strong> Set <code className="font-mono text-ink-code">OPENROUTER_API_KEY</code> in <code className="font-mono text-ink-code">.env.local</code> to enable optional AI vision enrichment (§7). Get an OpenRouter key at{" "}
+           <a
+-            href="https://aistudio.google.com/apikey"
++            href="https://openrouter.ai/keys"
+             target="_blank"
+             rel="noreferrer"
+             className="underline hover:text-ink"
+           >
+-            aistudio.google.com/apikey
++            openrouter.ai/keys
+           </a>.
+         </p>
+       )}
+diff --git a/eval/run.ts b/eval/run.ts
+index aae2be3..440b68c 100644
+--- a/eval/run.ts
++++ b/eval/run.ts
+@@ -59,7 +59,7 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
+     try {
+       // Force the heuristic Stage 7 fallback (DIST-013) so the eval path
+       // never makes AI calls — keeps `npm run eval`
+-      // offline and deterministic even when `GEMINI_API_KEY` is set.
++      // offline and deterministic even when `OPENROUTER_API_KEY` is set.
+       const structReport = await extractStructureFromCapture(
+         capture,
+         undefined,
+diff --git a/eval/stability.ts b/eval/stability.ts
+index 59dd8e6..a41d628 100644
+--- a/eval/stability.ts
++++ b/eval/stability.ts
+@@ -13,7 +13,7 @@ import { CORPUS } from "./corpus";
+  *
+  * Unlike `npm run eval` (the measured lane, offline and CI-gated), this makes
+  * live model calls, so it is opt-in: `npm run eval:ai`, and a no-op without an
+- * GEMINI_API_KEY. Screenshots come from the committed captures, so only the
++ * OPENROUTER_API_KEY. Screenshots come from the committed captures, so only the
+  * AI lane varies between runs.
+  */
+ 
+@@ -90,7 +90,7 @@ async function scoreSite(slug: string): Promise<{
+ async function main() {
+   if (!aiLaneAvailable()) {
+     console.log(
+-      "AI-lane stability eval skipped: set GEMINI_API_KEY or OPENROUTER_API_KEY to run it.",
++      "AI-lane stability eval skipped: set OPENROUTER_API_KEY to run it.",
+     );
+     return;
+   }
+diff --git a/lib/aiLane.ts b/lib/aiLane.ts
+index 777ce1d..c253d60 100644
+--- a/lib/aiLane.ts
++++ b/lib/aiLane.ts
+@@ -3,57 +3,17 @@
+  * structure labelling, vision-based structure inference) — one model id, one
+  * availability check, one request primitive, one JSON parser, and one retry
+  * policy, so the three lanes can't drift out of sync with each other. This is
+- * also the only file in the codebase that imports a model-provider SDK: a lane
+- * that needs a model round-trip calls `callModel`, never `generateContent`.
++ * also the only file in the codebase that talks to a model provider: a lane
++ * that needs a model round-trip calls `callModel`, never `fetch`. The one
++ * provider is OpenRouter, reached over plain `fetch`, so there is no model
++ * SDK in the dependencies.
+  */
+ 
+-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+-
+ import type { ImageMediaType } from "@/lib/extract/imageMediaType";
+ 
+-/**
+- * Re-exported so no call site has to import the SDK just to name a thinking
+- * level (`ThinkingLevel` is an enum — a runtime value, not a type alias).
+- */
+-export { ThinkingLevel };
+-
+-/** Vision-capable; pinned everywhere an AI lane calls the model. Exported as the canonical model pin declaration owned by lib/aiLane.ts (§6, DIST-073). */
+-export const AI_MODEL = "gemini-3.5-flash";
+-
+-/** True when a live AI lane call is possible (an API key is configured). */
++/** True when a live AI lane call is possible (an OpenRouter API key is configured). */
+ export function aiLaneAvailable(): boolean {
+-  return Boolean(process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY);
+-}
+-
+-/**
+- * One client for the whole process, constructed on first use — not one per
+- * call and certainly not one per retry. Only assigned after a successful
+- * construction so a missing-key throw can't poison a later call.
+- */
+-let client: GoogleGenAI | null = null;
+-
+-/**
+- * One-time (not per-call) process-lifetime flag: `thinkingLevel` is a
+- * Gemini-only knob (see `callOpenRouterModel` below), and a hot path (e.g.
+- * repeated structure-AI calls) shouldn't spam the log every time a lane sends
+- * one over OpenRouter.
+- */
+-let warnedThinkingLevelIgnored = false;
+-
+-function getClient(): GoogleGenAI {
+-  if (client) return client;
+-  const apiKey = process.env.GEMINI_API_KEY;
+-  if (!apiKey) {
+-    // Thrown rather than silently constructing a keyless client, so a caller
+-    // that skipped `aiLaneAvailable()` surfaces through `retryOnce`'s
+-    // `onError` instead of failing opaquely inside the SDK.
+-    throw new Error("GEMINI_API_KEY is not set — AI lane called without an available key.");
+-  }
+-  // Passed explicitly even though the SDK auto-reads the env var, so the
+-  // availability gate and the client can never disagree about which key.
+-  const constructed = new GoogleGenAI({ apiKey });
+-  client = constructed;
+-  return constructed;
++  return Boolean(process.env.OPENROUTER_API_KEY);
+ }
+ 
+ /** One model round-trip: optional images + optional system prompt + user text. */
+@@ -62,40 +22,41 @@ export interface ModelCall {
+   images?: { data: string; mediaType: ImageMediaType }[];
+   system?: string;
+   user: string;
+-  /** When set, turns on native JSON mode — kills the brace-match regex. */
++  /** When set, the request carries it as a non-strict `response_format: json_schema`. */
+   jsonSchema?: object;
+-  maxOutputTokens: number;
+   /**
+-   * Gemini 3.x thinks by default and thinking tokens count against
+-   * `maxOutputTokens`, so a lane that leaves this unset can burn a short
+-   * budget before any answer exists. Lanes with tight budgets should pin it.
++   * Sent as `max_tokens`. No thinking cap is sent with it, and a model that
++   * thinks before it answers spends this budget on both, so size it for the
++   * thinking prelude plus the answer.
+    */
+-  thinkingLevel?: ThinkingLevel;
++  maxOutputTokens: number;
+ }
+ 
+ /**
++ * The single model round-trip for every AI lane: one `POST` to OpenRouter's
++ * `/chat/completions`, which routes to `OPENROUTER_MODEL` (a Gemini model by
++ * default). Returns `null` only for the "call succeeded but produced no usable
++ * text" case — network/auth errors and non-2xx responses deliberately
++ * propagate, because `retryOnce`'s `onError` is the only place an AI failure
++ * becomes visible, and a swallowed 401/429 would be indistinguishable from a
++ * quality regression.
++ *
+  * Support for `response_format: json_schema` varies by the routed model — a
+  * custom `OPENROUTER_MODEL` override that doesn't support it will surface as
+  * a call failure through the existing `retryOnce`/`warnAiFailure` path, not a
+  * silent quality regression, which is the accepted trade-off named in issue
+  * #104's technical-notes comment.
+  */
+-async function callOpenRouterModel(opts: ModelCall): Promise<string | null> {
++export async function callModel(opts: ModelCall): Promise<string | null> {
+   const apiKey = process.env.OPENROUTER_API_KEY;
+   if (!apiKey) {
++    // Thrown rather than sending a keyless request, so a caller that skipped
++    // `aiLaneAvailable()` surfaces through `retryOnce`'s `onError`.
+     throw new Error("OPENROUTER_API_KEY is not set — AI lane called without an available key.");
+   }
+ 
+   const model = process.env.OPENROUTER_MODEL || "google/gemini-3.5-flash";
+ 
+-  if (opts.thinkingLevel && !warnedThinkingLevelIgnored) {
+-    warnedThinkingLevelIgnored = true;
+-    console.warn(
+-      "aiLane: thinkingLevel is a Gemini-only knob and has no effect over OpenRouter — " +
+-        "token budgets sized for a capped thinking prelude may behave differently on this path.",
+-    );
+-  }
+-
+   const userContent: Array<
+     | { type: "image_url"; image_url: { url: string } }
+     | { type: "text"; text: string }
+@@ -173,48 +134,6 @@ async function callOpenRouterModel(opts: ModelCall): Promise<string | null> {
+   return text && text.trim() ? text : null;
+ }
+ 
+-async function callGeminiModel(opts: ModelCall): Promise<string | null> {
+-  const imageParts = (opts.images ?? []).map((img) => ({
+-    // Raw base64 — no data-URL prefix.
+-    inlineData: { mimeType: img.mediaType, data: img.data },
+-  }));
+-
+-  const response = await getClient().models.generateContent({
+-    // Restores the Phase-5-specced override that was never built; AI_MODEL stays the default.
+-    model: process.env.GEMINI_MODEL || AI_MODEL,
+-    contents: [{ role: "user", parts: [...imageParts, { text: opts.user }] }],
+-    config: {
+-      maxOutputTokens: opts.maxOutputTokens,
+-      ...(opts.system ? { systemInstruction: opts.system } : {}),
+-      ...(opts.thinkingLevel ? { thinkingConfig: { thinkingLevel: opts.thinkingLevel } } : {}),
+-      // Native JSON mode is all-or-nothing: the mime type and the schema go
+-      // together, and `responseSchema` (the legacy field) is never set —
+-      // supplying both is an error. Call sites never build `config`, so they
+-      // can't get this pairing wrong.
+-      ...(opts.jsonSchema
+-        ? { responseMimeType: "application/json", responseJsonSchema: opts.jsonSchema }
+-        : {}),
+-    },
+-  });
+-
+-  const text = response.text;
+-  return text && text.trim() ? text : null;
+-}
+-
+-/**
+- * The single model round-trip for every AI lane. Returns `null` only for the
+- * "call succeeded but produced no usable text" case — SDK/network/auth errors
+- * deliberately propagate, because `retryOnce`'s `onError` is the only place an
+- * AI failure becomes visible, and a swallowed 401/429 would be
+- * indistinguishable from a quality regression.
+- */
+-export async function callModel(opts: ModelCall): Promise<string | null> {
+-  if (process.env.OPENROUTER_API_KEY) {
+-    return callOpenRouterModel(opts);
+-  }
+-  return callGeminiModel(opts);
+-}
+-
+ /**
+  * JSON mode should return clean JSON; a fence or a chatty preamble is still
+  * possible, so fall back to the outermost brace match before giving up. The
+diff --git a/lib/analyze.ts b/lib/analyze.ts
+index ca27fad..028d0d6 100644
+--- a/lib/analyze.ts
++++ b/lib/analyze.ts
+@@ -276,7 +276,7 @@ export async function analyzeImages(
+             // changes), not a one-off flake — see the route.ts caching gate,
+             // which relies on that distinction (DIST-050).
+             structureUnavailableReason:
+-              "Structure inference for images requires an AI key — set GEMINI_API_KEY or OPENROUTER_API_KEY." as
++              "Structure inference for images requires an AI key — set OPENROUTER_API_KEY." as
+                 | string
+                 | undefined,
+           })
+diff --git a/lib/extract/imageMediaType.ts b/lib/extract/imageMediaType.ts
+index bd95400..c5aa96f 100644
+--- a/lib/extract/imageMediaType.ts
++++ b/lib/extract/imageMediaType.ts
+@@ -15,7 +15,7 @@ const SHARP_FORMAT_TO_MEDIA_TYPE: Partial<Record<string, ImageMediaType>> = {
+  * preserved past `stripDataUrlPrefix`, so a declared type isn't available
+  * here. Falls back to "image/png" (harmless for actual PNGs, and the closest
+  * available guess otherwise) when the format can't be read or isn't one of
+- * the four Gemini's vision API accepts.
++ * the four image types that the AI lane's vision model accepts.
+  */
+ export async function detectImageMediaType(base64: string): Promise<ImageMediaType> {
+   try {
+diff --git a/lib/extract/structure/structureAI.ts b/lib/extract/structure/structureAI.ts
+index 3bc927b..8f63eaa 100644
+--- a/lib/extract/structure/structureAI.ts
++++ b/lib/extract/structure/structureAI.ts
+@@ -1,7 +1,7 @@
+ import { z } from "zod";
+ import type { PrunedNode, ComponentDef, OntologyType } from "../structureSchema";
+ import { ONTOLOGY_TYPES } from "../structureSchema";
+-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
++import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } from "@/lib/aiLane";
+ import { findDigestBands } from "./sections";
+ 
+ export const aiStructureResponseSchema = z.object({
+@@ -164,8 +164,6 @@ Return strict JSON matching this Zod schema:
+     user: prompt,
+     jsonSchema: STRUCTURE_SCHEMA,
+     maxOutputTokens: 4000,
+-    // Gemini-only pin — has no effect over OpenRouter (logged once by aiLane.ts).
+-    thinkingLevel: ThinkingLevel.LOW,
+   });
+ 
+   const raw = parseJsonLoose(text);
+@@ -181,7 +179,7 @@ export async function runStructureAILabeller(
+ ): Promise<StructureAIResult> {
+   // Eval-harness short-circuit (DIST-013): when the caller forces heuristic
+   // naming, skip the AI path entirely — before `aiLaneAvailable()` so no AI
+-  // calls are made. Keeps `npm run eval` offline even when `GEMINI_API_KEY` is
++  // calls are made. Keeps `npm run eval` offline even when `OPENROUTER_API_KEY` is
+   // set, and suppresses DIST-030's `sectionDescriptions` (only produced on the
+   // AI path).
+   if (opts?.forceHeuristicNaming) {
+diff --git a/lib/extract/structureFromImage.ts b/lib/extract/structureFromImage.ts
+index c547cab..750382a 100644
+--- a/lib/extract/structureFromImage.ts
++++ b/lib/extract/structureFromImage.ts
+@@ -4,7 +4,7 @@ import { ONTOLOGY_TYPES, type PrunedNode, type StructureReport } from "./structu
+ import { buildFallbackComponentMap } from "./structure/structureAI";
+ import { emitStructureReport } from "./structure/structureEmit";
+ import { detectImageMediaType, type ImageMediaType } from "./imageMediaType";
+-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
++import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } from "@/lib/aiLane";
+ 
+ /**
+  * §P6-2 step 2 — Vision structure lane. There is no DOM for an uploaded image,
+@@ -13,7 +13,7 @@ import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, w
+  * naming conventions so a `both`-mode-style skeleton reads the same whether it
+  * came from a live render or an upload, but it is a one-shot generation (there
+  * is no heuristic fallback possible without a DOM to walk), gated entirely on
+- * `GEMINI_API_KEY`, and always stamped `fidelity: "inferred"`.
++ * `OPENROUTER_API_KEY`, and always stamped `fidelity: "inferred"`.
+  */
+ 
+ const MAX_TOKENS = 4096;
+@@ -95,8 +95,6 @@ async function requestOnce(
+     system: SYSTEM_PROMPT,
+     user: "Infer the layout skeleton for this design as strict JSON.",
+     maxOutputTokens: MAX_TOKENS,
+-    // Gemini-only pin — has no effect over OpenRouter (logged once by aiLane.ts).
+-    thinkingLevel: ThinkingLevel.MEDIUM,
+   });
+ 
+   const raw = parseJsonLoose(text);
+diff --git a/lib/interpret.ts b/lib/interpret.ts
+index 7c55308..c0d4327 100644
+--- a/lib/interpret.ts
++++ b/lib/interpret.ts
+@@ -11,7 +11,7 @@ import {
+ } from "@/lib/schema";
+ import { ROLE_USAGE } from "@/lib/extract/palette";
+ import { detectImageMediaType } from "@/lib/extract/imageMediaType";
+-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
++import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } from "@/lib/aiLane";
+ 
+ /**
+  * Interpretation engine (§6, the AI lane). Only `identity`, `imageMood`, and
+@@ -30,13 +30,11 @@ import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, w
+  */
+ 
+ // This lane is grounded on tokens that were already measured, so its job is to
+-// read the feel — not to reason hard — hence `ThinkingLevel.MINIMAL`. The old
+-// 1024 was sized for a budget the answer had to itself; thinking tokens now
+-// share `maxOutputTokens`, so it doubles to keep a thinking prelude from
+-// truncating the JSON. `thinkingLevel` is a Gemini-only pin, though — it has
+-// no effect when this lane is dispatched over OpenRouter (logged once by
+-// `aiLane.ts`), so the "capped thinking prelude" assumption above doesn't
+-// hold on that path; the 2048 budget still has to be enough on its own there.
++// read the feel — not to reason hard. The old 1024 was sized for a budget the
++// answer had to itself; thinking tokens now share `maxOutputTokens`, so it
++// doubles to keep a thinking prelude from truncating the JSON. No thinking cap
++// is sent (`callModel` has none), so the 2048 budget has to be enough on its
++// own for the prelude and the answer.
+ const MAX_TOKENS = 2048;
+ 
+ const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
+@@ -57,13 +55,10 @@ Return ONLY these three things:
+  * and the refinable-role enum. It used to be a hand-written copy without those
+  * bounds, so a reply the provider accepted could still fail Zod and, after the
+  * retry, drop the whole lane (#177). A bound added to `aiResponseSchema` is
+- * sent on the next call — check it live on both providers, since only a real
+- * request shows whether each accepts a generated keyword. Stated is not
+- * applied, though: the `@google/genai` doc comment of `responseJsonSchema`
+- * lists `minItems`/`maxItems` (the adjective, hero and texture counts) as
+- * supported but not `minLength` or `pattern`, so on the native Gemini path the
+- * non-empty archetype/description and the hex pattern are sent without being
+- * documented as applied, and Zod stays the only gate for them there.
++ * sent on the next call — check it live over OpenRouter, since only a real
++ * request shows whether the routed model accepts a generated keyword. Stated
++ * is not applied, though: `callModel` sends the schema non-strict, so the
++ * routed model may ignore a bound, and Zod stays the only gate.
+  *
+  * The call relies on the default `io: "output"` mode of `z.toJSONSchema`, and
+  * that mode is intended: it keeps `roleRefinements` in the top-level
+@@ -148,7 +143,6 @@ async function requestOnce(
+     user: `${promptNote}\n\n${summary}\n\nInterpret its identity and imageMood, and refine any mislabelled color roles.`,
+     jsonSchema: OUTPUT_SCHEMA,
+     maxOutputTokens: MAX_TOKENS,
+-    thinkingLevel: ThinkingLevel.MINIMAL,
+   });
+ 
+   // Native JSON mode should return clean JSON, but a fence or a refusal
+diff --git a/package-lock.json b/package-lock.json
+index a6317fd..8906c98 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -9,7 +9,6 @@
+       "version": "0.1.2",
+       "hasInstallScript": true,
+       "dependencies": {
+-        "@google/genai": "^2.13.0",
+         "culori": "^4.0.2",
+         "js-yaml": "^5.2.1",
+         "next": "^15.1.6",
+@@ -688,30 +687,6 @@
+         "node": "^18.18.0 || ^20.9.0 || >=21.1.0"
+       }
+     },
+-    "node_modules/@google/genai": {
+-      "version": "2.13.0",
+-      "resolved": "https://registry.npmjs.org/@google/genai/-/genai-2.13.0.tgz",
+-      "integrity": "sha512-GM7C8Kaomvjz05x5JEO6+l3d/pciL9LxAG9dUjJLD7nTPZ9X0Cfsf2Z7eET6UjgWyUmxXCHtYnQoQ77F9+ZIOQ==",
+-      "hasInstallScript": true,
+-      "license": "Apache-2.0",
+-      "dependencies": {
+-        "google-auth-library": "^10.3.0",
+-        "p-retry": "^4.6.2",
+-        "protobufjs": "^7.5.4",
+-        "ws": "^8.18.0"
+-      },
+-      "engines": {
+-        "node": ">=20.0.0"
+-      },
+-      "peerDependencies": {
+-        "@modelcontextprotocol/sdk": "^1.25.2"
+-      },
+-      "peerDependenciesMeta": {
+-        "@modelcontextprotocol/sdk": {
+-          "optional": true
+-        }
+-      }
+-    },
+     "node_modules/@humanfs/core": {
+       "version": "0.19.2",
+       "resolved": "https://registry.npmjs.org/@humanfs/core/-/core-0.19.2.tgz",
+@@ -1539,63 +1514,6 @@
+         "node": ">=12.4.0"
+       }
+     },
+-    "node_modules/@protobufjs/aspromise": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/aspromise/-/aspromise-1.1.2.tgz",
+-      "integrity": "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ==",
+-      "license": "BSD-3-Clause"
+-    },
+-    "node_modules/@protobufjs/base64": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/base64/-/base64-1.1.2.tgz",
+-      "integrity": "sha512-AZkcAA5vnN/v4PDqKyMR5lx7hZttPDgClv83E//FMNhR2TMcLUhfRUBHCmSl0oi9zMgDDqRUJkSxO3wm85+XLg==",
+-      "license": "BSD-3-Clause"
+-    },
+-    "node_modules/@protobufjs/codegen": {
+-      "version": "2.0.5",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/codegen/-/codegen-2.0.5.tgz",
+-      "integrity": "sha512-zgXFLzW3Ap33e6d0Wlj4MGIm6Ce8O89n/apUaGNB/jx+hw+ruWEp7EwGUshdLKVRCxZW12fp9r40E1mQrf/34g==",
+-      "license": "BSD-3-Clause"
+-    },
+-    "node_modules/@protobufjs/eventemitter": {
+-      "version": "1.1.1",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/eventemitter/-/eventemitter-1.1.1.tgz",
+-      "integrity": "sha512-vW1GmwMZNnL+gMRaovlh9yZX74kc+TTU3FObkkurpMaRtBfLP3ldjS9KQWlwZgraRE0+dheEEoAxdzcJQ8eXZg==",
+-      "license": "BSD-3-Clause"
+-    },
+-    "node_modules/@protobufjs/fetch": {
+-      "version": "1.1.1",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/fetch/-/fetch-1.1.1.tgz",
+-      "integrity": "sha512-GpptLrs57adMSuHi3VNj0mAF8dwh36LMaYF6XyJ6JMWlVsc+t42tm1HSEDmOs3A8fC9yyeisgLhsTVQokOZ0zw==",
+-      "license": "BSD-3-Clause",
+-      "dependencies": {
+-        "@protobufjs/aspromise": "^1.1.1"
+-      }
+-    },
+-    "node_modules/@protobufjs/float": {
+-      "version": "1.0.2",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/float/-/float-1.0.2.tgz",
+-      "integrity": "sha512-Ddb+kVXlXst9d+R9PfTIxh1EdNkgoRe5tOX6t01f1lYWOvJnSPDBlG241QLzcyPdoNTsblLUdujGSE4RzrTZGQ==",
+-      "license": "BSD-3-Clause"
+-    },
+-    "node_modules/@protobufjs/path": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/path/-/path-1.1.2.tgz",
+-      "integrity": "sha512-6JOcJ5Tm08dOHAbdR3GrvP+yUUfkjG5ePsHYczMFLq3ZmMkAD98cDgcT2iA1lJ9NVwFd4tH/iSSoe44YWkltEA==",
+-      "license": "BSD-3-Clause"
+-    },
+-    "node_modules/@protobufjs/pool": {
+-      "version": "1.1.0",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/pool/-/pool-1.1.0.tgz",
+-      "integrity": "sha512-0kELaGSIDBKvcgS4zkjz1PeddatrjYcmMWOlAuAPwAeccUrPHdUqo/J6LiymHHEiJT5NrF1UVwxY14f+fy4WQw==",
+-      "license": "BSD-3-Clause"
+-    },
+-    "node_modules/@protobufjs/utf8": {
+-      "version": "1.1.2",
+-      "resolved": "https://registry.npmjs.org/@protobufjs/utf8/-/utf8-1.1.2.tgz",
+-      "integrity": "sha512-b1UQwcEZ4yCnMCD8DAL1VlbvBJE9/IX4FTIp7BG1xYpf29SLazLSrqUkj4w7Y5y7cCVP6E5tcqqcI0xemPkHug==",
+-      "license": "BSD-3-Clause"
+-    },
+     "node_modules/@rtsao/scc": {
+       "version": "1.1.0",
+       "resolved": "https://registry.npmjs.org/@rtsao/scc/-/scc-1.1.0.tgz",
+@@ -1999,6 +1917,7 @@
+       "version": "22.20.1",
+       "resolved": "https://registry.npmjs.org/@types/node/-/node-22.20.1.tgz",
+       "integrity": "sha512-EANqOCF9QFyra+4pfxUcX9STKJpCLjMbObVzljIJomAWSnuSIEAvyzEU53GaajbXJEgdh0iEcPL+DGvpUd4k1Q==",
++      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "undici-types": "~6.21.0"
+@@ -2024,12 +1943,6 @@
+         "@types/react": "^19.2.0"
+       }
+     },
+-    "node_modules/@types/retry": {
+-      "version": "0.12.0",
+-      "resolved": "https://registry.npmjs.org/@types/retry/-/retry-0.12.0.tgz",
+-      "integrity": "sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==",
+-      "license": "MIT"
+-    },
+     "node_modules/@typescript-eslint/eslint-plugin": {
+       "version": "8.65.0",
+       "resolved": "https://registry.npmjs.org/@typescript-eslint/eslint-plugin/-/eslint-plugin-8.65.0.tgz",
+@@ -2659,15 +2572,6 @@
+         "acorn": "^6.0.0 || ^7.0.0 || ^8.0.0"
+       }
+     },
+-    "node_modules/agent-base": {
+-      "version": "7.1.4",
+-      "resolved": "https://registry.npmjs.org/agent-base/-/agent-base-7.1.4.tgz",
+-      "integrity": "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 14"
+-      }
+-    },
+     "node_modules/ajv": {
+       "version": "6.15.0",
+       "resolved": "https://registry.npmjs.org/ajv/-/ajv-6.15.0.tgz",
+@@ -2937,35 +2841,6 @@
+       "dev": true,
+       "license": "MIT"
+     },
+-    "node_modules/base64-js": {
+-      "version": "1.5.1",
+-      "resolved": "https://registry.npmjs.org/base64-js/-/base64-js-1.5.1.tgz",
+-      "integrity": "sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==",
+-      "funding": [
+-        {
+-          "type": "github",
+-          "url": "https://github.com/sponsors/feross"
+-        },
+-        {
+-          "type": "patreon",
+-          "url": "https://www.patreon.com/feross"
+-        },
+-        {
+-          "type": "consulting",
+-          "url": "https://feross.org/support"
+-        }
+-      ],
+-      "license": "MIT"
+-    },
+-    "node_modules/bignumber.js": {
+-      "version": "9.3.1",
+-      "resolved": "https://registry.npmjs.org/bignumber.js/-/bignumber.js-9.3.1.tgz",
+-      "integrity": "sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": "*"
+-      }
+-    },
+     "node_modules/brace-expansion": {
+       "version": "1.1.16",
+       "resolved": "https://registry.npmjs.org/brace-expansion/-/brace-expansion-1.1.16.tgz",
+@@ -2990,12 +2865,6 @@
+         "node": ">=8"
+       }
+     },
+-    "node_modules/buffer-equal-constant-time": {
+-      "version": "1.0.1",
+-      "resolved": "https://registry.npmjs.org/buffer-equal-constant-time/-/buffer-equal-constant-time-1.0.1.tgz",
+-      "integrity": "sha512-zRpUiDwd/xk6ADqPMATG8vc9VPrkck7T07OIx0gnjmJAnHnTVXNQG3vfvWNuiZIkwu9KrKdA1iJKfsfTVxE6NA==",
+-      "license": "BSD-3-Clause"
+-    },
+     "node_modules/call-bind": {
+       "version": "1.0.9",
+       "resolved": "https://registry.npmjs.org/call-bind/-/call-bind-1.0.9.tgz",
+@@ -3164,15 +3033,6 @@
+       "dev": true,
+       "license": "BSD-2-Clause"
+     },
+-    "node_modules/data-uri-to-buffer": {
+-      "version": "4.0.1",
+-      "resolved": "https://registry.npmjs.org/data-uri-to-buffer/-/data-uri-to-buffer-4.0.1.tgz",
+-      "integrity": "sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 12"
+-      }
+-    },
+     "node_modules/data-view-buffer": {
+       "version": "1.0.2",
+       "resolved": "https://registry.npmjs.org/data-view-buffer/-/data-view-buffer-1.0.2.tgz",
+@@ -3231,6 +3091,7 @@
+       "version": "4.4.3",
+       "resolved": "https://registry.npmjs.org/debug/-/debug-4.4.3.tgz",
+       "integrity": "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA==",
++      "dev": true,
+       "license": "MIT",
+       "dependencies": {
+         "ms": "^2.1.3"
+@@ -3324,15 +3185,6 @@
+         "node": ">= 0.4"
+       }
+     },
+-    "node_modules/ecdsa-sig-formatter": {
+-      "version": "1.0.11",
+-      "resolved": "https://registry.npmjs.org/ecdsa-sig-formatter/-/ecdsa-sig-formatter-1.0.11.tgz",
+-      "integrity": "sha512-nagl3RYrbNv6kQkeJIpt6NJZy8twLB/2vtz6yN9Z4vRKHN4/QZJIEbqohALSgwKdnksuY3k5Addp5lg8sVoVcQ==",
+-      "license": "Apache-2.0",
+-      "dependencies": {
+-        "safe-buffer": "^5.0.1"
+-      }
+-    },
+     "node_modules/emoji-regex": {
+       "version": "9.2.2",
+       "resolved": "https://registry.npmjs.org/emoji-regex/-/emoji-regex-9.2.2.tgz",
+@@ -4015,12 +3867,6 @@
+         "node": ">=0.10.0"
+       }
+     },
+-    "node_modules/extend": {
+-      "version": "3.0.2",
+-      "resolved": "https://registry.npmjs.org/extend/-/extend-3.0.2.tgz",
+-      "integrity": "sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==",
+-      "license": "MIT"
+-    },
+     "node_modules/fast-deep-equal": {
+       "version": "3.1.3",
+       "resolved": "https://registry.npmjs.org/fast-deep-equal/-/fast-deep-equal-3.1.3.tgz",
+@@ -4082,29 +3928,6 @@
+         "reusify": "^1.0.4"
+       }
+     },
+-    "node_modules/fetch-blob": {
+-      "version": "3.2.0",
+-      "resolved": "https://registry.npmjs.org/fetch-blob/-/fetch-blob-3.2.0.tgz",
+-      "integrity": "sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==",
+-      "funding": [
+-        {
+-          "type": "github",
+-          "url": "https://github.com/sponsors/jimmywarting"
+-        },
+-        {
+-          "type": "paypal",
+-          "url": "https://paypal.me/jimmywarting"
+-        }
+-      ],
+-      "license": "MIT",
+-      "dependencies": {
+-        "node-domexception": "^1.0.0",
+-        "web-streams-polyfill": "^3.0.3"
+-      },
+-      "engines": {
+-        "node": "^12.20 || >= 14.13"
+-      }
+-    },
+     "node_modules/file-entry-cache": {
+       "version": "8.0.0",
+       "resolved": "https://registry.npmjs.org/file-entry-cache/-/file-entry-cache-8.0.0.tgz",
+@@ -4185,18 +4008,6 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
+-    "node_modules/formdata-polyfill": {
+-      "version": "4.0.10",
+-      "resolved": "https://registry.npmjs.org/formdata-polyfill/-/formdata-polyfill-4.0.10.tgz",
+-      "integrity": "sha512-buewHzMvYL29jdeQTVILecSaZKnt/RJWjoZCF5OW60Z67/GmSLBkOFM7qh1PI3zFNtJbaZL5eQu1vLfazOwj4g==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "fetch-blob": "^3.1.2"
+-      },
+-      "engines": {
+-        "node": ">=12.20.0"
+-      }
+-    },
+     "node_modules/fsevents": {
+       "version": "2.3.2",
+       "resolved": "https://registry.npmjs.org/fsevents/-/fsevents-2.3.2.tgz",
+@@ -4255,34 +4066,6 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
+-    "node_modules/gaxios": {
+-      "version": "7.3.0",
+-      "resolved": "https://registry.npmjs.org/gaxios/-/gaxios-7.3.0.tgz",
+-      "integrity": "sha512-RB5vLV+vvQeoFPCX4QMK6/hjVkbIamPp1QSUD0CiZcnj12qbpiL+pLbYtgD+oZkWl0tl9z+o2Utp+MpM3QRhBA==",
+-      "license": "Apache-2.0",
+-      "dependencies": {
+-        "extend": "^3.0.2",
+-        "https-proxy-agent": "^7.0.1",
+-        "node-fetch": "^3.3.2"
+-      },
+-      "engines": {
+-        "node": ">=18"
+-      }
+-    },
+-    "node_modules/gcp-metadata": {
+-      "version": "8.1.2",
+-      "resolved": "https://registry.npmjs.org/gcp-metadata/-/gcp-metadata-8.1.2.tgz",
+-      "integrity": "sha512-zV/5HKTfCeKWnxG0Dmrw51hEWFGfcF2xiXqcA3+J90WDuP0SvoiSO5ORvcBsifmx/FoIjgQN3oNOGaQ5PhLFkg==",
+-      "license": "Apache-2.0",
+-      "dependencies": {
+-        "gaxios": "^7.0.0",
+-        "google-logging-utils": "^1.0.0",
+-        "json-bigint": "^1.0.0"
+-      },
+-      "engines": {
+-        "node": ">=18"
+-      }
+-    },
+     "node_modules/generator-function": {
+       "version": "2.0.1",
+       "resolved": "https://registry.npmjs.org/generator-function/-/generator-function-2.0.1.tgz",
+@@ -4406,32 +4189,6 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
+-    "node_modules/google-auth-library": {
+-      "version": "10.9.1",
+-      "resolved": "https://registry.npmjs.org/google-auth-library/-/google-auth-library-10.9.1.tgz",
+-      "integrity": "sha512-i1ydyHrqcIxXkWh/uBmVkzCvIuq5yiK2ATndIe5XxKholrG/MTYP9xGYka4sQhrbIAgGjL2B6NOE7rFaiF3fXw==",
+-      "license": "Apache-2.0",
+-      "dependencies": {
+-        "base64-js": "^1.3.0",
+-        "ecdsa-sig-formatter": "^1.0.11",
+-        "gaxios": "^7.1.4",
+-        "gcp-metadata": "8.1.2",
+-        "google-logging-utils": "1.1.3",
+-        "jws": "^4.0.0"
+-      },
+-      "engines": {
+-        "node": ">=18"
+-      }
+-    },
+-    "node_modules/google-logging-utils": {
+-      "version": "1.1.3",
+-      "resolved": "https://registry.npmjs.org/google-logging-utils/-/google-logging-utils-1.1.3.tgz",
+-      "integrity": "sha512-eAmLkjDjAFCVXg7A1unxHsLf961m6y17QFqXqAXGj/gVkKFrEICfStRfwUlGNfeCEjNRa32JEWOUTlYXPyyKvA==",
+-      "license": "Apache-2.0",
+-      "engines": {
+-        "node": ">=14"
+-      }
+-    },
+     "node_modules/gopd": {
+       "version": "1.2.0",
+       "resolved": "https://registry.npmjs.org/gopd/-/gopd-1.2.0.tgz",
+@@ -4546,19 +4303,6 @@
+         "node": ">= 0.4"
+       }
+     },
+-    "node_modules/https-proxy-agent": {
+-      "version": "7.0.6",
+-      "resolved": "https://registry.npmjs.org/https-proxy-agent/-/https-proxy-agent-7.0.6.tgz",
+-      "integrity": "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "agent-base": "^7.1.2",
+-        "debug": "4"
+-      },
+-      "engines": {
+-        "node": ">= 14"
+-      }
+-    },
+     "node_modules/ignore": {
+       "version": "5.3.2",
+       "resolved": "https://registry.npmjs.org/ignore/-/ignore-5.3.2.tgz",
+@@ -5100,15 +4844,6 @@
+         "js-yaml": "bin/js-yaml.mjs"
+       }
+     },
+-    "node_modules/json-bigint": {
+-      "version": "1.0.0",
+-      "resolved": "https://registry.npmjs.org/json-bigint/-/json-bigint-1.0.0.tgz",
+-      "integrity": "sha512-SiPv/8VpZuWbvLSMtTDU8hEfrZWg/mH/nV/b4o0CYbSxu1UIQPLdwKOCIyLQX+VIPO5vrLX3i8qtqFyhdPSUSQ==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "bignumber.js": "^9.0.0"
+-      }
+-    },
+     "node_modules/json-buffer": {
+       "version": "3.0.1",
+       "resolved": "https://registry.npmjs.org/json-buffer/-/json-buffer-3.0.1.tgz",
+@@ -5159,27 +4894,6 @@
+         "node": ">=4.0"
+       }
+     },
+-    "node_modules/jwa": {
+-      "version": "2.0.1",
+-      "resolved": "https://registry.npmjs.org/jwa/-/jwa-2.0.1.tgz",
+-      "integrity": "sha512-hRF04fqJIP8Abbkq5NKGN0Bbr3JxlQ+qhZufXVr0DvujKy93ZCbXZMHDL4EOtodSbCWxOqR8MS1tXA5hwqCXDg==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "buffer-equal-constant-time": "^1.0.1",
+-        "ecdsa-sig-formatter": "1.0.11",
+-        "safe-buffer": "^5.0.1"
+-      }
+-    },
+-    "node_modules/jws": {
+-      "version": "4.0.1",
+-      "resolved": "https://registry.npmjs.org/jws/-/jws-4.0.1.tgz",
+-      "integrity": "sha512-EKI/M/yqPncGUUh44xz0PxSidXFr/+r0pA70+gIYhjv+et7yxM+s29Y+VGDkovRofQem0fs7Uvf4+YmAdyRduA==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "jwa": "^2.0.1",
+-        "safe-buffer": "^5.0.1"
+-      }
+-    },
+     "node_modules/keyv": {
+       "version": "4.5.4",
+       "resolved": "https://registry.npmjs.org/keyv/-/keyv-4.5.4.tgz",
+@@ -5508,12 +5222,6 @@
+       "dev": true,
+       "license": "MIT"
+     },
+-    "node_modules/long": {
+-      "version": "5.3.2",
+-      "resolved": "https://registry.npmjs.org/long/-/long-5.3.2.tgz",
+-      "integrity": "sha512-mNAgZ1GmyNhD7AuqnTG3/VQ26o760+ZYBPKjPvugO8+nLbYfX6TVpJPseBvopbdY+qpZ/lKUnmEc1LeZYS3QAA==",
+-      "license": "Apache-2.0"
+-    },
+     "node_modules/loose-envify": {
+       "version": "1.4.0",
+       "resolved": "https://registry.npmjs.org/loose-envify/-/loose-envify-1.4.0.tgz",
+@@ -5598,6 +5306,7 @@
+       "version": "2.1.3",
+       "resolved": "https://registry.npmjs.org/ms/-/ms-2.1.3.tgz",
+       "integrity": "sha512-6FlzubTLZG3J2a/NVCAleEhjzq5oxgHyaCU9yYXvcLsvoVaHJq/s5xXI6/XXP6tz7R9xAOtHnSO/tXtF3WRTlA==",
++      "dev": true,
+       "license": "MIT"
+     },
+     "node_modules/nanoid": {
+@@ -6222,26 +5931,6 @@
+         "@img/sharp-win32-x64": "0.34.5"
+       }
+     },
+-    "node_modules/node-domexception": {
+-      "version": "1.0.0",
+-      "resolved": "https://registry.npmjs.org/node-domexception/-/node-domexception-1.0.0.tgz",
+-      "integrity": "sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==",
+-      "deprecated": "Use your platform's native DOMException instead",
+-      "funding": [
+-        {
+-          "type": "github",
+-          "url": "https://github.com/sponsors/jimmywarting"
+-        },
+-        {
+-          "type": "github",
+-          "url": "https://paypal.me/jimmywarting"
+-        }
+-      ],
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">=10.5.0"
+-      }
+-    },
+     "node_modules/node-exports-info": {
+       "version": "1.6.2",
+       "resolved": "https://registry.npmjs.org/node-exports-info/-/node-exports-info-1.6.2.tgz",
+@@ -6271,24 +5960,6 @@
+         "semver": "bin/semver.js"
+       }
+     },
+-    "node_modules/node-fetch": {
+-      "version": "3.3.2",
+-      "resolved": "https://registry.npmjs.org/node-fetch/-/node-fetch-3.3.2.tgz",
+-      "integrity": "sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "data-uri-to-buffer": "^4.0.0",
+-        "fetch-blob": "^3.1.4",
+-        "formdata-polyfill": "^4.0.10"
+-      },
+-      "engines": {
+-        "node": "^12.20.0 || ^14.13.1 || >=16.0.0"
+-      },
+-      "funding": {
+-        "type": "opencollective",
+-        "url": "https://opencollective.com/node-fetch"
+-      }
+-    },
+     "node_modules/object-assign": {
+       "version": "4.1.1",
+       "resolved": "https://registry.npmjs.org/object-assign/-/object-assign-4.1.1.tgz",
+@@ -6481,19 +6152,6 @@
+         "url": "https://github.com/sponsors/sindresorhus"
+       }
+     },
+-    "node_modules/p-retry": {
+-      "version": "4.6.2",
+-      "resolved": "https://registry.npmjs.org/p-retry/-/p-retry-4.6.2.tgz",
+-      "integrity": "sha512-312Id396EbJdvRONlngUx0NydfrIQ5lsYu0znKVUzVvArzEIt08V1qhtyESbGVd1FGX7UKtiFp5uwKZdM8wIuQ==",
+-      "license": "MIT",
+-      "dependencies": {
+-        "@types/retry": "0.12.0",
+-        "retry": "^0.13.1"
+-      },
+-      "engines": {
+-        "node": ">=8"
+-      }
+-    },
+     "node_modules/parent-module": {
+       "version": "1.0.1",
+       "resolved": "https://registry.npmjs.org/parent-module/-/parent-module-1.0.1.tgz",
+@@ -6644,29 +6302,6 @@
+         "react-is": "^16.13.1"
+       }
+     },
+-    "node_modules/protobufjs": {
+-      "version": "7.6.5",
+-      "resolved": "https://registry.npmjs.org/protobufjs/-/protobufjs-7.6.5.tgz",
+-      "integrity": "sha512-/FPD0nUc9jH6rfFjji9IBqOz4pcSE3CsT1m7Ep6Mdb0LxSUMj8hgl6GomOvZzpNpAqqGaXA0P3VSrZLFzIhQrw==",
+-      "hasInstallScript": true,
+-      "license": "BSD-3-Clause",
+-      "dependencies": {
+-        "@protobufjs/aspromise": "^1.1.2",
+-        "@protobufjs/base64": "^1.1.2",
+-        "@protobufjs/codegen": "^2.0.5",
+-        "@protobufjs/eventemitter": "^1.1.1",
+-        "@protobufjs/fetch": "^1.1.1",
+-        "@protobufjs/float": "^1.0.2",
+-        "@protobufjs/path": "^1.1.2",
+-        "@protobufjs/pool": "^1.1.0",
+-        "@protobufjs/utf8": "^1.1.1",
+-        "@types/node": ">=13.7.0",
+-        "long": "^5.3.2"
+-      },
+-      "engines": {
+-        "node": ">=12.0.0"
+-      }
+-    },
+     "node_modules/punycode": {
+       "version": "2.3.1",
+       "resolved": "https://registry.npmjs.org/punycode/-/punycode-2.3.1.tgz",
+@@ -6814,15 +6449,6 @@
+         "url": "https://github.com/privatenumber/resolve-pkg-maps?sponsor=1"
+       }
+     },
+-    "node_modules/retry": {
+-      "version": "0.13.1",
+-      "resolved": "https://registry.npmjs.org/retry/-/retry-0.13.1.tgz",
+-      "integrity": "sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 4"
+-      }
+-    },
+     "node_modules/reusify": {
+       "version": "1.1.0",
+       "resolved": "https://registry.npmjs.org/reusify/-/reusify-1.1.0.tgz",
+@@ -6878,26 +6504,6 @@
+         "url": "https://github.com/sponsors/ljharb"
+       }
+     },
+-    "node_modules/safe-buffer": {
+-      "version": "5.2.1",
+-      "resolved": "https://registry.npmjs.org/safe-buffer/-/safe-buffer-5.2.1.tgz",
+-      "integrity": "sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==",
+-      "funding": [
+-        {
+-          "type": "github",
+-          "url": "https://github.com/sponsors/feross"
+-        },
+-        {
+-          "type": "patreon",
+-          "url": "https://www.patreon.com/feross"
+-        },
+-        {
+-          "type": "consulting",
+-          "url": "https://feross.org/support"
+-        }
+-      ],
+-      "license": "MIT"
+-    },
+     "node_modules/safe-push-apply": {
+       "version": "1.0.0",
+       "resolved": "https://registry.npmjs.org/safe-push-apply/-/safe-push-apply-1.0.0.tgz",
+@@ -7640,6 +7246,7 @@
+       "version": "6.21.0",
+       "resolved": "https://registry.npmjs.org/undici-types/-/undici-types-6.21.0.tgz",
+       "integrity": "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ==",
++      "dev": true,
+       "license": "MIT"
+     },
+     "node_modules/unrs-resolver": {
+@@ -7690,15 +7297,6 @@
+         "punycode": "^2.1.0"
+       }
+     },
+-    "node_modules/web-streams-polyfill": {
+-      "version": "3.3.3",
+-      "resolved": "https://registry.npmjs.org/web-streams-polyfill/-/web-streams-polyfill-3.3.3.tgz",
+-      "integrity": "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">= 8"
+-      }
+-    },
+     "node_modules/which": {
+       "version": "2.0.2",
+       "resolved": "https://registry.npmjs.org/which/-/which-2.0.2.tgz",
+@@ -7814,27 +7412,6 @@
+         "node": ">=0.10.0"
+       }
+     },
+-    "node_modules/ws": {
+-      "version": "8.21.1",
+-      "resolved": "https://registry.npmjs.org/ws/-/ws-8.21.1.tgz",
+-      "integrity": "sha512-+0NTnW77fFN/DjQi6k/Sq/Yvk4Sgajw7urW8V+asjXnRgDs9gyGkdb7EzgfhA4goXsRIZKE28fzIXBHEzhuiWw==",
+-      "license": "MIT",
+-      "engines": {
+-        "node": ">=10.0.0"
+-      },
+-      "peerDependencies": {
+-        "bufferutil": "^4.0.1",
+-        "utf-8-validate": ">=5.0.2"
+-      },
+-      "peerDependenciesMeta": {
+-        "bufferutil": {
+-          "optional": true
+-        },
+-        "utf-8-validate": {
+-          "optional": true
+-        }
+-      }
+-    },
+     "node_modules/yocto-queue": {
+       "version": "0.1.0",
+       "resolved": "https://registry.npmjs.org/yocto-queue/-/yocto-queue-0.1.0.tgz",
+diff --git a/package.json b/package.json
+index dda50a4..95d1c75 100644
+--- a/package.json
++++ b/package.json
+@@ -18,7 +18,6 @@
+     "postinstall": "playwright install chromium"
+   },
+   "dependencies": {
+-    "@google/genai": "^2.13.0",
+     "culori": "^4.0.2",
+     "js-yaml": "^5.2.1",
+     "next": "^15.1.6",

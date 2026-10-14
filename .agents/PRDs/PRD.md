@@ -1,7 +1,7 @@
 # PRD — Distill: Design System & Structure Scraper
 
 > **Note:** This PRD was authored retroactively (2026-07-23) against an already-built codebase, refreshed **2026-07-29**, and updated **2026-10-13** to (a) record delivery of Phase 7 (codebase health audit remediation) and Phase 8 (heuristic-invariant audit), (b) tick closed criteria, and (c) capture workbench UI polish, distill-theme styling, and the view-obscuring overlay mitigation spike. "In Scope" items marked `[x]` are implemented and verified; unchecked items are genuinely open. Implementation phases mirror the actual delivery history recorded in `PLAN.md`, `.agents/plans/completed/`, and git.
-Last Updated: 2026-10-13
+Last Updated: 2026-10-14
 
 ---
 
@@ -62,7 +62,7 @@ The MVP goal: given a URL, produce token and structure reports faithful enough t
 - [x] Result caching keyed on URL/mode/**all** image payloads, with force-refresh, bounded entry cap + LRU eviction + idle sweep; transient structure failures are deliberately **not** cached
 - [x] Zod schemas as single source of truth (`lib/schema.ts`, `lib/extract/structureSchema.ts`)
 - [x] Single AI provider seam (`lib/aiLane.ts`): one `callModel` primitive, one availability check, one `parseJsonLoose`, one retry-then-graceful-`null` policy shared by all three AI call sites — *no call site imports a provider SDK*
-- [x] ~~**Regression:** that seam is no longer single-provider. The OpenRouter addition (#94/#95) introduced a second model-selection path (`OPENROUTER_MODEL`) and a second request builder that silently ignores `thinkingLevel` and weakens JSON-schema enforcement — see §12 Phase 7 / P2-1~~ — **closed 2026-07-29 (DIST-056).** `jsonSchema` now sends a real (non-strict) `response_format: json_schema` on OpenRouter; `thinkingLevel` remains a documented, one-time-logged Gemini-only gap; both providers default to the same model generation (`gemini-3.5-flash`), each independently overridable (`GEMINI_MODEL`/`OPENROUTER_MODEL`).
+- [x] ~~**Regression:** that seam is no longer single-provider. The OpenRouter addition (#94/#95) introduced a second model-selection path (`OPENROUTER_MODEL`) and a second request builder that silently ignores `thinkingLevel` and weakens JSON-schema enforcement — see §12 Phase 7 / P2-1~~ — **closed 2026-07-29 (DIST-056).** `jsonSchema` now sends a real (non-strict) `response_format: json_schema` on OpenRouter; `thinkingLevel` remains a documented, one-time-logged Gemini-only gap; both providers default to the same model generation (`gemini-3.5-flash`), each independently overridable (`GEMINI_MODEL`/`OPENROUTER_MODEL`). **Superseded 2026-10-14 (#199):** the native Gemini path, `GEMINI_MODEL` and `thinkingLevel` were removed; the seam is single-provider again.
 
 ### In Scope — Integration & Deployment
 
@@ -99,7 +99,7 @@ The MVP goal: given a URL, produce token and structure reports faithful enough t
 - [ ] Direct code generation (React/Tailwind components) from reports — *`emitTailwindTheme` ships a **token-level** derived view (§12 Phase 6); component-level codegen remains out of scope*
 - [ ] Browser-extension or CLI-first distribution
 - [ ] Icon/asset extraction and export
-- [x] ~~Multi-provider AI abstraction — Phase 5 is a **replacement**, not an adapter layer; one provider, one code path~~ — **superseded 2026-07-29.** #94/#95 added an OpenRouter path, so the codebase now has two providers behind one seam. This was a scope change, not an implementation of the above intent. **Settled 2026-07-29 (DIST-056):** two providers behind one seam is accepted scope, not a regression — `lib/aiLane.ts` is still the only file importing a provider SDK, and the `ModelCall` contract's one intentionally-accepted gap (`thinkingLevel` on OpenRouter) is documented at the call sites and logged once at runtime.
+- [x] ~~Multi-provider AI abstraction — Phase 5 is a **replacement**, not an adapter layer; one provider, one code path~~ — **superseded 2026-07-29.** #94/#95 added an OpenRouter path, so the codebase now has two providers behind one seam. This was a scope change, not an implementation of the above intent. **Settled 2026-07-29 (DIST-056):** two providers behind one seam is accepted scope, not a regression — `lib/aiLane.ts` is still the only file importing a provider SDK, and the `ModelCall` contract's one intentionally-accepted gap (`thinkingLevel` on OpenRouter) is documented at the call sites and logged once at runtime. **Reverted 2026-10-14 (#199):** the native Gemini path was removed, so the AI lane has one provider, OpenRouter, and one code path again.
 
 ## 5. User Stories
 
@@ -199,7 +199,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 | Image analysis | sharp ^0.35 | Pixel sampling for area weights, panorama stitching, image quantization |
 | Color science | culori ^4 | Lab/OKLCH conversion, ΔE |
 | Validation | Zod 4 | Single-source report contracts |
-| AI lane (optional) | `@google/genai` ^2.13, `AI_MODEL = "gemini-3.5-flash"` (overridable via `GEMINI_MODEL`), gated on `GEMINI_API_KEY`. Alternatively OpenRouter via `OPENROUTER_API_KEY` + `OPENROUTER_MODEL` (default `google/gemini-3.5-flash`), which takes precedence when set | Vision interpretation + semantic naming; fails open. Gemini's free tier removed the prepaid-credit barrier that kept this lane dark through Phases 1–4, and native JSON mode removed brace-match JSON extraction. Both paths default to the same model generation (`gemini-3.5-flash` / `google/gemini-3.5-flash`), each overridable (`GEMINI_MODEL` / `OPENROUTER_MODEL`); OpenRouter sends a real non-strict `response_format: json_schema`, but `thinkingLevel` capping remains Gemini-only (logged once when ignored) — see §12 Phase 7 / P2-1 (closed) |
+| AI lane (optional) | OpenRouter over plain `fetch` (no model SDK), gated on `OPENROUTER_API_KEY`; model from `OPENROUTER_MODEL` (default `google/gemini-3.5-flash`) | Vision interpretation + semantic naming; fails open. Sends a real non-strict `response_format: json_schema`; no thinking cap is sent. The native Gemini SDK path of Phase 5 was removed (#199) |
 | Serialization | js-yaml ^5.2 (ships its own types) | Frontmatter emit |
 | Tooling | TypeScript 5.7, tsx (eval scripts), ESLint 9 flat config (`eslint .`) | No jest/vitest — the eval harness is the correctness gate |
 | Runtime | Node 18+ (developed on 20/22) | |
@@ -211,10 +211,8 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 
   | Env var | Purpose |
   |---|---|
-  | `GEMINI_API_KEY` | Enables the AI lane (Gemini path). Read server-side only |
-  | `GEMINI_MODEL` | Model override for the Gemini path (default `gemini-3.5-flash`) — restores the Phase-5-specced override |
-  | `OPENROUTER_API_KEY` | Enables the AI lane via OpenRouter instead; **takes precedence over `GEMINI_API_KEY` when both are set** |
-  | `OPENROUTER_MODEL` | Model id for the OpenRouter path (default `google/gemini-3.5-flash`) |
+  | `OPENROUTER_API_KEY` | Enables the AI lane. Read server-side only |
+  | `OPENROUTER_MODEL` | Model id (default `google/gemini-3.5-flash`) |
   | `SSRF_ALLOWLIST_HOSTS` | Comma-separated exact hostnames exempt from the SSRF guard (staging/fixture hosts) |
   | `RATE_LIMIT_MAX_REQUESTS` / `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX_BUCKETS` / `RATE_LIMIT_DISABLED` | Per-client token bucket on `/api/analyze` |
   | `CACHE_MAX_ENTRIES` | Response-cache entry cap (LRU beyond it) |
@@ -229,7 +227,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
   - Render-path errors sanitized before they reach the client; injection surfaces (page-controlled text reaching an AI prompt) annotated in-code.
   - No report/user data persisted beyond the bounded in-process analysis cache.
 - **Out of scope:** user accounts, secrets management beyond env vars, a shared/global rate-limit or cache store for multi-instance deployments (each process enforces its own independent limit), and post-navigation egress control for *subresources* the rendered page fetches (the SSRF guard validates the submitted URL; the redirect interceptor is best-effort per above — neither constrains what the page itself requests once loaded).
-- **Data-handling note:** Google's **free tier uses submitted prompts for product improvement**; the paid tier does not. Distill's AI-lane inputs are screenshots of third-party sites. Operators pointing Distill at sensitive or internal properties should use a paid tier — this is a deployment decision, not a code change. **Routing through OpenRouter adds a second data processor** with its own retention terms, and the request sends an identifying `HTTP-Referer`/`X-Title` pair; operators should evaluate that separately rather than assuming the Gemini analysis carries over.
+- **Data-handling note:** Distill's AI-lane inputs are screenshots of third-party sites. They go to OpenRouter, a data processor with its own retention terms, which routes them to the model's provider (Google for the default model), and the request sends an identifying `HTTP-Referer`/`X-Title` pair. Operators who point Distill at sensitive or internal properties should check both sets of terms first — this is a deployment decision, not a code change.
 - **Deployment:** local dev (`npm run dev`), production Node server, or the provided multi-stage Docker image with Playwright system deps baked in and a non-root runner stage.
 
 ## 10. API Specification
@@ -425,7 +423,7 @@ All three spikes shipped under the existing optional-lane contract.
 - **CLI / library packaging:** expose `analyzeUrl`/`analyzeImages` as an installable package decoupled from Next.js.
 - **More viewports & container-query awareness** in the responsive diff.
 - **APCA-first contrast reporting** as WCAG 3 matures.
-- **Paid AI tier / provider re-evaluation:** if free-tier rate limits or the free-tier data-use policy become binding constraints, upgrade the key — deliberately *not* an argument for a multi-provider abstraction layer.
+- **Paid AI tier / provider re-evaluation:** if rate limits or the provider's data-use terms become binding constraints, change the OpenRouter model or account — deliberately *not* an argument for a multi-provider abstraction layer.
 
 ## 14. Risks & Mitigations
 
@@ -434,9 +432,9 @@ All three spikes shipped under the existing optional-lane contract.
 | Heuristic changes silently regress extraction quality on real sites | Wrong reports, eroded trust | Offline eval harness with per-site floors + baseline gate, both tracks scored; deliberate-only baseline refresh (`UPDATE_BASELINE=1`) |
 | AI lane drift/hallucination contaminates measured data | Violates core principle | Hard lane separation (`extractFromCapture` is network-free); AI output merged onto — never into — measured fields; provenance stamps; `eval:ai` stability check |
 | **Graceful AI fallback hides real breakage** (proven: `temperature: 0.1` disabled two lanes indefinitely, indistinguishable from "no key set") | Features silently never ship | Phase 5 deletes the offending parameter; live end-to-end verification is an explicit Phase-5 exit criterion; console warnings (`AI Structure Labeller failed`, `Vision structure inference failed`) must be checked, not assumed absent |
-| **Gemini free-tier rate limits (≈10 RPM)** — a `both`-mode run fires two AI calls with up to four images | Bursty testing 429s; `retryOnce` treats a 429 as failure and falls back, so a rate-limited run *looks identical to a quality regression* | Response cache absorbs repeats; check the server console before concluding the model is bad; upgrade tier if it binds |
-| **Free-tier prompts used for Google product improvement** | Third-party screenshots leave the operator's control | Documented in §9; the fix is a paid tier, not a code change; operators decide before pointing Distill at sensitive properties |
-| Vision quality regression moving off a frontier model | Image-derived skeletons degrade | `thinkingLevel: MEDIUM` on the vision lane; explicit spot-check in Phase-5 validation; Zod remains the hard gate on shape |
+| **Provider rate limits (429)** — a `both`-mode run fires two AI calls with up to four images | Bursty testing 429s; `retryOnce` treats a 429 as failure and falls back, so a rate-limited run *looks identical to a quality regression* | Response cache absorbs repeats; check the server console before concluding the model is bad; raise the OpenRouter limit if it binds |
+| **AI-lane screenshots pass through OpenRouter and the provider that it routes to** | Third-party screenshots leave the operator's control | Documented in §9; operators decide before they point Distill at sensitive properties |
+| Vision quality regression moving off a frontier model | Image-derived skeletons degrade | Explicit spot-check in Phase-5 validation; Zod remains the hard gate on shape |
 | Open URL fetching enables SSRF on public deployments | Server compromise | Resolve-then-check guard on the submitted URL + `SSRF_ALLOWLIST_HOSTS` (§9); redirect interception shipped in DIST-044 but is **best-effort only** — it races the navigation and fires after Chromium has already made the request (§12 Phase 7 / P0-4). Network-level egress filtering (README "Layer 2") is the load-bearing control, not the in-process guard |
 | **A shipped security control is documented as stronger than it is** (proven: the DIST-044 report claims redirects are "aborted immediately … before loading response bodies"; neither holds) | Operators under-provision the real boundary because the in-process guard reads as sufficient | Validate security controls against the adversarial case, not the convenient one — DIST-044's synthetic test used a literal IP, which resolves instantly and hides the race; state the residual gap in the same document that claims the fix |
 | Site anti-bot / consent walls break capture | Empty or skewed reports | Consent-banner dismissal in ingest; best-effort second passes fail to absence; cache + forceRefresh for retries |
@@ -445,7 +443,7 @@ All three spikes shipped under the existing optional-lane contract.
 | Unauthenticated endpoint invites resource exhaustion | Cost/DoS on public deploys | Bounded cache, bounded rate-limiter store, request-body cap, image count/size caps; auth explicitly the deployer's responsibility |
 | **`enrichWithAI` re-assembles the report field-by-field, so any lane added to `extractFromCapture` but not mirrored there is silently dropped** (proven: the motion lane, §12 P0-1) | Measured data lost whenever the AI lane runs — and invisible to the eval harness, which never calls `enrichWithAI` | Treat the AI merge as *additive onto* the measured report rather than a rebuild from parts; failing that, any new optional lane must be added to both `buildReport` call sites in the same change |
 | **Duplicated logic drifts into divergent behavior** (proven: the two CSSOM scanner copies in `styleDump.ts`, whose `STATE_PROPS` divergence disabled 3 of 4 cross-origin state properties) | A lane reports as working while silently measuring less than it claims | §6 "one seam per concern" applies inside `page.evaluate` callbacks too; the self-contained-callback constraint argues for one parameterized copy, not two maintained ones |
-| **Provider-specific capability gaps in a "single seam" that no longer behaves as one** (`callOpenRouterModel` ignores `thinkingLevel` and weakens JSON-schema enforcement) | Identical code produces different output quality depending on which key is set; token-budget assumptions silently break | Shipped 2026-07-29 (DIST-056): `jsonSchema` honored via non-strict `response_format: json_schema`; `thinkingLevel` is the one accepted gap, now asserted via a one-time runtime warning and documented at every call site rather than silently dropped |
+| **Provider-specific capability gaps in a "single seam" that no longer behaves as one** (`callOpenRouterModel` ignores `thinkingLevel` and weakens JSON-schema enforcement) | Identical code produces different output quality depending on which key is set; token-budget assumptions silently break | Shipped 2026-07-29 (DIST-056): `jsonSchema` honored via non-strict `response_format: json_schema`; `thinkingLevel` is the one accepted gap, now asserted via a one-time runtime warning and documented at every call site rather than silently dropped **Closed 2026-10-14 (#199):** the native Gemini path and `thinkingLevel` were removed, so there is one request builder. |
 
 ## 15. Appendix
 
@@ -456,5 +454,5 @@ All three spikes shipped under the existing optional-lane contract.
   - `.agents/plans/completed/from-claude-to-gemini-plan.md` — the Phase-5 migration plan (delivered; retained as the record of intent, including the two deltas noted in §12 Phase 5)
   - `.agents/plans/completed/`, `.agents/reports/`, `.agents/reviews/`, `.agents/stories/` — per-story plans, spike reports, code reviews, and backlog
 - **Key spike reports:** `motion-spike.md` (GO → shipped DIST-041), `tailwind-theme-spike-report.md` (GO → shipped DIST-042), `cross-origin-states-spike.md` (GO, Strategy A → shipped DIST-043), `overlay-mitigation-spike.md` (GO, 4-layer pipeline → pending implementation #156)
-- **Key dependencies:** [Playwright](https://playwright.dev), [sharp](https://sharp.pixelplumbing.com), [culori](https://culorijs.org), [Zod](https://zod.dev), and [Google Gen AI](https://ai.google.dev) for the AI lane (free key: https://aistudio.google.com/apikey), optionally routed via [OpenRouter](https://openrouter.ai).
+- **Key dependencies:** [Playwright](https://playwright.dev), [sharp](https://sharp.pixelplumbing.com), [culori](https://culorijs.org), [Zod](https://zod.dev), and [OpenRouter](https://openrouter.ai) for the AI lane (key: https://openrouter.ai/keys).
 - **Repository structure:** see §6; eval harness under `eval/` (`run.ts`, `score.ts`, `scoreStructure.ts`, `stability.ts`, `corpus/{clean-light,dark-mode}/`, `baseline.json`).

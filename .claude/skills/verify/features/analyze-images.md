@@ -8,7 +8,7 @@ A user drops or browses one to six screenshots of a design. Distill merges them 
 - `img-remove`: hovering a thumbnail reveals `Remove image N`, which removes that image and updates the count.
 - `img-cap`: at most 6 images are accepted. Extra files are dropped silently.
 - `img-analyze`: `Analyze Image` or `Analyze Images` returns Report Kind `palette-mood`, a Palette section, and one preview per kept image.
-- `img-structure`: with the AI lane on, a `Layout Structure Markdown (inferred)` tab appears. With it off, the banner reads `Structure inference for images requires an AI key — set GEMINI_API_KEY or OPENROUTER_API_KEY.` and there is no structure tab.
+- `img-structure`: with the AI lane on, a `Layout Structure Markdown (inferred)` tab appears. With it off, the banner reads `Structure inference for images requires an AI key — set OPENROUTER_API_KEY.` and there is no structure tab.
 
 ## How to get to it (user POV)
 

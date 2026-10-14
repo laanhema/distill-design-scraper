@@ -3,57 +3,17 @@
  * structure labelling, vision-based structure inference) — one model id, one
  * availability check, one request primitive, one JSON parser, and one retry
  * policy, so the three lanes can't drift out of sync with each other. This is
- * also the only file in the codebase that imports a model-provider SDK: a lane
- * that needs a model round-trip calls `callModel`, never `generateContent`.
+ * also the only file in the codebase that talks to a model provider: a lane
+ * that needs a model round-trip calls `callModel`, never `fetch`. The one
+ * provider is OpenRouter, reached over plain `fetch`, so there is no model
+ * SDK in the dependencies.
  */
-
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 import type { ImageMediaType } from "@/lib/extract/imageMediaType";
 
-/**
- * Re-exported so no call site has to import the SDK just to name a thinking
- * level (`ThinkingLevel` is an enum — a runtime value, not a type alias).
- */
-export { ThinkingLevel };
-
-/** Vision-capable; pinned everywhere an AI lane calls the model. Exported as the canonical model pin declaration owned by lib/aiLane.ts (§6, DIST-073). */
-export const AI_MODEL = "gemini-3.5-flash";
-
-/** True when a live AI lane call is possible (an API key is configured). */
+/** True when a live AI lane call is possible (an OpenRouter API key is configured). */
 export function aiLaneAvailable(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY);
-}
-
-/**
- * One client for the whole process, constructed on first use — not one per
- * call and certainly not one per retry. Only assigned after a successful
- * construction so a missing-key throw can't poison a later call.
- */
-let client: GoogleGenAI | null = null;
-
-/**
- * One-time (not per-call) process-lifetime flag: `thinkingLevel` is a
- * Gemini-only knob (see `callOpenRouterModel` below), and a hot path (e.g.
- * repeated structure-AI calls) shouldn't spam the log every time a lane sends
- * one over OpenRouter.
- */
-let warnedThinkingLevelIgnored = false;
-
-function getClient(): GoogleGenAI {
-  if (client) return client;
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    // Thrown rather than silently constructing a keyless client, so a caller
-    // that skipped `aiLaneAvailable()` surfaces through `retryOnce`'s
-    // `onError` instead of failing opaquely inside the SDK.
-    throw new Error("GEMINI_API_KEY is not set — AI lane called without an available key.");
-  }
-  // Passed explicitly even though the SDK auto-reads the env var, so the
-  // availability gate and the client can never disagree about which key.
-  const constructed = new GoogleGenAI({ apiKey });
-  client = constructed;
-  return constructed;
+  return Boolean(process.env.OPENROUTER_API_KEY);
 }
 
 /** One model round-trip: optional images + optional system prompt + user text. */
@@ -62,39 +22,40 @@ export interface ModelCall {
   images?: { data: string; mediaType: ImageMediaType }[];
   system?: string;
   user: string;
-  /** When set, turns on native JSON mode — kills the brace-match regex. */
+  /** When set, the request carries it as a non-strict `response_format: json_schema`. */
   jsonSchema?: object;
-  maxOutputTokens: number;
   /**
-   * Gemini 3.x thinks by default and thinking tokens count against
-   * `maxOutputTokens`, so a lane that leaves this unset can burn a short
-   * budget before any answer exists. Lanes with tight budgets should pin it.
+   * Sent as `max_tokens`. No thinking cap is sent with it, and a model that
+   * thinks before it answers spends this budget on both, so size it for the
+   * thinking prelude plus the answer.
    */
-  thinkingLevel?: ThinkingLevel;
+  maxOutputTokens: number;
 }
 
 /**
+ * The single model round-trip for every AI lane: one `POST` to OpenRouter's
+ * `/chat/completions`, which routes to `OPENROUTER_MODEL` (a Gemini model by
+ * default). Returns `null` only for the "call succeeded but produced no usable
+ * text" case — network/auth errors and non-2xx responses deliberately
+ * propagate, because `retryOnce`'s `onError` is the only place an AI failure
+ * becomes visible, and a swallowed 401/429 would be indistinguishable from a
+ * quality regression.
+ *
  * Support for `response_format: json_schema` varies by the routed model — a
  * custom `OPENROUTER_MODEL` override that doesn't support it will surface as
  * a call failure through the existing `retryOnce`/`warnAiFailure` path, not a
  * silent quality regression, which is the accepted trade-off named in issue
  * #104's technical-notes comment.
  */
-async function callOpenRouterModel(opts: ModelCall): Promise<string | null> {
+export async function callModel(opts: ModelCall): Promise<string | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
+    // Thrown rather than sending a keyless request, so a caller that skipped
+    // `aiLaneAvailable()` surfaces through `retryOnce`'s `onError`.
     throw new Error("OPENROUTER_API_KEY is not set — AI lane called without an available key.");
   }
 
   const model = process.env.OPENROUTER_MODEL || "google/gemini-3.5-flash";
-
-  if (opts.thinkingLevel && !warnedThinkingLevelIgnored) {
-    warnedThinkingLevelIgnored = true;
-    console.warn(
-      "aiLane: thinkingLevel is a Gemini-only knob and has no effect over OpenRouter — " +
-        "token budgets sized for a capped thinking prelude may behave differently on this path.",
-    );
-  }
 
   const userContent: Array<
     | { type: "image_url"; image_url: { url: string } }
@@ -171,48 +132,6 @@ async function callOpenRouterModel(opts: ModelCall): Promise<string | null> {
 
   const text = data.choices?.[0]?.message?.content;
   return text && text.trim() ? text : null;
-}
-
-async function callGeminiModel(opts: ModelCall): Promise<string | null> {
-  const imageParts = (opts.images ?? []).map((img) => ({
-    // Raw base64 — no data-URL prefix.
-    inlineData: { mimeType: img.mediaType, data: img.data },
-  }));
-
-  const response = await getClient().models.generateContent({
-    // Restores the Phase-5-specced override that was never built; AI_MODEL stays the default.
-    model: process.env.GEMINI_MODEL || AI_MODEL,
-    contents: [{ role: "user", parts: [...imageParts, { text: opts.user }] }],
-    config: {
-      maxOutputTokens: opts.maxOutputTokens,
-      ...(opts.system ? { systemInstruction: opts.system } : {}),
-      ...(opts.thinkingLevel ? { thinkingConfig: { thinkingLevel: opts.thinkingLevel } } : {}),
-      // Native JSON mode is all-or-nothing: the mime type and the schema go
-      // together, and `responseSchema` (the legacy field) is never set —
-      // supplying both is an error. Call sites never build `config`, so they
-      // can't get this pairing wrong.
-      ...(opts.jsonSchema
-        ? { responseMimeType: "application/json", responseJsonSchema: opts.jsonSchema }
-        : {}),
-    },
-  });
-
-  const text = response.text;
-  return text && text.trim() ? text : null;
-}
-
-/**
- * The single model round-trip for every AI lane. Returns `null` only for the
- * "call succeeded but produced no usable text" case — SDK/network/auth errors
- * deliberately propagate, because `retryOnce`'s `onError` is the only place an
- * AI failure becomes visible, and a swallowed 401/429 would be
- * indistinguishable from a quality regression.
- */
-export async function callModel(opts: ModelCall): Promise<string | null> {
-  if (process.env.OPENROUTER_API_KEY) {
-    return callOpenRouterModel(opts);
-  }
-  return callGeminiModel(opts);
 }
 
 /**

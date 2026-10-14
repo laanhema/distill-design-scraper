@@ -11,7 +11,7 @@ import {
 } from "@/lib/schema";
 import { ROLE_USAGE } from "@/lib/extract/palette";
 import { detectImageMediaType } from "@/lib/extract/imageMediaType";
-import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, warnAiFailure } from "@/lib/aiLane";
+import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } from "@/lib/aiLane";
 
 /**
  * Interpretation engine (§6, the AI lane). Only `identity`, `imageMood`, and
@@ -30,13 +30,11 @@ import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, ThinkingLevel, w
  */
 
 // This lane is grounded on tokens that were already measured, so its job is to
-// read the feel — not to reason hard — hence `ThinkingLevel.MINIMAL`. The old
-// 1024 was sized for a budget the answer had to itself; thinking tokens now
-// share `maxOutputTokens`, so it doubles to keep a thinking prelude from
-// truncating the JSON. `thinkingLevel` is a Gemini-only pin, though — it has
-// no effect when this lane is dispatched over OpenRouter (logged once by
-// `aiLane.ts`), so the "capped thinking prelude" assumption above doesn't
-// hold on that path; the 2048 budget still has to be enough on its own there.
+// read the feel — not to reason hard. The old 1024 was sized for a budget the
+// answer had to itself; thinking tokens now share `maxOutputTokens`, so it
+// doubles to keep a thinking prelude from truncating the JSON. No thinking cap
+// is sent (`callModel` has none), so the 2048 budget has to be enough on its
+// own for the prelude and the answer.
 const MAX_TOKENS = 2048;
 
 const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
@@ -57,13 +55,10 @@ Return ONLY these three things:
  * and the refinable-role enum. It used to be a hand-written copy without those
  * bounds, so a reply the provider accepted could still fail Zod and, after the
  * retry, drop the whole lane (#177). A bound added to `aiResponseSchema` is
- * sent on the next call — check it live on both providers, since only a real
- * request shows whether each accepts a generated keyword. Stated is not
- * applied, though: the `@google/genai` doc comment of `responseJsonSchema`
- * lists `minItems`/`maxItems` (the adjective, hero and texture counts) as
- * supported but not `minLength` or `pattern`, so on the native Gemini path the
- * non-empty archetype/description and the hex pattern are sent without being
- * documented as applied, and Zod stays the only gate for them there.
+ * sent on the next call — check it live over OpenRouter, since only a real
+ * request shows whether the routed model accepts a generated keyword. Stated
+ * is not applied, though: `callModel` sends the schema non-strict, so the
+ * routed model may ignore a bound, and Zod stays the only gate.
  *
  * The call relies on the default `io: "output"` mode of `z.toJSONSchema`, and
  * that mode is intended: it keeps `roleRefinements` in the top-level
@@ -148,7 +143,6 @@ async function requestOnce(
     user: `${promptNote}\n\n${summary}\n\nInterpret its identity and imageMood, and refine any mislabelled color roles.`,
     jsonSchema: OUTPUT_SCHEMA,
     maxOutputTokens: MAX_TOKENS,
-    thinkingLevel: ThinkingLevel.MINIMAL,
   });
 
   // Native JSON mode should return clean JSON, but a fence or a refusal
