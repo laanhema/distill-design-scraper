@@ -1,18 +1,29 @@
+import { z } from "zod";
 import type { StructureReport } from "@/lib/schema";
 
-export interface ExpectedSectionEntry {
-  name: string;
-  instances?: number;
-}
+export const expectedSectionEntrySchema = z.strictObject({
+  name: z.string(),
+  instances: z.number().optional(),
+});
+export type ExpectedSectionEntry = z.infer<typeof expectedSectionEntrySchema>;
 
-export interface ExpectedStructureSpec {
-  expectedRegions?: string[];
-  expectedComponents?: Record<string, { count?: number; type?: string }>;
+export const expectedStructureSpecSchema = z.strictObject({
+  expectedRegions: z.array(z.string()).optional(),
+  expectedComponents: z
+    .record(
+      z.string(),
+      z.strictObject({
+        count: z.number().optional(),
+        type: z.string().optional(),
+      }),
+    )
+    .optional(),
   /** Ordered section-digest names/instances (DIST-028) — the primary
    *  structure-lane signal. Scored by ordinal position so a missing or
    *  reordered band registers as a real regression. */
-  expectedSections?: ExpectedSectionEntry[];
-}
+  expectedSections: z.array(expectedSectionEntrySchema).optional(),
+});
+export type ExpectedStructureSpec = z.infer<typeof expectedStructureSpecSchema>;
 
 export interface StructureScoreResult {
   regionAccuracy: number;
