@@ -1,0 +1,63 @@
+diff --git a/lib/aiLane.ts b/lib/aiLane.ts
+index 232460d..c585e1b 100644
+--- a/lib/aiLane.ts
++++ b/lib/aiLane.ts
+@@ -36,8 +36,24 @@ export interface ModelCall {
+    * identical requests sets it low.
+    */
+   temperature?: number;
++  /**
++   * Sent as `seed` when set, together with a provider preference for
++   * `SEEDED_PROVIDER`. Temperature 0 alone does not repeat the reply of
++   * `google/gemini-3.5-flash`: without a seed, its replies to one request
++   * differed between calls, with thinking and without (#209). Of the two
++   * Google endpoints that OpenRouter routes it to, only Google AI Studio
++   * repeated the reply under a seed; Google Vertex did not.
++   */
++  seed?: number;
+ }
+ 
++/**
++ * The OpenRouter provider that a seeded call prefers. Fallbacks stay allowed,
++ * so a model that this provider does not serve, or an outage, routes as
++ * before; the reply then just may not repeat.
++ */
++const SEEDED_PROVIDER = "google-ai-studio";
++
+ /**
+  * The single model round-trip for every AI lane: one `POST` to OpenRouter's
+  * `/chat/completions`, which routes to `OPENROUTER_MODEL` (a Gemini model by
+@@ -108,6 +124,9 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
+       messages,
+       max_tokens: opts.maxOutputTokens,
+       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
++      ...(opts.seed !== undefined
++        ? { seed: opts.seed, provider: { order: [SEEDED_PROVIDER] } }
++        : {}),
+       ...(opts.jsonSchema
+         ? {
+             response_format: {
+diff --git a/lib/interpret.ts b/lib/interpret.ts
+index 0f65237..1b242a8 100644
+--- a/lib/interpret.ts
++++ b/lib/interpret.ts
+@@ -43,6 +43,11 @@ const MAX_TOKENS = 2048;
+ // same reading differently each time, which `npm run eval:ai` measures (#200).
+ const TEMPERATURE = 0;
+ 
++// Temperature 0 is not enough on the code default `google/gemini-3.5-flash`:
++// the same request still got a different reading on each call until a seed was
++// sent (#209). Any fixed value works; 7 is the value that was measured.
++const SEED = 7;
++
+ const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
+ You are given a screenshot of a rendered page (or an image) plus a JSON summary of
+ tokens that have ALREADY been measured deterministically from it. Your job is to
+@@ -150,6 +155,7 @@ async function requestOnce(
+     jsonSchema: OUTPUT_SCHEMA,
+     maxOutputTokens: MAX_TOKENS,
+     temperature: TEMPERATURE,
++    seed: SEED,
+   });
+ 
+   // The `json_schema` response format should return clean JSON, but a fence

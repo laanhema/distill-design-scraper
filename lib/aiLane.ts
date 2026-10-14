@@ -36,7 +36,23 @@ export interface ModelCall {
    * identical requests sets it low.
    */
   temperature?: number;
+  /**
+   * Sent as `seed` when set, together with a provider preference for
+   * `SEEDED_PROVIDER`. Temperature 0 alone does not repeat the reply of
+   * `google/gemini-3.5-flash`: without a seed, its replies to one request
+   * differed between calls, with thinking and without (#209). Of the two
+   * Google endpoints that OpenRouter routes it to, only Google AI Studio
+   * repeated the reply under a seed; Google Vertex did not.
+   */
+  seed?: number;
 }
+
+/**
+ * The OpenRouter provider that a seeded call prefers. Fallbacks stay allowed,
+ * so a model that this provider does not serve, or an outage, routes as
+ * before; the reply then just may not repeat.
+ */
+const SEEDED_PROVIDER = "google-ai-studio";
 
 /**
  * The single model round-trip for every AI lane: one `POST` to OpenRouter's
@@ -108,6 +124,9 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
       messages,
       max_tokens: opts.maxOutputTokens,
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
+      ...(opts.seed !== undefined
+        ? { seed: opts.seed, provider: { order: [SEEDED_PROVIDER] } }
+        : {}),
       ...(opts.jsonSchema
         ? {
             response_format: {
