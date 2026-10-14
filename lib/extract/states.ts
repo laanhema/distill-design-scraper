@@ -35,9 +35,17 @@ interface ChangeCount {
   count: number;
 }
 
+/** One `(role, state)` pair and its per-property from/to tallies. */
+interface StateBucket {
+  target: StateEntry["target"];
+  state: StateKind;
+  byProp: Map<string, Map<string, ChangeCount>>;
+}
+
 export function buildStates(dump: StyleDump, palette: Palette): States | undefined {
-  // Keyed by `${role}::${state}` → per-property from/to tallies.
-  const buckets = new Map<string, Map<string, Map<string, ChangeCount>>>();
+  // Keyed by `${role}::${state}`. The bucket holds the pair itself, so the
+  // entries below never have to parse it back out of the key.
+  const buckets = new Map<string, StateBucket>();
 
   for (const node of dump.nodes) {
     if (!node.states || node.states.length === 0) continue;
@@ -49,16 +57,16 @@ export function buildStates(dump: StyleDump, palette: Palette): States | undefin
 
     for (const s of node.states) {
       const key = `${role}::${s.state}`;
-      let byProp = buckets.get(key);
-      if (!byProp) {
-        byProp = new Map();
-        buckets.set(key, byProp);
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = { target: role, state: s.state, byProp: new Map() };
+        buckets.set(key, bucket);
       }
       for (const ch of s.changes) {
-        let byFromTo = byProp.get(ch.property);
+        let byFromTo = bucket.byProp.get(ch.property);
         if (!byFromTo) {
           byFromTo = new Map();
-          byProp.set(ch.property, byFromTo);
+          bucket.byProp.set(ch.property, byFromTo);
         }
         const ftKey = `${ch.from}=>${ch.to}`;
         const existing = byFromTo.get(ftKey);
@@ -69,8 +77,7 @@ export function buildStates(dump: StyleDump, palette: Palette): States | undefin
   }
 
   const entries: StateEntry[] = [];
-  for (const [key, byProp] of buckets) {
-    const [target, state] = key.split("::") as [StateEntry["target"], StateKind];
+  for (const { target, state, byProp } of buckets.values()) {
     const changes: StateEntry["changes"] = [];
     for (const [property, byFromTo] of byProp) {
       let best: ChangeCount | null = null;

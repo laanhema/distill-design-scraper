@@ -38,7 +38,11 @@ export function scorePalette(
   palette: Palette,
   expected: Record<string, string>,
 ): PaletteScore {
-  const byRole = new Map(palette.colors.map((c) => [c.role, c.hex]));
+  // Keyed by plain strings, so a role name read from `expected.yaml` looks
+  // itself up without a cast. A swatch without a role sits under `undefined`.
+  const byRole = new Map<string | undefined, string>(
+    palette.colors.map((c) => [c.role, c.hex]),
+  );
   const roles = Object.keys(expected);
   let matched = 0;
   let deltaSum = 0;
@@ -46,7 +50,7 @@ export function scorePalette(
 
   for (const role of roles) {
     const expHex = expected[role];
-    const gotHex = byRole.get(role as never) ?? null;
+    const gotHex = byRole.get(role) ?? null;
     const a = parseColor(expHex);
     const b = gotHex ? parseColor(gotHex) : undefined;
     const d = a && b ? deltaE(a, b) : null;
@@ -87,7 +91,7 @@ export function scoreTypography(
 ): TypographyScore | null {
   if (!expected?.scale) return null;
 
-  const gotByToken = new Map(
+  const gotByToken = new Map<string, number>(
     (typography?.scale ?? []).map((s) => [s.token, s.sizePx]),
   );
   const tokens = Object.keys(expected.scale);
@@ -96,7 +100,7 @@ export function scoreTypography(
 
   for (const token of tokens) {
     const exp = expected.scale[token];
-    const got = gotByToken.get(token as never) ?? null;
+    const got = gotByToken.get(token) ?? null;
     if (got !== null && sizeMatches(exp, got)) {
       matched++;
     } else {

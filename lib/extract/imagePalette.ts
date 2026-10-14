@@ -38,6 +38,12 @@ interface ImageColorCluster {
   areaWeight: number;
 }
 
+/** One image's clusters and the number of pixels they were counted from. */
+interface QuantizedImage {
+  clusters: ImageColorCluster[];
+  pixelCount: number;
+}
+
 /** Merge a color observation into a cluster list, by perceptual ΔE (§5 Stage B). */
 function mergeInto(clusters: ImageColorCluster[], color: Color, hexStr: string, count: number) {
   for (const cluster of clusters) {
@@ -67,9 +73,7 @@ function mergeInto(clusters: ImageColorCluster[], color: Color, hexStr: string, 
  * content. Cluster counts still sum to the number of opaque pixels, which
  * `extractImagePalette`'s area-weighting relies on.
  */
-async function quantizeImage(
-  buffer: Buffer,
-): Promise<{ clusters: ImageColorCluster[]; pixelCount: number }> {
+async function quantizeImage(buffer: Buffer): Promise<QuantizedImage> {
   const { data, info } = await sharp(buffer)
     .resize(SAMPLE_SIZE, SAMPLE_SIZE, { fit: "inside" })
     .ensureAlpha()
@@ -137,9 +141,9 @@ export async function extractImagePalette(
   // contribute their clusters (issue #22).
   const perImage = await Promise.all(
     buffers.map((buffer) =>
-      quantizeImage(buffer).catch((err) => {
+      quantizeImage(buffer).catch((err): QuantizedImage => {
         console.warn("Image palette: skipping unreadable image:", err);
-        return { clusters: [] as ImageColorCluster[], pixelCount: 0 };
+        return { clusters: [], pixelCount: 0 };
       }),
     ),
   );

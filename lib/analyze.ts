@@ -184,6 +184,14 @@ export interface ImageInput {
   name?: string;
 }
 
+/** What the structure lane of the image path came to: the inferred report, or
+ *  the reason there is none. Both are `undefined` when structure was not
+ *  requested. Every arm of the lane in `analyzeImages` is annotated with it. */
+interface ImageStructureOutcome {
+  structureReport: StructureReport | undefined;
+  structureUnavailableReason: string | undefined;
+}
+
 /**
  * Phase 3 / §P6-1: Full image processing path ("Palette & Mood" report).
  * Accepts one or more images of the same subject — palettes are merged at the
@@ -256,33 +264,31 @@ export async function analyzeImages(
             sourceRef: ref,
             capturedAt,
           })
-            .then((structureReport) => ({
+            .then((structureReport): ImageStructureOutcome => ({
               structureReport: structureReport ?? undefined,
               structureUnavailableReason: structureReport
                 ? undefined
                 : "Vision structure inference failed for this image.",
             }))
-            .catch((err) => {
+            .catch((err): ImageStructureOutcome => {
               console.warn("Image structure extraction error:", err);
               return {
                 structureReport: undefined,
                 structureUnavailableReason: "Vision structure inference failed for this image.",
               };
             })
-        : Promise.resolve({
-            structureReport: undefined as StructureReport | undefined,
+        : Promise.resolve<ImageStructureOutcome>({
+            structureReport: undefined,
             // Distinct from the vision-call failure above: this is a
             // persistent condition (no retry will fix it without config
             // changes), not a one-off flake — see the route.ts caching gate,
             // which relies on that distinction (DIST-050).
             structureUnavailableReason:
-              "Structure inference for images requires an AI key — set OPENROUTER_API_KEY." as
-                | string
-                | undefined,
+              "Structure inference for images requires an AI key — set OPENROUTER_API_KEY.",
           })
-      : Promise.resolve({
-          structureReport: undefined as StructureReport | undefined,
-          structureUnavailableReason: undefined as string | undefined,
+      : Promise.resolve<ImageStructureOutcome>({
+          structureReport: undefined,
+          structureUnavailableReason: undefined,
         }),
   ]);
 

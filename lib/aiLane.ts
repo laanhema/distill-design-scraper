@@ -126,12 +126,36 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
     throw new Error(`OpenRouter API error (${response.status} ${response.statusText}): ${errorText}`);
   }
 
-  const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string | null } }>;
-  };
+  const reply: unknown = await response.json();
+  return firstChoiceText(reply);
+}
 
-  const text = data.choices?.[0]?.message?.content;
-  return text && text.trim() ? text : null;
+/**
+ * The text of `choices[0].message.content` in a chat-completions reply, or
+ * `null` when that path is missing or holds no text. The reply is untyped
+ * provider output, so each step is narrowed before it is read.
+ *
+ * Two shapes throw rather than read as "no text", so that they reach
+ * `retryOnce`'s `onError` like any other failed call: a `null` body, and a
+ * `content` that is set but is no string.
+ */
+function firstChoiceText(reply: unknown): string | null {
+  if (reply === null) throw new Error("OpenRouter reply is null, not a JSON object.");
+  if (typeof reply !== "object" || !("choices" in reply)) return null;
+
+  const choices = reply.choices;
+  if (typeof choices !== "object" || choices === null || !("0" in choices)) return null;
+
+  const first = choices[0];
+  if (typeof first !== "object" || first === null || !("message" in first)) return null;
+
+  const message = first.message;
+  if (typeof message !== "object" || message === null || !("content" in message)) return null;
+
+  const content = message.content;
+  if (typeof content === "string") return content.trim() ? content : null;
+  if (content) throw new Error("OpenRouter reply's message content is not a string.");
+  return null;
 }
 
 /**
