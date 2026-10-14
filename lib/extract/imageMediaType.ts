@@ -10,12 +10,9 @@ const SHARP_FORMAT_TO_MEDIA_TYPE: Partial<Record<string, ImageMediaType>> = {
 };
 
 /**
- * Sniffs a base64 image payload's real encoded format instead of assuming
- * PNG — uploads arrive via `accept="image/*"` and the data-URL prefix isn't
- * preserved past `stripDataUrlPrefix`, so a declared type isn't available
- * here. Falls back to "image/png" (harmless for actual PNGs, and the closest
- * available guess otherwise) when the format can't be read or isn't one of
- * the four image types that the AI lane's vision model accepts.
+ * Sniffs the real format: the data-URL prefix is stripped before this point, so
+ * no declared type survives. Falls back to "image/png" when the format can't
+ * be read or isn't one the vision model accepts.
  */
 export async function detectImageMediaType(base64: string): Promise<ImageMediaType> {
   try {
@@ -24,8 +21,6 @@ export async function detectImageMediaType(base64: string): Promise<ImageMediaTy
     if (format && SHARP_FORMAT_TO_MEDIA_TYPE[format]) {
       return SHARP_FORMAT_TO_MEDIA_TYPE[format]!;
     }
-  } catch {
-    // Fall through to the png default below.
-  }
+  } catch {}
   return "image/png";
 }

@@ -4,7 +4,7 @@ import type { Palette, Typography } from "@/lib/schema";
 import { expectedStructureSpecSchema } from "./scoreStructure";
 
 /**
- * Scoring for the measured lane (§10). Objective diffs against `expected.yaml`:
+ * Scoring for the measured lane. Objective diffs against `expected.yaml`:
  * palette by *perceptual distance* (ΔE, never exact hex), roles by whether the
  * right role landed on the right color, type scale by size-bucket overlap.
  */
@@ -25,7 +25,7 @@ export const expectedSpecSchema = z.strictObject({
       scale: z.record(z.string(), z.number()).optional(),
     })
     .optional(),
-  /** Optional structure spec (DIST-013) — when present, the structure lane
+  /** Optional structure spec — when present, the structure lane
    *  is scored against it and folded into `combinedScore`. */
   structure: expectedStructureSpecSchema.optional(),
 });
@@ -132,12 +132,9 @@ export function scoreTypography(
   };
 }
 
-/** Combined per-site score: role accuracy weighted above type-scale overlap.
- *  When a structure score is provided (DIST-013), it is folded in with
- *  palette 0.5 / typography 0.3 / structure 0.2 — palette stays dominant
- *  while a full structure collapse (`0.0`) drops combined by 0.2, well
- *  past `REGRESSION_EPS`. Without structure, keeps the historical
- *  palette 0.6 / typography 0.4 weighting. */
+/** Palette 0.5 / typography 0.3 / structure 0.2, so a full structure collapse
+ *  drops combined by 0.2, well past `REGRESSION_EPS`; without a structure
+ *  score, palette 0.6 / typography 0.4. */
 export function combinedScore(
   palette: PaletteScore,
   typography: TypographyScore | null,

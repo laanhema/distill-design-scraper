@@ -2,9 +2,8 @@ import type { Report, StructureReport } from "@/lib/schema";
 import type { RefinementChange } from "@/lib/interpret";
 
 /**
- * Shared API contract between `app/api/analyze/route.ts` and `app/page.tsx` (DIST-071, TODO-7).
- * Uses type-only imports for `Report` and `StructureReport` so client callers do
- * not pull `zod`, `js-yaml`, or schema parsers into browser bundles.
+ * Type-only imports, so the client does not pull `zod`, `js-yaml`, or schema
+ * parsers into the browser bundle.
  */
 
 export const MAX_IMAGES = 6;
@@ -19,7 +18,7 @@ export interface AnalyzeMeta {
   capturedAt: string;
   /** Screenshots of a URL render, as data URLs: the viewport shot, then the
    *  panorama when one was captured. Absent for image input — the uploads are
-   *  not sent back to the client that sent them (#179). */
+   *  not sent back to the client that sent them. */
   viewportShots?: string[];
   aiOutcome: AiOutcome;
 }
@@ -34,7 +33,7 @@ export interface AnalyzeSuccess {
   markdown: string;
   structureReport: StructureReport | null;
   /** Set when structure was requested but couldn't be produced (image mode
-   *  without an API key, or the vision model failed) — §P6-2 step 2. */
+   *  without an API key, or the vision model failed). */
   structureUnavailableReason?: string;
   refinements: RefinementChange[];
   meta: AnalyzeMeta;

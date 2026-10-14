@@ -5,14 +5,11 @@ import type { Palette, RecipeElement, RecipeEntry, Recipes, Typography } from "@
 import { nearestPaletteRole } from "./roleMatch";
 
 /**
- * Stage — Component recipes (§P8-1)
- * The design report says what colors and sizes exist but never what a real
- * component *is*: padding, radius, border, color roles, type. This groups
- * style-dump nodes into a handful of element classes, partitions each class
- * into variant clusters by resolved background palette role (a filled primary
- * button and a ghost button are different recipes, not one averaged chimera),
- * and takes the modal (most common) observed value per property within each
- * cluster, so one outlier instance can't skew the recipe.
+ * Component recipes: what a real component *is* (padding, radius, border,
+ * color roles, type). Each element class is split into variant clusters by
+ * background role (a filled primary button and a ghost button are different
+ * recipes, not one averaged chimera), and each cluster takes the modal value
+ * per property, so one outlier instance can't skew the recipe.
  */
 
 /** Max px gap between a class's modal font size and a type-scale step to call it "that token". */
@@ -25,8 +22,7 @@ const MIN_CLUSTER_SHARE = 0.15;
 /** Cap on recipe entries emitted per element class. */
 const MAX_VARIANTS_PER_ELEMENT = 3;
 
-/** Cluster key for the transparent / no-background variant — surfaced as the
- *  `transparent` variant label when the class kept multiple clusters. */
+/** Cluster key for the no-background variant. */
 const NO_BACKGROUND_KEY = "none";
 /** Human-facing variant label for the no-background cluster. */
 const NO_BACKGROUND_VARIANT_LABEL = "transparent";
@@ -46,10 +42,8 @@ export function classify(node: NodeStyle): RecipeElement | null {
   if (node.tag === "a") return "TextLink";
   if (["input", "select", "textarea"].includes(node.tag)) return "Input";
   if (isCardLike(node)) return "Card";
-  // Badge only ever matches span/div, and Card requires hasText === false
-  // while Badge requires hasText === true — the two are mutually exclusive
-  // by tag and by text, so this can run before or after isCardLike with no
-  // effect on either branch's matches.
+  // Badge (text on the node) and Card (no text on the node) are mutually
+  // exclusive, so their order does not matter.
   if (isBadgeLike(node)) return "Badge";
   return null;
 }
@@ -67,15 +61,10 @@ function isCardLike(node: NodeStyle): boolean {
   return hasSurfaceLook && hasPadding;
 }
 
-/** A badge is a small, pill-shaped label — unlike a Card, its text lives
- *  directly on the node itself (a status tag or count chip reads its own
- *  label), and unlike a Button/NavItem it isn't interactive. "Pill-shaped" is
- *  read straight off the measured radius: a `%` radius, an explicit "999"-style
- *  value (the common CSS trick for "always fully rounded regardless of size"),
- *  or a flat px radius large enough (>= 8px) that it's clearly not just a
- *  slightly-softened rectangle. A small bounding-box height caps it to
- *  label-sized elements rather than large rounded surfaces (which `isCardLike`
- *  already covers via padding/shadow instead of radius alone). */
+/** A badge is a small, non-interactive, pill-shaped label whose text lives on
+ *  the node itself. "Pill-shaped" is read off the measured radius (a `%`, a
+ *  "999"-style value, or ≥ 8px); the height cap keeps large rounded surfaces
+ *  out. */
 function isBadgeLike(node: NodeStyle): boolean {
   if (!["span", "div"].includes(node.tag)) return false;
   if (!node.hasText) return false;
@@ -90,7 +79,6 @@ function isBadgeLike(node: NodeStyle): boolean {
   return node.rect.h > 0 && node.rect.h <= 40;
 }
 
-/** Most frequent value in `values`, keyed by `keyOf`; ties keep the first seen. */
 function modal<T>(values: T[], keyOf: (v: T) => string): T | null {
   const counts = new Map<string, { count: number; value: T }>();
   for (const v of values) {
@@ -147,10 +135,8 @@ function resolveColorLabel(value: string, palette: Palette): string {
   return parsed ? hex(parsed) : value;
 }
 
-/** Variant-cluster key for a node: its resolved background palette role, the
- *  normalized hex when no role is within ΔE (two distinct unmatched bgs are
- *  two distinct variants, not one), or the no-background sentinel — a
- *  transparent/ghost variant is its own cluster. */
+/** The node's background palette role, else its normalized hex (two distinct
+ *  unmatched bgs are two variants, not one), else the no-background sentinel. */
 function variantKey(node: NodeStyle, palette: Palette): string {
   const bg = node.colors.find((c) => c.channel === "background")?.value;
   if (!bg) return NO_BACKGROUND_KEY;
@@ -225,11 +211,7 @@ export function buildRecipes(
     for (const [key, cluster] of kept) {
       const entry: RecipeEntry = { element, padding: modalPadding(cluster) };
 
-      // The label is the measured cluster key itself — a palette role, a raw
-      // hex, or the no-background sentinel surfaced as `transparent`. Only
-      // stamped when this class actually kept multiple variants; a lone
-      // cluster has nothing to distinguish, so the field stays omitted and
-      // the entry renders byte-identical to a pre-variant report.
+      // A lone cluster has nothing to distinguish, so the field stays omitted.
       if (kept.length > 1) {
         entry.variant = key === NO_BACKGROUND_KEY ? NO_BACKGROUND_VARIANT_LABEL : key;
       }

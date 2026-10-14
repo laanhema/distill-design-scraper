@@ -3,10 +3,10 @@ import type { Motion, MotionEntry, KeyframeDef } from "@/lib/schema";
 import { classify } from "./recipes";
 
 /**
- * Stage — Motion/transition tokens (§P6)
- * Extracts declared CSS transitions and animations from style-dump nodes,
- * attributed to recipe element classes (Button, Card, TextLink, etc.).
- * Collects `@keyframes` definitions when referenced by animations.
+ * Motion/transition tokens: declared CSS transitions and animations from
+ * style-dump nodes, attributed to recipe element classes (Button, Card,
+ * TextLink, etc.), plus the `@keyframes` definitions those animations
+ * reference.
  */
 export function extractMotion(dump: StyleDump): Motion | undefined {
   const entryMap = new Map<string, MotionEntry>();
@@ -54,7 +54,6 @@ export function extractMotion(dump: StyleDump): Motion | undefined {
   const entries = Array.from(entryMap.values());
   if (entries.length === 0) return undefined;
 
-  // Filter keyframes to only those actually referenced by animation entries
   let referencedKeyframes: KeyframeDef[] | undefined;
   if (dump.keyframes && dump.keyframes.length > 0) {
     const animNames = new Set(

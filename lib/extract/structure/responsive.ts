@@ -6,23 +6,17 @@ import { assignOntologyTypes } from "./ontology";
 import { structuralPart } from "./annotationSegments";
 
 /**
- * Stage 7b — Responsive diff (§P5-2)
- * Secondary-viewport harvests are run through the same deterministic
- * (non-AI) prune → repetition → ontology stages as the primary render, then
- * walked in lockstep against the primary's pre-AI typed tree to find where a
- * component's flex/grid shape actually changed. Matched by structural
- * position (tagName + landmark), not by node id — a second `page.evaluate`
- * harvest assigns its own id sequence, so ids never correspond across
- * viewports. Best-effort: nodes with no counterpart on the other side (e.g. a
- * mobile nav collapsed into a hidden hamburger) are simply not compared.
+ * Stage 7b — Responsive diff: each secondary-viewport harvest goes through the
+ * same non-AI stages as the primary render, then is walked in lockstep with
+ * the primary's pre-AI tree. Matched by structural position (tagName +
+ * landmark), not by node id: each harvest assigns its own id sequence. A node
+ * with no counterpart (e.g. a nav collapsed into a hamburger) is not compared.
  */
 
-/** Per-component layout-annotation deltas, keyed by component name then by
- *  viewport width in px, e.g. `{"GridSection": {"1440": "grid · 3col", "390": "grid · 1col"}}`. */
+/** e.g. `{"GridSection": {"1440": "grid · 3col", "390": "grid · 1col"}}`. */
 export type ResponsiveDeltas = Record<string, Record<string, string>>;
 
-/** Greedy in-order alignment of two children arrays by (tagName, landmark),
- *  tolerant of nodes present on only one side — looks a short way ahead on
+/** Greedy alignment by (tagName, landmark) that looks a short way ahead on
  *  either side to resync rather than giving up at the first mismatch. */
 function alignChildren(a: PrunedNode[], b: PrunedNode[]): Array<[PrunedNode, PrunedNode]> {
   const LOOKAHEAD = 3;
@@ -82,8 +76,7 @@ function walk(
 function typeSecondary(raw: ResponsiveHarvest["rawHarvestNode"]): PrunedNode | null {
   const pruned = pruneAndCollapse(raw);
   if (!pruned) return null;
-  // Same Stage 4b squash as the primary pipeline (index.ts) — the responsive
-  // diff aligns trees positionally, so both sides must be squashed identically.
+  // Both sides must be squashed identically for positional alignment.
   return assignOntologyTypes(detectRepetition(squashWrapperChains(pruned)));
 }
 

@@ -8,17 +8,14 @@ import {
 } from "culori";
 
 /**
- * Color math for the extraction engine (§5). Every comparison happens in a
- * perceptual space (Lab / OKLCH) via culori — never raw RGB — because "are
- * these two colors the same" and "which of these is more colorful" are
- * perceptual questions that RGB distance answers badly.
+ * Every comparison happens in a perceptual space (Lab / OKLCH), never raw RGB:
+ * "are these the same color" is a question RGB distance answers badly.
  */
 
 const toLab = converter("lab");
 const toOklch = converter("oklch");
 const ciede2000 = differenceCiede2000();
 
-/** Parse any CSS color string (`rgb(...)`, `rgba(...)`, hex, named). */
 export function parseColor(input: string): Color | undefined {
   return parse(input);
 }
@@ -28,16 +25,13 @@ export function hex(color: Color): string {
   return formatHex(color);
 }
 
-/** Perceptual distance (CIEDE2000). ΔE ≈ 2–3 is "near-duplicate" (§5 Stage B). */
+/** Perceptual distance (CIEDE2000). Each caller sets its own near-duplicate
+ *  threshold (e.g. `MERGE_DELTA_E`). */
 export function deltaE(a: Color, b: Color): number {
   return ciede2000(a, b);
 }
 
-/**
- * Chroma in OKLCH — how colorful a color is, independent of lightness. Used to
- * separate near-neutral UI (backgrounds, text, borders) from brand colors
- * (primary / accent). Undefined chroma (pure grey) reads as 0.
- */
+/** OKLCH chroma, independent of lightness. Pure grey reads as 0. */
 export function chroma(color: Color): number {
   const c = toOklch(color).c;
   return Number.isFinite(c) ? c : 0;
@@ -55,7 +49,6 @@ export function contrastRatio(a: Color, b: Color): number {
   return wcagContrast(a, b);
 }
 
-/** Map a contrast ratio to its WCAG normal-text grade. */
 export function wcagGrade(ratio: number): "AAA" | "AA" | "AA Large" | "fail" {
   if (ratio >= 7) return "AAA";
   if (ratio >= 4.5) return "AA";
@@ -63,25 +56,19 @@ export function wcagGrade(ratio: number): "AAA" | "AA" | "AA Large" | "fail" {
   return "fail";
 }
 
-/**
- * A color is "near-neutral" when it carries almost no chroma — the greys,
- * off-whites and near-blacks that make up most of a UI's surface area.
- */
+/** Near-neutral: almost no chroma — the greys, off-whites and near-blacks of a UI. */
 export function isNeutral(color: Color, threshold = 0.045): boolean {
   return chroma(color) < threshold;
 }
 
-/** Lab coordinates as a plain triple, for the pixel-nearest-color pass (§5). */
+/** Lab coordinates as a plain triple, for the pixel-nearest-color pass. */
 export function labTriple(color: Color): [number, number, number] {
   const { l, a, b } = toLab(color);
   return [l, a ?? 0, b ?? 0];
 }
 
-/**
- * Squared Euclidean distance in Lab between two triples. Cheap stand-in for a
- * full CIEDE2000 in the hot per-pixel loop, where we compare one pixel against
- * a handful of canonical colors and only need the nearest, not a calibrated ΔE.
- */
+/** Cheap stand-in for CIEDE2000 in the hot per-pixel loop, which only needs
+ *  the nearest color, not a calibrated ΔE. */
 export function labDistanceSq(
   p: [number, number, number],
   q: [number, number, number],

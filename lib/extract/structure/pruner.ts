@@ -1,12 +1,11 @@
 import type { RawHarvestNode, PrunedNode } from "../structureSchema";
 
 /**
- * Stages 3 & 4 — Prune & Collapse Wrappers (§5b)
+ * Stages 3 & 4 — Prune & Collapse Wrappers
  */
 export function pruneAndCollapse(
   root: RawHarvestNode,
 ): PrunedNode | null {
-  // First recursively clean children
   const cleanedChildren: PrunedNode[] = [];
   for (const child of root.children) {
     const prunedChild = pruneAndCollapse(child);
@@ -15,7 +14,6 @@ export function pruneAndCollapse(
     }
   }
 
-  // Determine layout annotation if flex or grid
   let layoutAnnotation: string | undefined;
   if (root.flexGridInfo) {
     if (root.flexGridInfo.isFlex) {
@@ -32,18 +30,15 @@ export function pruneAndCollapse(
     }
   }
 
-  // Sticky/fixed landmarks (e.g. a pinned SiteHeader) matter for a rebuild —
-  // surface it alongside any flex/grid annotation already computed.
+  // A sticky/fixed landmark (e.g. a pinned SiteHeader) matters for a rebuild.
   if (root.landmark && (root.cssPosition === "sticky" || root.cssPosition === "fixed")) {
     layoutAnnotation = layoutAnnotation
       ? `${layoutAnnotation} · ${root.cssPosition}`
       : root.cssPosition;
   }
 
-  // Stage 4: Wrapper collapse rule.
-  // If this node has EXACTLY 1 child, no flex/grid layout annotation, is not a landmark,
-  // is not an interactive element, and is just a div/span wrapper without special identity,
-  // collapse it into its child.
+  // Stage 4: a single-child wrapper with no layout annotation, landmark,
+  // interactivity or semantic tag collapses into its child.
   const isMeaningfulContainer =
     Boolean(layoutAnnotation) ||
     Boolean(root.landmark) ||
@@ -51,8 +46,8 @@ export function pruneAndCollapse(
     ["header", "nav", "main", "footer", "section", "article", "aside", "form"].includes(root.tagName);
 
   if (cleanedChildren.length === 1 && !isMeaningfulContainer) {
-    // Note: landmark-carrying nodes are never collapsed here because
-    // `isMeaningfulContainer` includes `Boolean(root.landmark)`.
+    // Landmark-carrying nodes never collapse here: `isMeaningfulContainer`
+    // includes `Boolean(root.landmark)`.
     return cleanedChildren[0];
   }
 

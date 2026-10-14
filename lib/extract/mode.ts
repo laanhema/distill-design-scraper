@@ -1,15 +1,7 @@
 /**
- * Shared modal aggregation helper (DIST-068 / §12 Phase 8 P2-1).
- *
- * Finds the most frequent value in a list (mode).
- * Tie-break rule: Ties preserve the first value to reach the highest count (first-seen wins).
- * Empty input rule: Returns `fallback` if provided; otherwise returns `undefined` (or `values[0]` if non-empty).
- *
- * Used by:
- * - `tokens.ts`: aggregating spacing/radius/elevation tokens across DOM nodes.
- * - `typography.ts`: aggregating font-family, weight, line-height, letter-spacing per token.
- *
- * Note: `recipes.ts` maintains a distinct `modal<T>(values, keyOf)` helper for objects keyed by property.
+ * Ties go to the first value to reach the highest count; empty input returns
+ * `fallback`. `recipes.ts` keeps a distinct `modal<T>(values, keyOf)` for
+ * objects keyed by property.
  */
 
 export function mode<T>(values: T[]): T;

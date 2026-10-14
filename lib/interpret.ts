@@ -14,39 +14,25 @@ import { detectImageMediaType } from "@/lib/extract/imageMediaType";
 import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } from "@/lib/aiLane";
 
 /**
- * Interpretation engine (§6, the AI lane). Only `identity`, `imageMood`, and
- * color-role *refinements* (Stage E, §5) go through the model. It receives the
- * screenshot(s) **and** a compact JSON summary of the already-measured tokens,
- * so its read of "the feel" is grounded in the real palette/type, not just
- * pixels. Multi-image uploads (§P6-1) pass every screenshot (capped) so the
- * model reads the whole set as one subject rather than just the first image.
- *
- * The model never invents a hex it could have measured and never emits prose:
- * output is strict JSON constrained by structured outputs, then re-validated
- * with Zod (§6). On a validation/refusal failure we retry once, then fall back
- * gracefully — a report without an AI lane is still valid (the fields are
- * optional), so a flaky model or a missing API key degrades to a measured-only
- * report rather than a hard error or a faked interpretation.
+ * The AI lane: only `identity`, `imageMood` and color-role refinements (Stage
+ * E) go through the model, grounded in a summary of the measured tokens so it
+ * never invents a hex. A flaky model or a missing API key degrades to a
+ * measured-only report, never a hard error or a faked interpretation.
  */
 
-// This lane is grounded on tokens that were already measured, so its job is to
-// read the feel — not to reason hard. The old 1024 was sized for a budget the
-// answer had to itself; thinking tokens now share `maxOutputTokens`, so it
-// doubles to keep a thinking prelude from truncating the JSON. No thinking cap
-// is sent (`callModel` has none), so the 2048 budget has to be enough on its
-// own for the prelude and the answer.
+// Thinking tokens share `maxOutputTokens` and no thinking cap is sent
+// (`callModel` has none), so 2048 has to cover a thinking prelude plus the JSON
+// answer without truncating it.
 const MAX_TOKENS = 2048;
 
 // The same page should read the same way on every run: the identity is a
 // reading of measured tokens and one screenshot, not a creative draft. Without
 // it, the routed model samples at its default (1.0 on Gemini) and words the
-// same reading differently each time, which `npm run eval:ai` measures (#200).
+// same reading differently each time, which `npm run eval:ai` measures.
 const TEMPERATURE = 0;
 
-// Temperature 0 is not enough on the code default `google/gemini-3.5-flash`:
-// the same request still got a different reading on each call until a seed was
-// sent (#209). 7 is the only value measured; after changing it, rerun
-// `npm run eval:ai`.
+// Temperature 0 alone does not repeat the reply (see `ModelCall.seed`). 7 is
+// the only value measured; after changing it, rerun `npm run eval:ai`.
 const SEED = 7;
 
 const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
@@ -60,22 +46,14 @@ Return ONLY these three things:
 - roleRefinements: OPTIONAL corrections to the color role labels. You may relabel an existing hex (e.g. the color labelled "accent" is really the brand "primary"), but you must NEVER introduce a new hex or alter one. Reference colors only by a hex present in the summary. Omit or leave empty when the labels look right.`;
 
 /**
- * The JSON Schema sent for structured outputs (§6), generated from
- * `aiResponseSchema` so the provider is told every bound that the Zod gate in
- * `requestOnce` checks: 3 to 6 adjectives, a non-empty archetype and
- * description, at least one hero and one texture query, the `#rrggbb` pattern,
- * and the refinable-role enum. It used to be a hand-written copy without those
- * bounds, so a reply the provider accepted could still fail Zod and, after the
- * retry, drop the whole lane (#177). A bound added to `aiResponseSchema` is
- * sent on the next call — check it live over OpenRouter, since only a real
- * request shows whether the routed model accepts a generated keyword. Stated
- * is not applied, though: `callModel` sends the schema non-strict, so the
- * routed model may ignore a bound, and Zod stays the only gate.
+ * Generated from `aiResponseSchema` so the provider is told every bound the
+ * Zod gate checks; a hand-written copy drifts, and a reply the provider
+ * accepted then fails Zod and drops the whole lane. Check a new bound live over
+ * OpenRouter: only a real request shows whether the routed model accepts a
+ * generated keyword. The schema is sent non-strict, so Zod stays the only gate.
  *
- * The call relies on the default `io: "output"` mode of `z.toJSONSchema`, and
- * that mode is intended: it keeps `roleRefinements` in the top-level
- * `required` (`io: "input"` would drop it), so the sent schema is stricter
- * than Zod for that one field, whose `.default([])` accepts a reply without it.
+ * The default `io: "output"` mode is intended: it keeps `roleRefinements` in
+ * `required` (`io: "input"` would drop it, since Zod gives it `.default([])`).
  */
 const OUTPUT_SCHEMA = z.toJSONSchema(aiResponseSchema);
 
@@ -84,7 +62,7 @@ const MAX_INTERPRET_IMAGES = 4;
 
 export interface InterpretInput {
   /** Base64 PNG(s) — viewport screenshot(s) for URLs, uploaded image(s) for image mode.
-   *  Capped to `MAX_INTERPRET_IMAGES`; extras are ignored (§P6-1). */
+   *  Capped to `MAX_INTERPRET_IMAGES`; extras are ignored. */
   screenshotsPngBase64: string[];
   palette: Palette;
   typography?: Typography;
@@ -93,14 +71,11 @@ export interface InterpretInput {
 export interface Interpretation {
   identity: Identity;
   imageMood: ImageMood;
-  /** Stage E relabels the model proposed, hex → desired role (§5). */
+  /** Stage E relabels the model proposed, hex → desired role. */
   roleRefinements: { hex: string; role: AiResponse["roleRefinements"][number]["role"] }[];
 }
 
-/**
- * A compact JSON summary of the measured tokens. Kept small on purpose — the
- * model needs enough to ground its read, not the whole style dump (§6, §12).
- */
+/** Kept small on purpose: enough to ground the read, not the whole dump. */
 function groundingSummary(palette: Palette, typography?: Typography): string {
   const summary: Record<string, unknown> = {
     palette: palette.colors.map((c) => ({
@@ -129,20 +104,19 @@ function groundingSummary(palette: Palette, typography?: Typography): string {
 
 export { aiLaneAvailable };
 
-/** One model round-trip → parsed, Zod-validated JSON (or null on failure). */
 async function requestOnce(
   screenshotsPngBase64: string[],
   summary: string,
 ): Promise<AiResponse | null> {
   const mediaTypes = await Promise.all(screenshotsPngBase64.map(detectImageMediaType));
-  // Prompt-injection surface (issue #27 / review S6): these pixels are page-
-  // or user-controlled — a rendered page or uploaded image can contain
-  // adversarial text ("ignore previous instructions…") that the vision model
-  // reads like any other prompt content. Impact is bounded by the Zod-gated
-  // response (`aiResponseSchema` below) plus the graceful-null fallback, so
-  // injection can at worst skew identity/imageMood text or a color-role
-  // refinement — never tool use or data exfiltration. Widening what this
-  // response can drive widens the injection blast radius.
+  // Prompt-injection surface: these pixels are page- or user-controlled, and a
+  // rendered page or uploaded image can contain adversarial text ("ignore
+  // previous instructions…") that the vision model reads like any other prompt
+  // content. Impact is bounded by the Zod-gated response (`aiResponseSchema`
+  // below) plus the graceful-null fallback, so injection can at worst skew
+  // identity/imageMood text or a color-role refinement — never tool use or
+  // data exfiltration. Widening what this response can drive widens the
+  // injection blast radius.
   const images = screenshotsPngBase64.map((data, i) => ({ data, mediaType: mediaTypes[i] }));
   const promptNote =
     screenshotsPngBase64.length > 1
@@ -159,9 +133,6 @@ async function requestOnce(
     seed: SEED,
   });
 
-  // The `json_schema` response format should return clean JSON, but a fence
-  // or a refusal preamble is still possible — parse loosely, then let Zod,
-  // not the model's word, be the gate.
   const raw = parseJsonLoose(text);
   if (raw === null) return null;
 
@@ -171,7 +142,7 @@ async function requestOnce(
 
 /**
  * Run the AI lane. Returns null (never throws) when the key is absent or the
- * model fails twice — callers then emit a measured-only report (§6 fallback).
+ * model fails twice — callers then emit a measured-only report.
  */
 export async function interpret(
   input: InterpretInput,
@@ -182,7 +153,7 @@ export async function interpret(
   const summary = groundingSummary(input.palette, input.typography);
   const screenshots = input.screenshotsPngBase64.slice(0, MAX_INTERPRET_IMAGES);
 
-  // One repair retry (§6), then graceful fallback.
+  // One repair retry, then graceful fallback.
   const ai = await retryOnce(
     () => requestOnce(screenshots, summary),
     (err, attempt) => warnAiFailure("AI Interpretation lane", attempt, err),
@@ -203,13 +174,10 @@ export interface RefinementChange {
 }
 
 /**
- * Stage E application (§5): fold the AI's role relabels into the measured
- * palette. The model can only ever move a role from one *existing* swatch to
- * another — never touch a hex — so this is a permutation: assigning role R to
- * swatch S, when another swatch T already holds R, *swaps* their roles rather
- * than dropping T. That keeps every role unique and every hex intact. Applied
- * changes are returned so the eval harness (§10) can measure how often the AI
- * overrides the heuristic and whether it helps; the palette stays `measured`.
+ * Stage E application: a permutation of roles over the existing swatches,
+ * never a hex change. Assigning role R to swatch S when swatch T already holds
+ * R *swaps* their roles rather than dropping T, so every role stays unique and
+ * every hex intact; the palette stays `measured`.
  */
 export function applyRoleRefinements(
   palette: Palette,
@@ -254,7 +222,6 @@ export function applyRoleRefinements(
       }
     }
 
-    // Ignore a no-op relabel.
     if (!target || target.role === role) continue;
 
     const from = target.role;

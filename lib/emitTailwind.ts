@@ -1,6 +1,5 @@
 import type { Report } from "@/lib/schema";
 
-/** Quote a font-family name only when it needs it (contains whitespace). */
 function cssFontName(name: string): string {
   return /\s/.test(name) ? `"${name}"` : name;
 }
@@ -9,7 +8,7 @@ function cssFontName(name: string): string {
  * Derived view: generate a Tailwind v4 `@theme` CSS file from the report.
  * Traces 1:1 to frontmatter fields with zero schema changes or invented values.
  *
- * Placed in its own module (DIST-071) so client callers (`app/page.tsx`) do not
+ * Placed in its own module so client callers (`app/page.tsx`) do not
  * pull `js-yaml` or `reportSchema` into the browser bundle.
  */
 export function emitTailwindTheme(report: Report): string {

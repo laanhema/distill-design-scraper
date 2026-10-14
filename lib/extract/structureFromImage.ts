@@ -7,13 +7,10 @@ import { detectImageMediaType, type ImageMediaType } from "./imageMediaType";
 import { aiLaneAvailable, callModel, parseJsonLoose, retryOnce, warnAiFailure } from "@/lib/aiLane";
 
 /**
- * §P6-2 step 2 — Vision structure lane. There is no DOM for an uploaded image,
- * so the skeleton can only ever be *inferred* from pixels by a vision model —
- * never measured. This mirrors Stage 7 (`structureAI.ts`) in vocabulary and
- * naming conventions so a `both`-mode-style skeleton reads the same whether it
- * came from a live render or an upload, but it is a one-shot generation (there
- * is no heuristic fallback possible without a DOM to walk), gated entirely on
- * `OPENROUTER_API_KEY`, and always stamped `fidelity: "inferred"`.
+ * Vision structure lane: an uploaded image has no DOM, so the skeleton is only
+ * ever *inferred* from pixels, never measured, and always stamped
+ * `fidelity: "inferred"`. It uses Stage 7's vocabulary so both kinds of report
+ * read alike, but has no heuristic fallback without a DOM to walk.
  */
 
 const MAX_TOKENS = 4096;
@@ -104,9 +101,7 @@ async function requestOnce(
   return parsed.success ? parsed.data.root : null;
 }
 
-/** `counter` is per-invocation state — a fresh `{ next: 0 }` per call to
- *  `structureFromImages`, so concurrent requests never share ids and ids
- *  don't grow unboundedly across a process's lifetime. */
+/** `counter` is per call, so concurrent requests never share ids. */
 function toPrunedNode(node: AiVisionNode, counter: { next: number }): PrunedNode {
   const id = `img-node-${counter.next++}`;
   return {
@@ -129,20 +124,15 @@ function toPrunedNode(node: AiVisionNode, counter: { next: number }): PrunedNode
 }
 
 export interface StructureFromImageInput {
-  /** Base64 PNG(s), same convention as the palette/mood lane. Capped like the
-   *  interpretation lane — more images add cost without adding read. */
+  /** Capped like the interpretation lane: more images add cost without adding
+   *  read. */
   imagesPngBase64: string[];
   sourceRef: string;
   capturedAt: string;
 }
 
-/**
- * Runs the one-shot vision structure call and emits a `layout-structure`
- * report stamped `fidelity: "inferred"`. Returns null (never throws) when no
- * API key is configured or the model fails twice — callers then explain why
- * structure is unavailable rather than fabricating one (§6/§9 fallback
- * convention, same as `interpret.ts`).
- */
+/** Returns null (never throws) without an API key or after two failures —
+ *  callers then explain why structure is unavailable rather than fabricate it. */
 export async function structureFromImages(
   input: StructureFromImageInput,
 ): Promise<StructureReport | null> {
@@ -151,14 +141,13 @@ export async function structureFromImages(
 
   const imagesBase64 = input.imagesPngBase64.slice(0, MAX_STRUCTURE_IMAGES);
   const mediaTypes = await Promise.all(imagesBase64.map(detectImageMediaType));
-  // Prompt-injection surface (issue #27 / review S6): uploaded pixels are
-  // user-controlled — an image can contain adversarial rendered text ("ignore
-  // previous instructions…") that the vision model reads like any other
-  // prompt content. Impact is bounded by the Zod-gated response
-  // (`aiVisionStructureResponseSchema`, ontology types constrained to the
-  // ONTOLOGY_TYPES enum) plus the retry-then-null fallback, so injection can
-  // at worst skew the inferred skeleton's names/labels — never tool use or
-  // data exfiltration. Widening what this response can drive widens the
+  // Prompt-injection surface: uploaded pixels are user-controlled — an image
+  // can contain adversarial rendered text ("ignore previous instructions…")
+  // that the vision model reads like any other prompt content. Impact is
+  // bounded by the Zod-gated response (`aiVisionStructureResponseSchema`,
+  // ontology types constrained to the ONTOLOGY_TYPES enum) plus the
+  // retry-then-null fallback, so injection can at worst skew the inferred
+  // skeleton's names/labels — never tool use or data exfiltration. Widening what this response can drive widens the
   // injection blast radius.
   const imageBlocks = imagesBase64.map((data, i) => ({
     data,
@@ -174,12 +163,9 @@ export async function structureFromImages(
   const root = toPrunedNode(aiRoot, { next: 0 });
   const components = buildFallbackComponentMap(root);
 
-  // Each image's own pixel dimensions are real, measured data — unlike a
-  // browser viewport there is none to report, but the canvas(es) the model
-  // actually looked at are honest to surface instead of a fabricated size.
-  // When multiple images were sent, the first becomes the primary `viewport`
-  // and the rest ride along as `secondaryViewports` (same mechanism the
-  // responsive-harvest pass uses) rather than silently dropping their sizes.
+  // Each image's pixel dimensions are measured data, reported instead of a
+  // fabricated viewport: the first is the primary `viewport`, the rest ride
+  // along as `secondaryViewports`.
   const measuredViewports = (
     await Promise.all(
       imagesBase64.map(async (data: string) => {

@@ -1,19 +1,15 @@
 import { errors, type Page } from "playwright";
 
 /**
- * The style dump (§5): one record per visible node, capturing every color it
- * contributes *and the channel it came from*, plus its typographic properties
- * when it actually renders text. The channel is a strong prior for role
- * assignment — a color used as `color` on text is a `text` candidate, not a
- * `background` candidate — so the walk keeps channels separate rather than
- * pooling every color into one bucket.
+ * The style dump: one record per visible node, with every color it paints
+ * *and the channel it came from*. The channel is a strong prior for role
+ * assignment (a `color` on text is a `text` candidate, not a `background`
+ * one), so the walk keeps channels separate rather than pooling them.
  *
  * The collection function runs inside the page (via `page.evaluate`), so it is
- * deliberately self-contained: no imports, only DOM APIs. Everything it returns
- * is plain JSON that Node-side extraction (palette, typography) then interprets.
+ * deliberately self-contained: no imports, only DOM APIs, plain JSON out.
  */
 
-/** A single color observation, tagged with the channel it was read from. */
 export type ColorChannel =
   | "background"
   | "text"
@@ -51,11 +47,10 @@ export interface NodeStyle {
   /** CSS-pixel bounding box in the viewport (rough presence signal only —
    *  authoritative area comes from the screenshot pixel pass). */
   rect: { x: number; y: number; w: number; h: number };
-  /** Colors this node paints, one entry per channel, as computed CSS strings. */
   colors: { channel: ColorChannel; value: string }[];
   /** True when the node has a direct, non-whitespace text child. */
   hasText: boolean;
-  /** True for links, buttons and other CTA-ish affordances (§5 Stage C). */
+  /** True for links, buttons and other CTA-ish affordances (Stage C). */
   interactive: boolean;
   /** Typography, present only when `hasText` — a measured type sample. */
   type?: {
@@ -65,7 +60,6 @@ export interface NodeStyle {
     lineHeightPx: number;
     letterSpacing: string;
   };
-  /** Spacing, radius & elevation properties (§5 Phase 4). */
   layout?: {
     marginsPx: number[];
     paddingsPx: number[];
@@ -73,21 +67,20 @@ export interface NodeStyle {
     borderRadius: string;
     boxShadow: string;
   };
-  /** Motion properties (CSS transitions and animations). */
   motion?: {
     transitions?: TransitionInfo[];
     animations?: AnimationInfo[];
   };
-  /** ARIA evidence for semantic (success/warning/danger) color roles (§P5-1) —
-   *  ("alert"/"status" live regions, or an `aria-invalid` field) never inferred
-   *  from color alone. */
+  /** ARIA evidence for semantic (success/warning/danger) color roles
+   *  ("alert"/"status" live regions, or an `aria-invalid` field) — never
+   *  inferred from color alone. */
   semanticContext?: "alert" | "invalid";
   /** True when the node has an ancestor matching `nav` or `[role="navigation"]`
-   *  (§P8-1) — lets recipe classification tell a primary-nav link apart from a
-   *  generic body text link without re-walking the DOM. */
+   *  — lets recipe classification tell a primary-nav link apart from a generic
+   *  body text link without re-walking the DOM. */
   inNav?: boolean;
   /** Declared `:hover`/`:focus-visible` deltas read from the CSSOM for this
-   *  node, when it's interactive and a matching rule exists (§P5-1). */
+   *  node, when it's interactive and a matching rule exists. */
   states?: {
     state: "hover" | "focus";
     changes: { property: string; from: string; to: string }[];
@@ -98,9 +91,7 @@ export interface StyleDump {
   nodes: NodeStyle[];
   /** How many nodes matched before the cap; lets us flag truncation. */
   totalVisible: number;
-  /** True if the walk hit its node cap and stopped collecting. */
   truncated: boolean;
-  /** Collected `@keyframes` definitions from the page stylesheets. */
   keyframes?: KeyframeDef[];
 }
 
@@ -114,21 +105,16 @@ const NODE_CAP = 5000;
 const CROSS_ORIGIN_SHEET_TIMEOUT_MS = 5_000;
 
 /**
- * CSS text of the cross-origin stylesheets of one analysis, keyed by `href`.
- * `capturePage` creates one and hands it to every `collectStyleDump` call of
- * that capture, so the dark-scheme dump re-parses the text that the light
- * dump fetched and never downloads a sheet again. An entry is the request
- * itself: `null` is a sheet that failed, timed out or came back empty, which
- * is remembered too, so a stalled host costs one timeout (and logs one
- * warning) per analysis.
+ * Cross-origin stylesheet text of one analysis, keyed by `href`, shared by
+ * every `collectStyleDump` call of a capture so the dark-scheme dump never
+ * downloads a sheet again. A failed, timed-out or empty sheet is cached as
+ * `null` too, so a stalled host costs one timeout (and one warning) per
+ * analysis.
  */
 export type CrossOriginSheetCache = Map<string, Promise<string | null>>;
 
-/** Start (or reuse) the refetch of one cross-origin stylesheet. Best-effort:
- *  the returned promise never rejects — any failure resolves to `null`. Only
- *  a timeout logs a warning, from inside the cached promise, so it is logged
- *  once per analysis; a non-ok status, an empty body, or a refused
- *  connection is skipped silently. */
+/** Never rejects: any failure resolves to `null`. Only a timeout logs a
+ *  warning (once per analysis, from inside the cached promise). */
 function fetchCrossOriginSheet(
   page: Page,
   href: string,
@@ -158,25 +144,15 @@ function fetchCrossOriginSheet(
 }
 
 /**
- * The shared `:hover`/`:focus-visible` CSSOM scanner (`STATE_PROPS`,
- * `resolveVarRefs`, `applyRule`, `scanRules`), used by *both* the
- * same-origin walk (inside the main `page.evaluate` below) and the
- * cross-origin re-fetch pass. It used to be two independently-maintained
- * inline copies that drifted (DIST-048: the cross-origin copy's
- * `STATE_PROPS` mapped to camelCase computed-property names, which
- * `getComputedStyle().getPropertyValue()` silently never matches, so only
- * `color` ever survived there). Because the two passes run as *separate*
- * `page.evaluate` executions, they can't share a Node-side closure — so this
- * function is defined once, here, at module scope, and its source is
- * captured via `.toString()` and reconstructed in-page via
- * `new Function("return (" + src + ")")()()`, exactly like the `__name`
- * shim above already ships a snippet of Node-authored source into the page.
- * It must stay completely self-contained (no closures over anything outside
- * its own body, no imports) since only its serialized text crosses the
- * page boundary — each call site supplies its own way of locating "the
- * record for this element" via the `getRecord` callback (a live `Map` in
- * the same-origin pass, a `data-distill-id`-keyed lookup in the
- * cross-origin pass).
+ * The one `:hover`/`:focus-visible` CSSOM scanner shared by the same-origin
+ * walk and the cross-origin re-fetch pass, so the two can't drift. The passes
+ * are separate `page.evaluate` executions, so this is defined once here,
+ * serialized with `.toString()` and rebuilt in the page with `new Function`.
+ * It must stay self-contained — no closures over anything outside its own
+ * body, no imports — since only its text crosses the page boundary. Each call
+ * site locates "the record for this element" through `getRecord`.
+ * `STATE_PROPS` values must be kebab-case: `getPropertyValue()` silently never
+ * matches a camelCase name.
  */
 function createStateScanner() {
   const STATE_PROPS: Record<string, string> = {
@@ -187,18 +163,11 @@ function createStateScanner() {
   };
 
   /**
-   * Resolve `var(--name)` / `var(--name, fallback)` references in a raw
-   * CSSOM rule-text value against the element's own computed style. This is
-   * not fabrication — `--name` is a real, directly-queryable computed
-   * property on the element (custom properties cascade/inherit like any
-   * other), so reading it off the element being scanned is representative
-   * of the actual measured value, even though the `:hover`/`:focus-visible`
-   * rule isn't literally applied at read time. Multiple `var()` references
-   * can appear in one value (e.g. a multi-part `box-shadow`), and a
-   * fallback can itself nest another `var(...)`, so this runs a bounded
-   * number of passes, resolving the innermost (paren-free-fallback) refs
-   * each pass. Anything that can't be resolved and has no fallback is left
-   * as literal `var(...)` text rather than causing a crash.
+   * Resolves `var(--name[, fallback])` in a rule-text value against custom
+   * properties read off the element itself (they cascade, so that is the
+   * measured value, not a guess). Bounded passes, innermost refs first, since
+   * a fallback can nest another `var()`; an unresolvable ref without a
+   * fallback stays literal `var(...)` text.
    */
   function resolveVarRefs(value: string, cs: CSSStyleDeclaration): string {
     let result = value;
@@ -318,10 +287,8 @@ function createStateScanner() {
 }
 
 /**
- * Walk the rendered DOM and return the style dump. Runs on the live page after
- * it has settled (banners dismissed, lazy content nudged) so it reflects the
- * *rendered state only* — unused theme variants sitting in stylesheets never
- * appear here, which is exactly what §5 role assignment wants.
+ * Runs on the settled page, so it reflects the *rendered state only*: unused
+ * theme variants sitting in stylesheets never appear here.
  */
 export async function collectStyleDump(
   page: Page,
@@ -339,27 +306,21 @@ export async function collectStyleDump(
 
   const dump = await page.evaluate(
     ({ cap, scannerSrc }: { cap: number; scannerSrc: string }) => {
-    /** Parse a computed color; return null for fully-transparent paints. */
     function opaqueColor(value: string): string | null {
       if (!value) return null;
       const v = value.trim();
       if (v === "transparent" || v === "none") return null;
-      // Computed colors come back as `rgb(r, g, b)` / `rgba(r, g, b, a)` /
-      // the newer `rgb(r g b / a)`. Pull the numbers and check alpha.
+      // Covers `rgb(r, g, b)`, `rgba(r, g, b, a)` and `rgb(r g b / a)`.
       const nums = v.match(/[\d.]+/g);
       if (!nums) return null;
-      // rgba(...) → 4 numbers; a fully transparent paint contributes nothing.
       if (nums.length >= 4 && parseFloat(nums[3]) === 0) return null;
       return v;
     }
 
     /**
-     * Color of the node's widest *visible* border side, or null when no side
-     * is actually painted. Reading always `border-top-color` would let a
-     * zero-width side's default border color (`currentColor`, often pure
-     * black) claim the border channel on nodes whose only real border is on
-     * another side (e.g. `border-bottom: 1px solid …` hairlines). `hidden`
-     * paints nothing, exactly like `none`.
+     * The widest *visible* side's color, not always `border-top-color`: a
+     * zero-width side's default (`currentColor`, often pure black) would
+     * otherwise claim the border channel on a `border-bottom`-only hairline.
      */
     function visibleBorderColor(cs: CSSStyleDeclaration): string | null {
       const sides = [
@@ -423,7 +384,7 @@ export async function collectStyleDump(
     const all = document.querySelectorAll("*");
     const nodes: NodeStyle[] = [];
     // Only elements that end up with a record are eligible hover/focus scan
-    // targets — "already in the dump", per §P5-1.
+    // targets.
     const elementRecords = new Map<Element, NodeStyle>();
     let totalVisible = 0;
     let truncated = false;
@@ -520,7 +481,6 @@ export async function collectStyleDump(
         paddingsPx.some((p) => p > 0) ||
         marginsPx.some((m) => m > 0);
 
-      // Motion parsing (§P6 Motion Token Lane)
       const transitions: TransitionInfo[] = [];
       if (cs.transitionDuration) {
         const durStrs = splitCommaOutsideParens(cs.transitionDuration);
@@ -623,14 +583,11 @@ export async function collectStyleDump(
       elementRecords.set(el, record);
     }
 
-    // Interactive states (§P5-1): declared `:hover`/`:focus-visible` deltas,
-    // read straight from the CSSOM — never simulated by toggling the pseudo
-    // class, so a rule guarded by JS (`.is-hovering`) is an honest miss, not a
-    // wrong answer. Cross-origin stylesheets throw on `.cssRules`; skipped.
-    // The scanner itself (STATE_PROPS/resolveVarRefs/applyRule/scanRules) is
-    // defined once, at module scope, in `createStateScanner` — its source is
-    // reconstructed here via `new Function` so both this pass and the
-    // cross-origin re-fetch pass below share exactly one implementation.
+    // Interactive states: declared `:hover`/`:focus-visible` deltas, read
+    // straight from the CSSOM — never simulated by toggling the pseudo class,
+    // so a rule guarded by JS (`.is-hovering`) is an honest miss, not a wrong
+    // answer. A cross-origin sheet throws on `.cssRules`; its href goes to the
+    // re-fetch pass below.
     const { scanRules }: ReturnType<typeof createStateScanner> = new Function("return (" + scannerSrc + ")")()();
     const keyframes: KeyframeDef[] = [];
     const crossOriginHrefs: string[] = [];
@@ -664,11 +621,8 @@ export async function collectStyleDump(
   }, { cap: NODE_CAP, scannerSrc: createStateScanner.toString() });
 
   if (dump.crossOriginHrefs && dump.crossOriginHrefs.length > 0) {
-    // Which node ids the same-origin pass already flagged interactive — the
-    // cross-origin pass has no `elementRecords` Map to consult (it's a
-    // separate `page.evaluate` execution against a detached stylesheet
-    // document), so it looks this up by id instead, computed once here from
-    // the already-returned `dump`.
+    // The cross-origin pass is a separate `page.evaluate` with no
+    // `elementRecords` Map, so it looks interactivity up by node id.
     const interactiveIds = new Set(
       dump.nodes.flatMap((n, i) => (n.interactive ? [i] : [])),
     );
@@ -787,13 +741,10 @@ export async function collectStyleDump(
             }
           }
         }
-      } catch {
-        // Skip this cross-origin stylesheet, best-effort, on a parse/evaluate error
-      }
+      } catch {}
     }
   }
 
-  // Cleanup temporary attribute
   await page.evaluate(() => {
     document.querySelectorAll("[data-distill-id]").forEach((el) => el.removeAttribute("data-distill-id"));
   }).catch(() => {});

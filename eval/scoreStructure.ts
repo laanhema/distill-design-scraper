@@ -18,7 +18,7 @@ export const expectedStructureSpecSchema = z.strictObject({
       }),
     )
     .optional(),
-  /** Ordered section-digest names/instances (DIST-028) — the primary
+  /** Ordered section-digest names/instances — the primary
    *  structure-lane signal. Scored by ordinal position so a missing or
    *  reordered band registers as a real regression. */
   expectedSections: z.array(expectedSectionEntrySchema).optional(),
@@ -28,23 +28,18 @@ export type ExpectedStructureSpec = z.infer<typeof expectedStructureSpecSchema>;
 export interface StructureScoreResult {
   regionAccuracy: number;
   componentCountAccuracy: number;
-  /** Section-digest ordinal accuracy — `null` when no `expectedSections`
-   *  were provided (excluded from `combined`). `0` when sections were
-   *  expected but the digest is absent (real regression signal). */
+  /** `null` without `expectedSections` (excluded from `combined`); `0` when
+   *  sections were expected but the digest is absent. */
   sectionAccuracy: number | null;
   combined: number;
   misses: string[];
 }
 
 /**
- * Structure Evaluation Scoring (§10)
- * Evaluates extracted structure against expected specifications.
- *
  * Scoring order of precedence when `expectedSections` is provided:
  *   sections (primary) → regions (skeleton presence) → component counts.
- * When `expectedSections` is absent, falls back to the historical
- * region+component average so callers that only spec the legacy fields
- * keep their old scores.
+ * Without `expectedSections`, the score is the region+component average, so
+ * a spec without sections keeps its score.
  */
 export function scoreStructure(
   report: StructureReport,
@@ -62,7 +57,7 @@ export function scoreStructure(
 
   const misses: string[] = [];
 
-  // 1. Section-digest ordinal accuracy (DIST-028) — primary signal.
+  // 1. Section-digest ordinal accuracy — primary signal.
   const expectedSections = expected.expectedSections ?? [];
   let sectionAccuracy: number | null = null;
   if (expectedSections.length > 0) {
@@ -147,7 +142,7 @@ export function scoreStructure(
   const componentCountAccuracy =
     expectedCompKeys.length > 0 ? countHits / expectedCompKeys.length : 1.0;
 
-  // Combined: sections primary when present, otherwise the historical mean.
+  // Combined: sections primary when present, otherwise the region+component mean.
   let combined: number;
   if (sectionAccuracy !== null) {
     combined =

@@ -6,10 +6,8 @@ import type { Capture } from "@/lib/analyze";
 import { CORPUS, type CorpusEntry } from "./corpus";
 
 /**
- * Capture step of the eval harness (§10). Renders each corpus entry *once* and
- * writes eval/corpus/<slug>/capture.json — the screenshot + style dump the
- * offline scorer replays. Fixtures are committed; live-URL captures are
- * git-ignored (they move, and we don't want the network in CI).
+ * Writes eval/corpus/<slug>/capture.json for the offline scorer to replay.
+ * Live-URL captures are git-ignored: they move, and CI has no network.
  *
  *   npm run eval:capture            → all offline fixtures (safe, no network)
  *   npm run eval:capture -- stripe  → named live entries (opens a browser)
@@ -30,7 +28,7 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
     const context = await browser.newContext({
       viewport: VIEWPORT,
       deviceScaleFactor: 1,
-      // Same explicit baseline as `lib/ingest.ts` (§P8-3) — deterministic
+      // Same explicit baseline as `lib/ingest.ts` — deterministic
       // capture regardless of the CI/OS default color scheme.
       colorScheme: "light",
     });

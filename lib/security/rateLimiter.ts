@@ -1,21 +1,16 @@
 /**
- * Per-process token-bucket rate limiter guarding the expensive render/AI path
- * of `POST /api/analyze` (`app/api/analyze/route.ts`). In-memory only — in a
- * multi-instance/horizontally-scaled deployment each instance enforces its own
- * independent limit — this is a known MVP gap (no shared store such as Redis
- * in scope), not a bypass a single deployer needs to worry about.
+ * Per-process token-bucket rate limiter for the expensive render/AI path of
+ * `POST /api/analyze`. In-memory only: each instance of a scaled-out deployment
+ * enforces its own limit.
  *
- * The bucket store is bounded to at most `RATE_LIMIT_MAX_BUCKETS` distinct
- * client keys: a rate limiter's own store must not itself be an
- * unbounded-growth vector keyed by a client-controlled, spoofable header
- * (`X-Forwarded-For`). When a new client key would push the store over the
- * cap, idle entries (a full window past their last touch — their tokens have
- * already refilled to full, so deleting them changes no observable behavior)
- * are swept first; if genuinely-active distinct clients still exceed the cap,
- * the least-recently-touched entry is evicted instead.
+ * The store is bounded to `RATE_LIMIT_MAX_BUCKETS` client keys, because it
+ * must not itself be an unbounded-growth vector keyed by a client-controlled,
+ * spoofable header (`X-Forwarded-For`). Past the cap, idle entries (a full
+ * window untouched, so already refilled; deleting them changes nothing) are
+ * swept first, then the least-recently-touched entry is evicted.
  */
 
-/** Single error type mirroring `UnsafeUrlError`, carrying the `Retry-After` value the route needs. */
+/** Carries the `Retry-After` value the route needs. */
 export class RateLimitExceededError extends Error {
   constructor(
     message: string,
@@ -80,10 +75,9 @@ function getOrRefillBucket(key: string, capacity: number, windowMs: number, maxB
 }
 
 /**
- * Reads `x-forwarded-for` (first comma-separated entry) then falls back to
- * `x-real-ip`, then to the literal string `"unknown"` — without a proxy
- * header, every unproxied local request is indistinguishable, so they share
- * one bucket, which is fine for the local-dev case the AC calls out.
+ * `x-forwarded-for` (first entry), then `x-real-ip`, then `"unknown"`: without
+ * a proxy header every local request shares one bucket, which is fine for
+ * local dev.
  */
 export function extractClientId(request: Request): string {
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -99,13 +93,9 @@ export function extractClientId(request: Request): string {
 }
 
 /**
- * Throws `RateLimitExceededError` once `clientId`'s bucket is empty;
- * otherwise consumes one token. Env vars are read fresh on each call (not
- * cached at module load) so they stay tunable and testable:
- * `RATE_LIMIT_MAX_REQUESTS` (default 20), `RATE_LIMIT_WINDOW_MS` (default
- * 60000), `RATE_LIMIT_MAX_BUCKETS` (default 50000 — cap on distinct tracked
- * client IDs), `RATE_LIMIT_DISABLED` (`"true"`/`"1"` bypasses entirely — the
- * local-dev escape hatch the AC requires).
+ * Env vars are read fresh on each call so they stay tunable and testable:
+ * `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_BUCKETS`,
+ * and `RATE_LIMIT_DISABLED` (`"true"`/`"1"`, the local-dev escape hatch).
  */
 export function assertWithinRateLimit(clientId: string): void {
   if (isDisabled()) return;

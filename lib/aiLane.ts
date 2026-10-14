@@ -1,22 +1,16 @@
 /**
- * Shared primitives for every AI-backed lane (interpretation, DOM-based
- * structure labelling, vision-based structure inference) — one model id, one
- * availability check, one request primitive, one JSON parser, and one retry
- * policy, so the three lanes can't drift out of sync with each other. This is
- * also the only file in the codebase that talks to a model provider: a lane
- * that needs a model round-trip calls `callModel`, never `fetch`. The one
- * provider is OpenRouter, reached over plain `fetch`, so there is no model
- * SDK in the dependencies.
+ * Shared primitives for every AI-backed lane, so the three lanes can't drift
+ * out of sync. The only file that talks to a model provider: a lane calls
+ * `callModel`, never `fetch`. The provider is OpenRouter over plain `fetch`,
+ * so there is no model SDK in the dependencies.
  */
 
 import type { ImageMediaType } from "@/lib/extract/imageMediaType";
 
-/** True when a live AI lane call is possible (an OpenRouter API key is configured). */
 export function aiLaneAvailable(): boolean {
   return Boolean(process.env.OPENROUTER_API_KEY);
 }
 
-/** One model round-trip: optional images + optional system prompt + user text. */
 export interface ModelCall {
   /** Base64 payloads + sniffed media type; omit for text-only lanes. */
   images?: { data: string; mediaType: ImageMediaType }[];
@@ -40,7 +34,7 @@ export interface ModelCall {
    * Sent as `seed` when set, together with a provider preference for
    * `SEEDED_PROVIDER`. Temperature 0 alone does not repeat the reply of
    * `google/gemini-3.5-flash`: without a seed, its replies to one request
-   * differed between calls, with thinking and without (#209). Of the two
+   * differed between calls, with thinking and without. Of the two
    * Google endpoints that OpenRouter routes it to, only Google AI Studio
    * repeated the reply under a seed; Google Vertex did not.
    */
@@ -61,13 +55,9 @@ const SEEDED_PROVIDER = "google-ai-studio";
  * text" case — network/auth errors, non-2xx responses, and a 200 reply whose
  * body is an `error` object deliberately propagate, because `retryOnce`'s
  * `onError` is the only place an AI failure becomes visible, and a swallowed
- * 401/429 would be indistinguishable from a quality regression.
- *
- * Support for `response_format: json_schema` varies by the routed model — a
- * custom `OPENROUTER_MODEL` override that doesn't support it will surface as
- * a call failure through the existing `retryOnce`/`warnAiFailure` path, not a
- * silent quality regression, which is the accepted trade-off named in issue
- * #104's technical-notes comment.
+ * 401/429 would be indistinguishable from a quality regression. A custom
+ * `OPENROUTER_MODEL` without `response_format: json_schema` support fails the
+ * same visible way.
  */
 export async function callModel(opts: ModelCall): Promise<string | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -131,15 +121,10 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
         ? {
             response_format: {
               type: "json_schema",
-              // Not `strict: true`: structureAI's STRUCTURE_SCHEMA types open-ended
-              // dictionaries via `additionalProperties: { type: "string" }`
-              // (componentDefinitions/sectionDescriptions keyed by node id) — a
-              // shape strict JSON-schema mode can't express (every property must
-              // be enumerated, additionalProperties must be exactly false).
-              // Non-strict still upgrades the request from a shapeless
-              // json_object to schema-guided output on providers that honor it,
-              // and Zod remains the real gate either way (parseJsonLoose never
-              // validates shape — see its doc comment below).
+              // Not `strict: true`: STRUCTURE_SCHEMA in structureAI types
+              // dictionaries keyed by node id (`additionalProperties: { type:
+              // "string" }`), which strict mode can't express. Zod remains the
+              // real gate either way (see `parseJsonLoose` below).
               json_schema: { name: "distill_ai_response", schema: opts.jsonSchema },
             },
           }
@@ -157,15 +142,11 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
 }
 
 /**
- * The text of `choices[0].message.content` in a chat-completions reply, or
- * `null` when that path is missing or holds no text. The reply is untyped
- * provider output, so each step is narrowed before it is read.
- *
- * Three shapes throw rather than read as "no text", so that they reach
- * `retryOnce`'s `onError` like any other failed call: a `null` body, a body
- * with an `error` field (OpenRouter's HTTP 200 reply for a call that failed
- * after the provider accepted it, #207), and a truthy `content` that is no
- * string (`0` and `false` read as no text, as before).
+ * `choices[0].message.content`, or `null` when it is missing or empty. Three
+ * shapes throw instead, so they reach `retryOnce`'s `onError` like any other
+ * failed call: a `null` body, a body with an `error` field (OpenRouter's HTTP
+ * 200 reply for a call that failed after the provider accepted it), and a
+ * truthy `content` that is no string.
  */
 function firstChoiceText(reply: unknown): string | null {
   if (reply === null) throw new Error("OpenRouter reply is null, not a JSON object.");
@@ -205,9 +186,7 @@ function providerError(error: unknown): Error {
 
 /**
  * JSON mode should return clean JSON; a fence or a chatty preamble is still
- * possible, so fall back to the outermost brace match before giving up. The
- * one shared JSON extractor for every AI lane — the ΔE-matcher precedent from
- * `roleMatch.ts` / `styleMatch.ts`, applied to model output.
+ * possible, so fall back to the outermost brace match before giving up.
  *
  * This only gets *some* object out of the text; it never validates shape. Zod
  * remains the real gate at every call site.
@@ -216,9 +195,7 @@ export function parseJsonLoose(text: string | null): unknown | null {
   if (!text || !text.trim()) return null;
   try {
     return JSON.parse(text);
-  } catch {
-    // Fall through to the brace match below.
-  }
+  } catch {}
   const braceMatch = text.match(/\{[\s\S]*\}/);
   if (!braceMatch) return null;
   try {
@@ -250,10 +227,6 @@ export async function retryOnce<T>(
   return result;
 }
 
-/**
- * Log a structured warning for AI-lane failures, distinguishing 429 rate limits
- * from 400 bad requests or other errors.
- */
 export function warnAiFailure(laneName: string, attempt: 1 | 2, err: unknown): void {
   const msg = err instanceof Error ? err.message : String(err);
   let detail = "error";

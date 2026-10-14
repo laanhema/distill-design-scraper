@@ -1,21 +1,14 @@
 import type { PrunedNode } from "../structureSchema";
 
 /**
- * Stage 4b — Squash single-child generic wrapper chains (#30 / DIST-024).
+ * Stage 4b — Squash single-child generic wrapper chains. Stage 4 exempts
+ * flex/grid wrappers, which leaves chains like `Hero → Hero [grid · 1col] →
+ * Hero [grid · 12col]`; this merges them so the skeleton reads at section
+ * altitude. The outer node's identity survives; the more specific layout
+ * annotation wins.
  *
- * The Stage 4 collapse rule in `pruner.ts` deliberately exempts flex/grid
- * wrappers (a layout annotation makes a container "meaningful"), which is what
- * preserves chains like `Hero → Hero [grid · 1col] → Hero [grid · 12col]`.
- * This post-pass merges those chains back down to one node so the skeleton
- * reads at section altitude: a node with exactly one child absorbs that child
- * when the child is a *generic layout container* — no landmark, not
- * interactive, not a semantic tag. The outer node's identity (tag, landmark,
- * bounds) survives; the more specific layout annotation wins.
- *
- * Pure `PrunedNode → PrunedNode`, so it behaves identically for live-`Page`
- * and pre-harvested `rawHarvestNode` (eval replay) inputs, and must run on
- * both the primary and secondary-viewport derivations so the responsive
- * diff's positional alignment sees the same tree shape on both sides.
+ * Must run on both the primary and the secondary-viewport trees, so the
+ * responsive diff's positional alignment sees the same shape on both sides.
  */
 
 const SEMANTIC_TAGS = [
@@ -45,11 +38,9 @@ export function squashWrapperChains(node: PrunedNode): PrunedNode {
 }
 
 /**
- * A child is absorbable only when it carries no identity of its own: no
- * landmark, not interactive, not a semantic HTML element, and it actually
- * wraps something (a leaf is content, not a wrapper). A vision-inferred node
- * has no real `tagName` to judge by, so it is never merged — absent evidence
- * means no squash, not a guessed one.
+ * Absorbable only with no identity of its own and something to wrap. A
+ * vision-inferred node has no real `tagName` to judge by, so it is never
+ * merged — absent evidence means no squash, not a guessed one.
  */
 function isGenericLayoutContainer(child: PrunedNode): boolean {
   return (
@@ -61,8 +52,6 @@ function isGenericLayoutContainer(child: PrunedNode): boolean {
   );
 }
 
-/** Outer identity survives; content flags propagate; annotation is resolved
- *  by specificity. */
 function mergePair(outer: PrunedNode, child: PrunedNode): PrunedNode {
   return {
     ...outer,
@@ -77,12 +66,10 @@ function mergePair(outer: PrunedNode, child: PrunedNode): PrunedNode {
 const POSITION_SUFFIX = /\s·\s(sticky|fixed)$/;
 
 /**
- * The more specific annotation wins: `grid · Ncol` (N ≥ 2) > `grid · 1col` /
- * bare `grid` > `flex …` > none. Ties prefer the child's — the innermost
- * annotation describes the actual content layout (the hero keeps its
- * `grid · 12col`, not the `grid · 1col` shell). A sticky/fixed suffix on the
- * outer node (pinned landmark, `pruner.ts:42-46`) is never lost: it is
- * stripped before ranking and re-appended to the winner.
+ * `grid · Ncol` (N ≥ 2) > `grid · 1col` / bare `grid` > `flex …` > none; ties
+ * prefer the child's, the actual content layout. A sticky/fixed suffix on the
+ * outer node (see `pruneAndCollapse`) is stripped before ranking and
+ * re-appended to the winner, so it is never lost.
  */
 function resolveAnnotation(
   outer: string | undefined,

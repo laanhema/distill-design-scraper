@@ -16,10 +16,9 @@ import {
 } from "@/lib/schema";
 
 /**
- * Emit (§3, §4 module 4): merge the measured lanes into the report schema,
- * validate with Zod, then serialize a single `.md` file — YAML frontmatter (the
- * machine-parseable contract) followed by a human-readable body *derived from
- * the same object*, so the two can never drift.
+ * One `.md` file: YAML frontmatter (the machine-parseable contract) followed by
+ * a human-readable body *derived from the same object*, so the two can never
+ * drift.
  */
 
 export interface BuildReportInput {
@@ -38,7 +37,7 @@ export interface BuildReportInput {
   imageMood?: ImageMood;
 }
 
-/** Assemble and validate the report object. Throws on schema violation. */
+/** Throws on schema violation. */
 export function buildReport(input: BuildReportInput): Report {
   const candidate: Report = {
     reportKind: input.reportKind,
@@ -129,11 +128,8 @@ function renderPalette(palette: Palette, heading = "Palette"): string {
   return lines.join("\n");
 }
 
-/**
- * Static reference ranges for conventional type-scale sizing, purely for
- * at-a-glance comparison in the rendered report — not derived from any
- * capture, and never used to alter a measured `sizePx`.
- */
+/** Static reference ranges for at-a-glance comparison only — never used to
+ *  alter a measured `sizePx`. */
 const RECOMMENDED_TYPE_RANGES: Record<TypeToken, string> = {
   display: "64–96px",
   h1: "48–64px",
@@ -144,14 +140,9 @@ const RECOMMENDED_TYPE_RANGES: Record<TypeToken, string> = {
 };
 
 /**
- * Curated, best-effort lookup of proprietary/custom font names — the kind
- * that show up in Framer/Webflow exports or brand type systems and are NOT
- * freely available/licensable — mapped to a suggested open (Google Fonts)
- * alternative with a broadly similar character. Deliberately small and
- * conservative: an unrecognized name (including legitimate open fonts like
- * "Inter" or "Roboto") gets no suggestion rather than a guessed one. Never
- * used to alter the measured family name itself — purely a rendering-time
- * suggestion, same spirit as `provenanceSuffix`.
+ * Proprietary font names mapped to a similar open (Google Fonts) alternative.
+ * Deliberately small: an unrecognized name gets no suggestion rather than a
+ * guessed one, and the measured family name itself is never altered.
  */
 const FONT_FALLBACK_SUGGESTIONS: Record<string, string> = {
   recifetext: "Plus Jakarta Sans",
@@ -164,11 +155,8 @@ const FONT_FALLBACK_SUGGESTIONS: Record<string, string> = {
   circular: "Poppins",
 };
 
-/**
- * Strip diacritics, common weight/style/variable-font suffixes, digits, and
- * punctuation before matching — font names in the wild carry variants like
- * "RecifeText-SemiBold", "Söhne Buch", "GT Walsheim VF", "Circular Std Bold".
- */
+/** Font names in the wild carry variants like "RecifeText-SemiBold", "Söhne
+ *  Buch", "GT Walsheim VF", "Circular Std Bold". */
 function normalizeFontName(name: string): string {
   return name
     .normalize("NFD")
@@ -182,7 +170,6 @@ function normalizeFontName(name: string): string {
     .toLowerCase();
 }
 
-/** Nearest known-proprietary-font match, or null if this name isn't in the curated table. */
 function suggestedFontAlternative(name: string): string | null {
   const normalized = normalizeFontName(name);
   if (!normalized) return null;
@@ -310,17 +297,12 @@ function renderIdentity(identity: Identity): string {
   return lines.join("\n");
 }
 
-/** Quote a font-family name only when it needs it (contains whitespace). */
+/** Quote a font-family name only when it contains whitespace. */
 function cssFontName(name: string): string {
   return /\s/.test(name) ? `"${name}"` : name;
 }
 
-/**
- * CSS variables (§P8-4): the last step from report to usable code — a
- * `:root` block derived from the same report object rendered everywhere
- * else, so there's nothing here that doesn't already trace to a
- * frontmatter field.
- */
+/** Every variable traces to a frontmatter field of the same report object. */
 function renderCssVariables(report: Report): string {
   const lines: string[] = ["## CSS variables", "", "```css", ":root {"];
 

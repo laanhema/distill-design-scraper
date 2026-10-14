@@ -20,8 +20,7 @@ type AnalysisState =
 type InputMode = "url" | "image";
 
 /** A selected file and its data-URL preview, kept in one entry so the pairing
- *  can never drift — previews used to live in a separate array appended in
- *  `FileReader.onload` completion order, which mismatched indexes (#23). */
+ *  can never drift. */
 interface SelectedImage {
   file: File;
   preview: string;
@@ -41,10 +40,7 @@ function readFileAsDataURL(file: File): Promise<string> {
   });
 }
 
-/** Hostname derivation shared by both download handlers: prefer the
- *  analyzed URL's hostname, then the first uploaded image's basename,
- *  then the caller-supplied default — derived from the analyzed result's
- *  source name rather than live form inputs (#101, #173). */
+/** Derived from the analyzed result's source name, never the live form. */
 function deriveHost(sourceName: string, defaultHost: string): string {
   let host = defaultHost;
   try {
@@ -58,9 +54,7 @@ function deriveHost(sourceName: string, defaultHost: string): string {
   return host || defaultHost;
 }
 
-/** Shared Blob → object URL → anchor → click → revoke sequence for the two
- *  workbench download actions, so a future fix to this plumbing can't land
- *  in one handler and silently miss the other (#101). */
+/** Shared by both download actions, so a fix can't land in only one. */
 function downloadBlob(content: string, mimeType: string, filename: string): void {
   const blob = new Blob([content], { type: mimeType });
   const href = URL.createObjectURL(blob);
@@ -82,10 +76,8 @@ export default function Home() {
     const room = MAX_IMAGES - images.length;
     if (room <= 0) return;
     const accepted = files.slice(0, room);
-    // Read every file first, then append file+preview pairs together in
-    // selection order — pairing is structural, so read-completion order
-    // can't mismatch previews, names, and remove targets (#23). A file
-    // whose read fails is skipped rather than guessed at.
+    // Read every file first, then append the pairs in selection order, so
+    // read-completion order can't mismatch them. A failed read is skipped.
     const results = await Promise.allSettled(
       accepted.map(async (file): Promise<SelectedImage> => ({
         file,
@@ -110,7 +102,7 @@ export default function Home() {
 
     // The selection as it stands at submit: the result is built from this
     // snapshot, never from the live form, which can change while the request
-    // is in flight or after it settles (#173, #179).
+    // is in flight or after it settles.
     const submittedImages = images;
     setState({ status: "loading" });
 
@@ -119,8 +111,8 @@ export default function Home() {
       if (inputMode === "url") {
         bodyData.url = url;
       } else {
-        // Image mode's structure lane is vision-inferred rather than DOM-measured
-        // (§P6-2 step 2) — the API reports back if it couldn't run (no key).
+        // Image mode's structure lane is vision-inferred rather than
+        // DOM-measured — the API reports back if it couldn't run (no key).
         bodyData.images = submittedImages.map(({ file, preview }, i) => ({
           data: preview,
           name: file.name || `uploaded-image-${i + 1}`,
@@ -151,7 +143,7 @@ export default function Home() {
       }
 
       // A new analysis may have no structure report — never leave the active
-      // tab pointing at a pane that no longer exists (#23).
+      // tab pointing at a pane that no longer exists.
       if (!data.structureReport) {
         setTab((t) => (t === "structure" ? "preview" : t));
       }

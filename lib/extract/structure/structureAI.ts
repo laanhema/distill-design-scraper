@@ -20,14 +20,13 @@ export const aiStructureResponseSchema = z.object({
       role: z.string().optional(),
     }),
   ),
-  /** One-line human intent description per page section (#36 / DIST-030),
-   *  keyed by the band node ids from the digest list in the prompt. */
+  /** Keyed by the band node ids from the digest list in the prompt. */
   sectionDescriptions: z.record(z.string(), z.string()).optional(),
 });
 
 export type AiStructureResponse = z.infer<typeof aiStructureResponseSchema>;
 
-/** JSON Schema mirror of `aiStructureResponseSchema` for structured outputs (§6). */
+/** Hand-written JSON Schema mirror of `aiStructureResponseSchema`; keep the two in step. */
 const STRUCTURE_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -66,26 +65,21 @@ const STRUCTURE_SCHEMA = {
   required: ["nodeUpdates", "componentDefinitions"],
 } as const;
 
-/**
- * Stage 7 — AI Labelling Pass (§5b, §6)
- * Text-only AI call to refine component names, ontology types, and composition strings.
- */
+/** Stage 7 — AI Labelling Pass. */
 export interface StructureAIResult {
   root: PrunedNode;
   components: Record<string, ComponentDef>;
   /** Whether component names/types came from the AI pass or the heuristic
-   *  fallback (§P7-1) — a separate axis from `fidelity`, which only speaks to
-   *  whether bounds/layout were measured. */
+   *  fallback — a separate axis from `fidelity`, which only speaks to whether
+   *  bounds/layout were measured. */
   naming: "ai" | "heuristic";
-  /** One-line AI intent description per section digest (#36 / DIST-030),
-   *  keyed by band node id — only present on the `naming: "ai"` path when
-   *  the model returned lines for known band ids. */
+  /** Keyed by band node id; only present on the `naming: "ai"` path when the
+   *  model returned lines for known band ids. */
   sectionDescriptions?: Record<string, string>;
 }
 
-/** Digest-list entry sent to the prompt so the model can write one intent
- *  line per section — the same band list Stage 9 digests, computed from the
- *  same `findDigestBands` source. */
+
+/** One intent line per section: the same band list Stage 9 digests. */
 type DigestListEntry = {
   id: string;
   name: string;
@@ -106,22 +100,18 @@ function summarizeDigestListForAI(root: PrunedNode): DigestListEntry[] {
   }));
 }
 
-/** One model round-trip → parsed, Zod-validated JSON (or null on failure) —
- *  same null-gate shape as `interpret.ts`, so `retryOnce` can drive it. */
+/** Same null-gate shape as `interpret.ts`, so `retryOnce` can drive it. */
 async function requestOnce(
   compactTree: CompactTreeNode,
   digestList: DigestListEntry[],
 ): Promise<AiStructureResponse | null> {
-  // Prompt-injection surface (issue #27 / review S6): the compact tree embeds
-  // page-controlled strings — `textSnippet`, tag names, landmarks, and
-  // heuristic component names all derive from the rendered page, so a hostile
-  // page can address the model directly through its own content. The blast
-  // radius is bounded by construction: the response must parse as JSON and
-  // pass `aiStructureResponseSchema` (types constrained to the ONTOLOGY_TYPES
-  // enum), and any parse/validation failure falls back to heuristic naming —
-  // so the worst case is mislabeled component names/types in the report,
-  // never tool use, code execution, or data exfiltration. Keep it that way:
-  // widening what this response can drive widens the injection blast radius.
+  // Prompt-injection surface: `textSnippet`, tag names, landmarks and
+  // heuristic names all derive from the rendered page, so a hostile page can
+  // address the model through its own content. The response must pass
+  // `aiStructureResponseSchema` (types from the ONTOLOGY_TYPES enum) or falls
+  // back to heuristic naming, so the worst case is mislabeled names/types —
+  // never tool use, code execution, or data exfiltration. Widening what this
+  // response can drive widens the injection blast radius.
   const prompt = `You are a UI architecture assistant. You are given a measured DOM tree skeleton of a webpage.
 Assign semantic component names (e.g., SiteHeader, Hero, FeatureCard, Button, PricingTier, SiteFooter) and ontology types (region, container, content-block, atom, composite) to the tree nodes.
 Also provide composition strings for each defined component.
@@ -177,11 +167,9 @@ export async function runStructureAILabeller(
   root: PrunedNode,
   opts?: { forceHeuristicNaming?: boolean },
 ): Promise<StructureAIResult> {
-  // Eval-harness short-circuit (DIST-013): when the caller forces heuristic
-  // naming, skip the AI path entirely — before `aiLaneAvailable()` so no AI
-  // calls are made. Keeps `npm run eval` offline even when `OPENROUTER_API_KEY` is
-  // set, and suppresses DIST-030's `sectionDescriptions` (only produced on the
-  // AI path).
+  // Eval-harness short-circuit, checked before `aiLaneAvailable()`: keeps
+  // `npm run eval` offline even when `OPENROUTER_API_KEY` is set (and so never
+  // produces `sectionDescriptions`).
   if (opts?.forceHeuristicNaming) {
     return { root, components: buildFallbackComponentMap(root), naming: "heuristic" };
   }
@@ -193,13 +181,10 @@ export async function runStructureAILabeller(
   }
 
   const compactTree = summarizeTreeForAI(root);
-  // Section digest list for the same single call (#36 / DIST-030) — computed
-  // from the same `findDigestBands` source Stage 9 uses, so the prompt and
-  // the emitted digest agree on which nodes are sections.
+  // Same `findDigestBands` source Stage 9 uses, so the prompt and the emitted
+  // digest agree on which nodes are sections.
   const digestList = summarizeDigestListForAI(root);
 
-  // Shared AI-lane policy (`lib/aiLane.ts`): one repair retry, then graceful
-  // fallback — here, heuristic naming instead of null.
   const response = await retryOnce(
     () => requestOnce(compactTree, digestList),
     (err, attempt) => warnAiFailure("AI Structure Labeller", attempt, err),
@@ -208,11 +193,9 @@ export async function runStructureAILabeller(
     return { root, components: fallback, naming: "heuristic" };
   }
 
-  // Apply updates to node tree
   const updateMap = new Map(response.nodeUpdates.map((u) => [u.id, u]));
   const updatedRoot = applyNodeUpdates(root, updateMap);
 
-  // Merge component definitions
   const finalComponents: Record<string, ComponentDef> = {};
   for (const [name, def] of Object.entries(response.componentDefinitions)) {
     finalComponents[name] = {
@@ -222,7 +205,6 @@ export async function runStructureAILabeller(
     };
   }
 
-  // Ensure all components used in the updated root have definitions
   walkComponentMap(updatedRoot, finalComponents);
 
   // Keep only descriptions keyed by band ids we actually asked about —
@@ -239,7 +221,6 @@ export async function runStructureAILabeller(
   return { root: updatedRoot, components: finalComponents, naming: "ai", sectionDescriptions };
 }
 
-/** Compact JSON shape of the pruned tree sent to the model prompt. */
 type CompactTreeNode = {
   id: string;
   tag?: string;
@@ -283,23 +264,16 @@ function applyNodeUpdates(
 }
 
 /**
- * Walks the tree aggregating every occurrence of each component name into one
- * definition: instance counts sum, and composition is the *union* of child
- * names seen across all occurrences (not just the first) so the map never
- * contradicts the machine-block tree when two instances of the same
- * component have different children.
+ * One definition per component name over all occurrences: instance counts
+ * sum, and composition is the *union* of child names, so the map never
+ * contradicts the tree when two instances have different children.
  */
 function walkComponentMap(n: PrunedNode, map: Record<string, ComponentDef>) {
-  // Every occurrence contributes its own local count (1, or the sibling
-  // group size `detectRepetition` collapsed onto it) — summed across the
-  // whole tree, not just the first time a component name is seen.
+  // 1, or the sibling group size `detectRepetition` collapsed onto it.
   const occurrences = n.instanceCount || 1;
-  // Leaves never compose from themselves; they render as "—" downstream.
-  // A same-named child (e.g. a "GridSection" div nested directly inside
-  // another "GridSection" div) is excluded too, since the generic default
-  // namer can assign identical names to structurally-similar-but-distinct
-  // nodes — that's never a meaningful composition of a component from
-  // itself.
+  // A same-named child (e.g. a "GridSection" directly inside another) is
+  // excluded: the default namer gives distinct nodes identical names, and a
+  // component never composes from itself.
   const childNames = n.children
     .map((c) => c.componentName)
     .filter((name) => name !== n.componentName);
