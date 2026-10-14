@@ -7,7 +7,7 @@ A user pastes a page URL, chooses Analyze, and gets a measured design-system rep
 - `url-submit`: entering a URL and choosing `Analyze` shows `Analyzing…` and a status line, then the result.
 - `url-preview`: the `Design System Preview` tab shows Source, Report Kind (`design-system`), Render time, AI lane, and the Palette, Typography, Spacing, and Radius sections with provenance badges, followed by the screenshot strip (viewport, plus a panorama when the page is taller than one viewport).
 - `url-structure`: the `Layout Structure Markdown` tab appears because the UI requests `both` mode.
-- `url-ai-status`: AI lane reads `skipped (no key)` and shows the Setup Hint when no key is set. It reads `applied` with `VERIFY_AI=1`.
+- `url-ai-status`: AI lane reads `skipped (no key)` and shows the Setup Hint when no key is set. It reads `applied` with `VERIFY_AI=1`, and `failed` when a key is set but both model attempts fail. `skipped (not requested)` belongs to a `structure`-only API request, which the UI never sends.
 
 ## How to get to it (user POV)
 
@@ -20,7 +20,7 @@ Preconditions:
 
 - Baseline from the README. The `clean-light` URL has not been analyzed in this run, or a cached response is acceptable.
 
-- **Default fixture.** Run `$V drive analyze-url`. Expect these checks to pass: `submit shows the Analyzing… state`, `API answered 200 ok`, `reportKind is design-system`, `report.source.ref is the submitted URL`, `markdown starts with YAML frontmatter`, `structureReport present in both mode`, `Layout Structure Markdown tab is shown`, `Preview renders the Palette section`, `AI lane meta reads skipped (no key)`, `meta has no legacy viewportShot`, `meta.viewportShots holds the screenshots as PNG data URLs`, and `Preview shows every viewportShots entry, in order`. `02-result-preview.png` shows `clean-light` measured as background `#ffffff`, surface `#f4f6f8`, text `#1a2233`, and primary `#1a73e8`.
+- **Default fixture.** Run `$V drive analyze-url`. Expect these checks to pass: `submit shows the Analyzing… state`, `API answered 200 ok`, `reportKind is design-system`, `report.source.ref is the submitted URL`, `markdown starts with YAML frontmatter`, `structureReport present in both mode`, `meta.aiOutcome is no-key`, `Layout Structure Markdown tab is shown`, `Preview renders the Palette section`, `AI lane meta reads skipped (no key)`, `meta has no legacy viewportShot`, `meta.viewportShots holds the screenshots as PNG data URLs`, and `Preview shows every viewportShots entry, in order`. `02-result-preview.png` shows `clean-light` measured as background `#ffffff`, surface `#f4f6f8`, text `#1a2233`, and primary `#1a73e8`.
 - **Other fixtures.** Run `$V drive analyze-url --target dark-mode` or `--target adversarial-shell`. The same checks pass. The `adversarial-shell` fixture exercises hostile markup.
 - **Live site.** Run `$V drive analyze-url --target https://example.com`. This needs network access. The result varies with the site, so cite it as a one-off observation.
 - **AI lane on.** Run `$V down`, then `VERIFY_AI=1 $V up`, then `$V drive analyze-url`. The `AI lane meta reads applied` check must pass. This makes real paid model calls.

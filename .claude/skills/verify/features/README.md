@@ -8,7 +8,7 @@ This directory is the maintained source for verifying Distill's user-facing beha
 - `$V up` has printed `ready:`, and `$V doctor` shows every line as `ok`.
 - The AI lane is `off` unless the recipe says `VERIFY_AI=1 $V up`. With it off, nothing reaches a model provider.
 - `source .verify/current.env` gives `$APP_URL`, `$FIXTURE_URL` and `$RUN_DIR` for `curl` recipes.
-- Fixture pages: `$FIXTURE_URL/clean-light.html` (light design system), `$FIXTURE_URL/dark-mode.html` (dark-only page), `$FIXTURE_URL/adversarial-shell.html` (hostile markup), `$FIXTURE_URL/cross-origin.html` (styles from a second origin, `$FIXTURE_XO_URL`).
+- Fixture pages: `$FIXTURE_URL/clean-light.html` (light design system), `$FIXTURE_URL/dark-mode.html` (dark-only page), `$FIXTURE_URL/adversarial-shell.html` (hostile markup), `$FIXTURE_URL/saas-landing.html` (production marketing-site patterns, with a cookie banner), `$FIXTURE_URL/cross-origin.html` (styles from a second origin, `$FIXTURE_XO_URL`).
 - Never drive an instance that this verification run did not start.
 
 ## Driving conventions
@@ -33,7 +33,7 @@ Each feature file starts with an H1 title and one paragraph that describes the u
 ## Features
 
 - [Analyze a URL](./analyze-url.md): URL input to a measured design-system report with preview, structure, and AI-lane status.
-- [Analyze images](./analyze-images.md): upload, thumbnails, remove, merged palette-mood report, inferred structure or its unavailable banner.
+- [Analyze images](./analyze-images.md): upload or drop, thumbnails, remove, merged palette-mood report, inferred structure or its unavailable banner.
 - [Result tabs and downloads](./result-tabs-downloads.md): preview, design markdown, and structure markdown tabs, plus the three download actions.
 - [Error handling](./error-handling.md): blocked, invalid, and failing inputs surface an error banner and never a fabricated report.
 - [Analyze API](./analyze-api.md): direct `POST /api/analyze` with modes, caching, rate limiting, and request validation.

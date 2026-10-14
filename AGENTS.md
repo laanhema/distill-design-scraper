@@ -5,7 +5,7 @@ This file provides guidance to AI coding agents (Claude Code, Codex, …) when w
 ## What this is
 
 **Start here by task.** Each subsystem has a write-up in `docs/architecture/`; read the one for your task before editing the code it covers:
-- Touching extraction logic (`lib/extract/*`)? Read [`tokens-lane.md`](docs/architecture/tokens-lane.md) or [`structure-lane.md`](docs/architecture/structure-lane.md), then the eval harness section below.
+- Touching extraction logic (`lib/extract/*`)? Read [`tokens-lane.md`](docs/architecture/tokens-lane.md) or [`structure-lane.md`](docs/architecture/structure-lane.md), then [`eval.md`](docs/architecture/eval.md).
 - Adding a report field? Read [`schema.md`](docs/architecture/schema.md) — the optional-field + provenance + conditional-`render*` contract is mandatory.
 - Wiring ingestion or the API route? Read [`ingestion.md`](docs/architecture/ingestion.md), [`security.md`](docs/architecture/security.md), and [`api-route.md`](docs/architecture/api-route.md).
 - Editing the UI (`app/page.tsx`, theme colours)? Read [`frontend.md`](docs/architecture/frontend.md) — colours come from semantic tokens only.
@@ -30,26 +30,17 @@ npm run eval:capture    # (re)capture eval/corpus/*/capture.json from live fixtu
 npm run eval:ai         # stability check on AI-lane outputs across repeated runs
 ```
 
-There is no unit test framework (no jest/vitest) — `npm run eval` is the correctness gate for extraction logic. `postinstall` runs `playwright install chromium` automatically. CI (`.github/workflows/ci.yml`, on push/PR to `main`) runs `npm ci` + `npx playwright install --with-deps chromium`, then `npm run check` on Node 20, with no API key in the environment — so anything that only passes with a key set will fail there.
+There is no unit test framework (no jest/vitest) — `npm run eval` is the correctness gate for extraction logic. `postinstall` runs `playwright install chromium` automatically. CI (`.github/workflows/ci.yml`, on push/PR to `main`) runs `npm ci` + `npx playwright install --with-deps chromium`, then `npm run check` on Node 20, with no API key in the environment — so anything that only passes with a key set will fail there. A second workflow, `.github/workflows/ai-lane.yml`, runs `npm run eval:ai` against live OpenRouter only when started by hand (`workflow_dispatch`, optional `model` input) and fails if the `OPENROUTER_API_KEY` repository secret is missing; start it after changing `lib/aiLane.ts`, a prompt, or an AI lane's schema.
 
-### The eval harness (`eval/`) — read before touching any `lib/extract/*`
+### The eval harness (`eval/`)
 
-`npm run eval` replays committed captures in `eval/corpus/<slug>/capture.json` (produced once via `npm run eval:capture`, then git-committed) against hand-authored `eval/corpus/<slug>/expected.yaml`, entirely offline — no browser, no network. **Coverage scope:** The eval runner scores committed required fixtures (`clean-light`, `dark-mode`, and `adversarial-shell` — a `hostile`-bucket page with deep wrapper-div nesting and near-duplicate colors that stresses squash/ontology and palette merging; its `expected.yaml` documents why it asserts the *correct* names, so don't edit it to match degraded output) and fails if any required corpus entry is missing its capture or expected spec. Each `expected.yaml` is parsed at load with the strict `expectedSpecSchema` (`eval/score.ts`), so a key the schema does not know — a misspelt `typography`, say — fails the run with a message that names it instead of dropping that part of the spec, which the scorers would count as a full score. Live reference entries without committed captures (`stripe`, `linear`, `vercel`) are explicitly marked `optional: true` in `eval/corpus.ts` and logged as skipped. The harness covers offline measured token extraction and heuristic structure extraction; it does not cover live third-party site renders or AI-lane enrichment passes. It's wired as a two-part gate:
-
-- an absolute floor per site (`SITE_FLOOR` in `eval/run.ts`), and
-- no site's combined score may drop below `eval/baseline.json`.
-
-**Both lanes are scored.** When a capture carries `rawHarvestNode`, the runner also runs the structure lane and scores it via `eval/scoreStructure.ts` (section-digest order/names/instance counts, region names against `skeletonAscii`, component-map counts). `combinedScore` in `eval/score.ts` then weights palette 0.5 / typography 0.3 / structure 0.2 — the older palette 0.6 / typography 0.4 split only applies to captures with no harvest. A structure-lane *exception* is deliberately scored as `0` rather than skipped, so a crash can't leave the gate green. The runner passes `forceHeuristicNaming: true`, which short-circuits the Stage 7 AI labeller before any availability check — eval stays offline and deterministic even when an API key is set locally (and consequently never exercises AI naming or `sectionDescriptions`).
-
-Workflow when changing any extractor (`lib/extract/**`, `lib/emit.ts`, `lib/analyze.ts`):
+Read [`eval.md`](docs/architecture/eval.md) before touching any `lib/extract/*`: it covers what the gate scores, the fixture-refresh policy, and why `eval/capture.ts` bypasses the SSRF guard. `npm run eval` replays the committed captures offline against hand-authored `expected.yaml` specs, and fails on a site below `SITE_FLOOR` or below `eval/baseline.json`. Workflow when changing any extractor (`lib/extract/**`, `lib/emit.ts`, `lib/analyze.ts`):
 
 1. Make the change.
 2. Run `npm run eval`. It must pass unchanged unless the score change is the _intended_ result of your fix.
 3. Only then, refresh the baseline deliberately: `UPDATE_BASELINE=1 npm run eval`.
 
-New optional schema lanes (e.g. `recipes`, `states`, `paletteDark`, `motion`, structure `sections`) are additive by construction — old committed `capture.json` fixtures simply won't populate the new fields, and the code must treat that as "nothing observed" (omit the section) rather than erroring. Don't refresh eval fixtures just to exercise a new lane; verify new extraction logic against a synthetic fixture/local server instead (see "Manually verifying extraction changes" below), and only touch `eval/corpus/*/capture.json` when the capture _shape itself_ changes — this has happened twice already (the responsive-harvest + dark-scheme passes, then the full-page panorama pass), which is why the committed captures carry `responsiveHarvests`/`darkCapture`/`scrollShots`/`panoramaShot` fields. The motion lane is the live illustration of the rule working: `clean-light` and `dark-mode` contain no `motion`/`keyframes` at all, so `extractMotion` returns `undefined` and the section is simply absent from their reports. `adversarial-shell` is the only committed capture that populates `motion` and `states` (none produce `paletteDark`), and eval doesn't score either lane — so it can catch a crash in them, but not a wrong value.
-
-Note that `eval/capture.ts` drives Playwright directly (`chromium.launch` + `page.goto`) rather than going through `renderUrl` — deliberately, so the SSRF guard doesn't block capturing from `localhost` fixture servers. Scratch scripts that test against a local synthetic server need the same trick or an `SSRF_ALLOWLIST_HOSTS=localhost` env.
+Don't refresh `eval/corpus/*/capture.json` to exercise a new lane; only a change of the capture _shape_ justifies it.
 
 ### Manually verifying extraction changes
 

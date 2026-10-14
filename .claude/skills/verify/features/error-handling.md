@@ -25,10 +25,11 @@ Preconditions:
 - **Other blocked URLs.** Run `$V drive error --url http://localhost:3000/` or `--url http://169.254.169.254/`. Expect the same four checks.
 - **Unresolvable host.** Run `$V drive error --url http://does-not-exist.invalid/`. The banner carries `Could not resolve hostname`.
 - **Non-http scheme.** The URL box is `type="url"`, and browser validation may block some schemes before submit. Use the API: `curl -s -w ' %{http_code}\n' -X POST -H 'content-type: application/json' -d '{"url":"ftp://x"}' $APP_URL/api/analyze` returns the `Invalid URL` message and `400`.
+- **Transparent image.** Run `$V drive degenerate-image`. It renders a 64×64 transparent PNG into `inputs/transparent.png` and uploads it. Expect `API answered 422`, `error names the transparent or invalid image`, `error banner is shown`, `banner carries the API message`, and `no result tabs rendered`.
 - **Negative control.** Run `$V drive error --url "$FIXTURE_URL/dark-mode.html"`. It must exit 1 with `API answered 400` failing. This shows the scenario can tell success from failure.
 
 ## Gotchas
 
 - The submit button shows `Analyzing…` only briefly for SSRF rejections, because the guard runs before any browser launch.
-- No scenario drives `err-degenerate-image` or `err-internal` yet. Report them as unverified rather than inferring them from code.
+- No scenario drives `err-internal`. Report it as unverified rather than inferring it from code.
 - An allowlisted host (`127.0.0.1` in this harness) skips the guard entirely. Don't use a `127.0.0.1` URL to prove the guard.

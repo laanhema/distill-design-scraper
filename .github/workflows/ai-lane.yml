@@ -1,0 +1,47 @@
+name: AI lane (live)
+
+# Manual only: every run makes real, paid OpenRouter calls, and CI's push/PR
+# job has no key by design. Run it after changing lib/aiLane.ts, a prompt, or
+# an AI lane's schema.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "OPENROUTER_MODEL override (empty = the code default)"
+        required: false
+        default: ""
+
+jobs:
+  eval-ai:
+    name: AI-lane stability (npm run eval:ai)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # `npm run eval:ai` prints a skip line and exits 0 without a key, which
+      # would show a green run that checked nothing.
+      - name: Require the OPENROUTER_API_KEY secret
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          if [ -z "$OPENROUTER_API_KEY" ]; then
+            echo "::error::Set the OPENROUTER_API_KEY repository secret to run this workflow."
+            exit 1
+          fi
+
+      - name: Run the AI-lane stability check
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ inputs.model }}
+        run: npm run eval:ai

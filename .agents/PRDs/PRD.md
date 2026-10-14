@@ -1,6 +1,6 @@
 # PRD — Distill: Design System & Structure Scraper
 
-> **Note:** This PRD was authored retroactively (2026-07-23) against an already-built codebase, refreshed **2026-07-29**, and updated **2026-10-13** to (a) record delivery of Phase 7 (codebase health audit remediation) and Phase 8 (heuristic-invariant audit), (b) tick closed criteria, and (c) capture workbench UI polish, distill-theme styling, and the view-obscuring overlay mitigation spike. "In Scope" items marked `[x]` are implemented and verified; unchecked items are genuinely open. Implementation phases mirror the actual delivery history recorded in `PLAN.md`, `.agents/plans/completed/`, and git.
+> **Note:** This PRD was authored retroactively (2026-07-23) against an already-built codebase, refreshed **2026-07-29**, and updated **2026-10-13** to (a) record delivery of Phase 7 (codebase health audit remediation) and Phase 8 (heuristic-invariant audit), (b) tick closed criteria, and (c) capture workbench UI polish, distill-theme styling, and the view-obscuring overlay mitigation spike. "In Scope" items marked `[x]` are implemented and verified; unchecked items are genuinely open. Implementation phases mirror the actual delivery history recorded in `.agents/plans/completed/` and git.
 Last Updated: 2026-10-14
 
 ---
@@ -13,7 +13,7 @@ The product's differentiating principle is **"measured, never faked."** Every ex
 
 The MVP goal: given a URL, produce token and structure reports faithful enough to rebuild the page's visual system (palette with roles and contrast pairs, typography scale with fallback stacks, spacing/radius/elevation tokens, component recipes with variants, interactive states, responsive deltas across mobile + tablet, light+dark schemes, and a semantic component skeleton led by an ordered page-section digest) — with a lighter palette-and-mood path for image input.
 
-**Current standing (2026-10-13):** the measured lanes (Tracks A and B) and AI enrichment lanes are complete and regression-gated. **Phases 1 through 8 have all landed.** The codebase health remediation (Phase 7, DIST-048 → DIST-061) closed all correctness defects (motion lane preserved under AI enrichment, CSSOM scanner deduplication, unraceable SSRF redirect checking, `structureUnavailableReason` on keyless paths, and strict eval corpus gates). The heuristic-invariant audit (Phase 8, DIST-062 → DIST-077) added the `adversarial-shell` eval fixture, landmark-based region typing, non-displaceable semantic roles, and bundle-optimized Tailwind export. Workbench UI polish, semantic token styling (`app/distill-theme.css`), and the overlay mitigation spike (`.agents/reports/overlay-mitigation-spike.md`) have followed.
+**Current standing (2026-10-14):** the measured lanes (Tracks A and B) and AI enrichment lanes are complete and regression-gated. **Phases 1 through 8 have all landed.** The codebase health remediation (Phase 7, DIST-048 → DIST-061) closed all correctness defects (motion lane preserved under AI enrichment, CSSOM scanner deduplication, unraceable SSRF redirect checking, `structureUnavailableReason` on keyless paths, and strict eval corpus gates). The heuristic-invariant audit (Phase 8, DIST-062 → DIST-077) added the `adversarial-shell` eval fixture, landmark-based region typing, non-displaceable semantic roles, and bundle-optimized Tailwind export. Workbench UI polish, semantic token styling (`app/distill-theme.css`), and the overlay mitigation spike (`.agents/reports/overlay-mitigation-spike.md`) have followed, and the `TODO.md` track (PRs #187–#217) has since moved request validation to Zod, surfaced the AI lane's real outcome in the UI, and removed the native Gemini path (#199). Overlay, cookie-wall and bot mitigation (#156) is the one open Phase 9 item.
 
 ## 2. Mission
 
@@ -46,7 +46,7 @@ The MVP goal: given a URL, produce token and structure reports faithful enough t
 - [x] **URL analysis** via headless Chromium (Playwright): viewport screenshot + stitched full-page panorama (≤12 viewport tiles), computed-style dump, raw DOM harvest — all from one rendered session
 - [x] **Design-tokens lane (Track A):** palette with staged role assignment (surface/primary/text/border/muted + semantic success/warning/danger), typography scale with full fallback stacks + mobile sizes, spacing base-unit/scale (px-explicit), radius + named elevation tokens — each lane **omitted entirely when nothing was observed**
 - [x] **Component recipes with variants:** instances clustered by background role, then modal-value aggregation per element class (Button, TextLink, Input, Card, NavItem, Badge); colors resolved to palette roles; a measured `variant` label emitted only when a class kept more than one cluster
-- [x] **Interactive states:** CSSOM `:hover` / `:focus-visible` deltas attributed to palette roles (cross-origin sheets skipped silently — see §12 Phase 6)
+- [x] **Interactive states:** CSSOM `:hover` / `:focus-visible` deltas attributed to palette roles (cross-origin sheets re-fetched and re-parsed; a sheet that fails or times out is skipped, and a timeout logs a warning — see §12 Phase 6)
 - [x] **Dark scheme capture:** `prefers-color-scheme: dark` second pass → `paletteDark` only when backgrounds measurably shift
 - [x] **Structure lane (Track B):** harvest → prune/collapse → squash single-child wrapper chains → repetition detection → ontology naming → optional AI semantic naming → responsive diff (390 + 768) → region metrics → token cross-link (`both` mode) → **ordered section digest** → ASCII skeleton + component map emit
 - [x] **Page-sections digest:** the structure report body leads with an ordered, measured per-band summary (band, layout, contents, tokens, responsive, instances); AI supplies an optional one-line intent `description` per section when a key is present
@@ -67,7 +67,7 @@ The MVP goal: given a URL, produce token and structure reports faithful enough t
 ### In Scope — Integration & Deployment
 
 - [x] `POST /api/analyze` REST endpoint (`{ url | images[], mode, forceRefresh }`) with a streamed request-body size limit
-- [x] Interactive Next.js workbench: mode toggles, drag-and-drop multi-image upload (structurally paired previews), swatch/contrast previews, tabbed Markdown output with copy/download
+- [x] Interactive Next.js workbench: mode toggles, drag-and-drop multi-image upload (structurally paired previews), swatch/contrast previews, tabbed Markdown output with copy/download, and the AI lane's outcome per result (`applied` / `skipped (no key)` / `failed` / `skipped (not requested)`)
 - [x] Multi-stage Dockerfile with Playwright deps, base image pinned to the `package.json` Playwright version, hardened non-root runner stage
 - [x] Sanitized render-path error responses (no internal detail leakage to the client)
 - [x] Flat ESLint config so `npm run lint` (`eslint .`) runs non-interactively in CI
@@ -83,13 +83,13 @@ The MVP goal: given a URL, produce token and structure reports faithful enough t
 - [x] AI-lane failures made distinguishable from an unconfigured key (`warnAiFailure`, DIST-040) — closes the §14 "graceful fallback hides breakage" risk for *call* failures
 - [x] **SSRF redirect hardening:** response interceptor in `lib/ingest.ts` re-validating 30x `Location` targets via `assertSafeUrl` *(best-effort — see §9 for the limits of this control)*
 - [x] **UI polish:** tab-aware Copy/Download labels and an API-key setup hint in `app/page.tsx`
-- [x] **Automated CI:** `.github/workflows/ci.yml` running `npm run typecheck`, `npm run lint`, `npm run eval` on PRs *(no `npm run build` step — §12 Phase 7 / P2-4)*
+- [x] **Automated CI:** `.github/workflows/ci.yml` running `npm run typecheck`, `npm run lint`, `npm run eval` on PRs *(it now runs `npm run check` — typecheck → lint → build → eval — on pushes and PRs to `main`; the build step came in §12 Phase 7 / P2-4)*
 
 ### Delivered — spiked lanes (Phase 6)
 
 - [x] **Motion/transition token lane** — `transition-*`/`animation-*` + `@keyframes` off the existing style-dump walk, attributed per recipe element class (`lib/extract/motion.ts`)
 - [x] **`emitTailwindTheme(report)`** — Tailwind v4 `@theme` derived view + `prefers-color-scheme` dark override, with a UI download button; zero new schema surface
-- [x] **Cross-origin state capture** — Strategy A (`context.request` re-fetch + re-parse) in `styleDump.ts` *(shipped, but currently recovers only `color`; see §12 Phase 7 / P0-2)*
+- [x] **Cross-origin state capture** — Strategy A (`context.request` re-fetch + re-parse) in `styleDump.ts` *(recovers every hover/focus property and `@keyframes` since DIST-048; see §12 Phase 7 / P0-2)*
 
 ### Out of Scope (deferred)
 
@@ -148,6 +148,9 @@ lib/
   analyze.ts       orchestration entry points (the measured/AI seam)
   ingest.ts        the single URL→Capture seam (render, panorama, second passes)
   aiLane.ts        the single AI provider seam (model id, availability, retry)
+  interpret.ts     AI interpretation lane (identity, image mood, color-role refinements)
+  api.ts           typed /api/analyze response contract shared by route and client (type-only imports)
+  env.ts           positive-number env parsing shared by the cache and rate limiter
   schema.ts        Zod contract (re-exports structureSchema)
   emit.ts          report → markdown (conditional render* per optional lane)
   emitTailwind.ts  standalone Tailwind v4 @theme export (kept out of client bundle)
@@ -156,6 +159,8 @@ lib/
   security/        ssrfGuard.ts, rateLimiter.ts
   extract/         Track A extractors + structure/ (Track B staged pipeline)
 eval/              offline regression harness (corpus captures + expected.yaml + baseline)
+docs/architecture/ per-subsystem write-ups linked from AGENTS.md
+scripts/           guard-build.mjs (blocks a build while a verify.sh dev server runs)
 .agents/           PRDs, plans, spike reports, reviews, stories, design-system (process artifacts)
 ```
 
@@ -178,8 +183,8 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 | Typography | Family clusters w/ full fallback stacks, size/weight/line-height scale | Desktop h1 anchored to the real `h1`; `sizePxMobile` from the 390px harvest |
 | Spacing/radius/elevation | Frequency-ranked, base-unit-snapped scales; named shadow levels | Explicit `unit: "px"`; sections omitted when nothing was observed |
 | Recipes + variants | Cluster by bg role → per-cluster modal styles, role-referenced colors | `variant` label only when >1 cluster; falls back to raw hex, never fabricates a role |
-| States | CSSOM `:hover`/`:focus-visible` deltas per palette role | Cross-origin sheets re-fetched and re-parsed via `context.request` — but that path currently recovers only `color` (§12 Phase 7 / P0-2) |
-| Motion tokens | Declared `transition-*`/`animation-*` + referenced `@keyframes`, attributed per recipe element class | Read off the existing style-dump walk; JS-driven motion is a documented gap. **Currently dropped from the report whenever the AI lane runs** (§12 Phase 7 / P0-1) |
+| States | CSSOM `:hover`/`:focus-visible` deltas per palette role | Cross-origin sheets re-fetched concurrently (5 s each) and re-parsed via `context.request`; a failed or timed-out sheet is skipped, and a timeout logs one warning |
+| Motion tokens | Declared `transition-*`/`animation-*` + referenced `@keyframes`, attributed per recipe element class | Read off the existing style-dump walk; JS-driven motion is a documented gap. Survives AI enrichment (§12 Phase 7 / P0-1) |
 | Tailwind `@theme` | Second derived view of the same report object, downloadable from the workbench | Zero new schema surface; `--spacing: <baseUnitPx>px`; emits a `prefers-color-scheme` dark block when `paletteDark` exists |
 | Dark palette | Dark-emulated second dump, emitted only on measured background shift | Single-scheme sites get nothing |
 | Structure skeleton | Pruned + wrapper-squashed semantic tree, repetition-collapsed, ASCII emit | Heuristic names always; AI names when keyed (`naming` flag) |
@@ -222,7 +227,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
   - AI-lane key read server-side only; never sent to the client. Provider swap (Phase 5) changes the variable name, not this boundary.
   - Image uploads capped (`MAX_IMAGES = 6`, ≤8 MB each); AI lane further caps at 4 images sent to the model; the whole request body is size-limited while streaming, before parsing.
   - SSRF guard on URL ingestion: hostname DNS-resolved and validated against loopback/private/link-local/CGNAT/multicast/reserved ranges (IPv4, IPv6, and IPv4-mapped IPv6 in both spellings) before navigation, fail-closed, non-`http(s)` schemes rejected, with an explicit `SSRF_ALLOWLIST_HOSTS` opt-out for trusted internal targets.
-  - **Redirect interception (`lib/ingest.ts:364`) is a best-effort mitigation, not a pre-navigation block.** Two limits are inherent to the mechanism and should not be read as stronger than they are: (a) Playwright does not await async `page.on("response")` listeners, so the handler's DNS lookup races `page.goto()` resolving — the DIST-044 synthetic test passes because a literal IP resolves instantly, but a hostname requiring a real lookup may not trip the guard in time; and (b) by the time the 30x response event fires, **Chromium has already issued the request to the redirect target**. The control therefore prevents the *result* from reaching the client, not the internal request itself. Network-level egress filtering (README "Layer 2") remains the actual boundary. Tracked as §12 Phase 7 / P0-4.
+  - **Redirect interception (`lib/ingest.ts:322`) is a best-effort mitigation, not a pre-navigation block.** Every 30x `Location` check is collected and awaited (`Promise.allSettled`) before the render counts as safe, so a fast redirect can no longer outrun the DNS lookup (DIST-049). Two limits remain inherent to the mechanism: (a) by the time the 30x response event fires, **Chromium has already issued the request to the redirect target** — `page.route()` fires only for the first URL of a redirect chain, so it cannot block it; the control prevents the *result* from reaching the client, not the internal request itself; and (b) Chromium re-resolves DNS at connect time, so DNS rebinding is a residual gap. Network-level egress filtering (README "Layer 2") remains the actual boundary. Tracked as §12 Phase 7 / P0-4.
   - Per-client rate limiting on `POST /api/analyze`: bounded token-bucket store capped at `RATE_LIMIT_MAX_BUCKETS` distinct client IDs to prevent unbounded memory growth via spoofed client identifiers.
   - Render-path errors sanitized before they reach the client; injection surfaces (page-controlled text reaching an AI prompt) annotated in-code.
   - No report/user data persisted beyond the bounded in-process analysis cache.
@@ -258,7 +263,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
   "refinements": [{ "hex": "#…", "from": "accent", "to": "primary" }],  // AI role relabels applied
   "meta": {
     "finalUrl": "…", "title": "…", "elapsedMs": 1234,
-    "bannerDismissed": false, "aiOutcome": "applied", "capturedAt": "…",
+    "bannerDismissed": false, "aiOutcome": "applied", "capturedAt": "…",   // aiOutcome: applied | no-key | failed | not-requested
     "viewportShots": ["data:image/png;base64,…"]   // URL only: viewport, then panorama when captured. Absent for images (#179)
   }
 }
@@ -267,9 +272,11 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 - **Auth:** none (see §9).
 - **Caching:** key hashes url + mode + **every** image payload. Responses carrying a transient `structureUnavailableReason` are not cached, so a retry can succeed. There is **no `cached` flag** — a cache hit replays the stored payload verbatim and is indistinguishable to the client.
 - **Limits:** request body size-capped while streaming (413 before `JSON.parse`); rate limit applied *after* the cache lookup, so cache hits cost nothing.
-- **Errors:** `413` oversized body; `400` non-JSON body, missing `url`/`images`, or `UnsafeUrlError`; `422` `DegenerateImageError` (unreadable/transparent upload — the input is at fault, not the pipeline); `429` with `Retry-After` when rate-limited; `502` sanitized catch-all on render/extraction failure. AI-lane failure is *not* an error — the measured report returns untouched. *Note: the request body is validated by hand, not by Zod — the earlier "Zod-rejected" claim was inaccurate.*
+- **Errors:** every failure is `{ "ok": false, "error": "…" }`. `413` oversized body; `400` non-JSON body, a body that fails `analyzeBodySchema`, missing `url`/`images`, or `UnsafeUrlError`; `422` `DegenerateImageError` (unreadable/transparent upload — the input is at fault, not the pipeline); `429` with `Retry-After` when rate-limited; `502` sanitized catch-all on render/extraction failure. AI-lane failure is *not* an error — the measured report returns untouched. The parsed body is validated by `analyzeBodySchema.safeParse` (Zod) before any field is read; the 400 names each failing path.
 
 ## 11. Success Criteria
+
+*Ticks rest on the code and an offline `npm run eval` run at `4291324` on 2026-10-14; the product was not run and the AI lane was not exercised in this check.*
 
 **MVP success definition:** a `both`-mode run on a real production site yields two reports from which a competent LLM/developer can rebuild the page's visual system without viewing the site.
 
@@ -283,12 +290,12 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 - [x] Image input never fabricates typography/spacing/bounds/semantic swatches
 - [x] **AI lane verified live** (DIST-039): all three lanes exercised end-to-end against Gemini
 - [x] **`npm run eval` remains fully offline with an AI key set** — the `forceHeuristicNaming` short-circuit sits ahead of the availability check in `runStructureAILabeller`
-- [x] **A measured lane cannot be lost by enabling the AI lane** — *closed:* `enrichWithAI` spreads `...measured.report` into `buildReport` (`lib/analyze.ts:160-165`) so measured lanes survive enrichment
+- [x] **A measured lane cannot be lost by enabling the AI lane** — *closed:* `enrichWithAI` spreads `...measured.report` into `buildReport` (`lib/analyze.ts:163-168`) so measured lanes survive enrichment
 - [x] **A shipped lane measures what it claims** — *closed:* cross-origin state capture and scanner deduplication delivered in DIST-048 (#110), recovering all properties without naming mismatch
 
 **Quality indicators:**
 
-- Eval corpus scores at/above committed baseline (three fixtures: `clean-light`, `dark-mode`, and `adversarial-shell` scored offline against `expected.yaml`); AI-lane stability across repeated runs (`npm run eval:ai` — Jaccard floors 0.5 adjectives / 0.3 archetype, first executed in DIST-039)
+- Eval corpus scores at/above committed baseline (four fixtures: `clean-light`, `dark-mode`, `adversarial-shell`, and `saas-landing`, the last at 0.9571 because Stage 5 repetition merges two similar sections, scored offline against `expected.yaml`); AI-lane stability across repeated runs (`npm run eval:ai` — Jaccard floors 0.5 adjectives / 0.3 archetype, first executed in DIST-039)
 - Spacing scales are base-unit multiples, not noise; recipes match fixture CSS ground truth
 - Structure skeleton, section digest, and component map never contradict each other
 - **Gate honesty:** `typecheck`, `lint`, and `eval` all pass on `main`. `npm run eval` enforces strict failure on missing non-optional corpus captures (DIST-060); uncommitted live entries carry explicit `optional: true`. Passing gates is necessary, not sufficient — new lanes need coverage that actually exercises them (P0-1 and P0-2 are both invisible to the current harness by construction)
@@ -296,6 +303,8 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 **UX goals:** URL → report in one interaction; copy/download in one click; honest UI copy (image mode advertises exactly what it delivers).
 
 ## 12. Implementation Phases (retrospective + forward)
+
+Phase 7 landed in PRs #110–#123, Phase 8 in PRs #140–#155, and Phase 9 so far through issues #157, #159 and #160, PR #164, and the spike report of #166; the `TODO.md` track (PRs #187–#217, tracked in `.agents/issues/todo-issues.md`) landed alongside the phases without a phase of its own.
 
 ### Phase 1 — Core pipeline & report quality *(delivered)*
 - **Goal:** correct, deterministic extraction and well-formed reports.
@@ -344,7 +353,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
 
 All three spikes shipped under the existing optional-lane contract.
 
-- [x] **Motion/transition token lane** (DIST-041) — `lib/extract/motion.ts`; JS-driven motion remains an honest, documented gap. *(Motion lane preservation in AI enrichment delivered in `lib/analyze.ts:160-165`)*
+- [x] **Motion/transition token lane** (DIST-041) — `lib/extract/motion.ts`; JS-driven motion remains an honest, documented gap. *(Motion lane preservation in AI enrichment delivered in `lib/analyze.ts:163-168`)*
 - [x] **`emitTailwindTheme(report)`** (DIST-042) — Tailwind v4 `@theme` + `prefers-color-scheme` dark override, download button wired; `--spacing: <baseUnitPx>px` as specced.
 - [x] **Cross-origin state capture** (DIST-043) — Strategy A shipped with schema and capture shape byte-identical as designed. *(Property-name mismatch and scanner deduplication delivered in DIST-048)*
 
@@ -355,7 +364,7 @@ All three spikes shipped under the existing optional-lane contract.
 
 #### P0 — Correctness defects
 
-- [x] **The AI lane silently deletes the entire motion lane.** (Fixed in `lib/analyze.ts:160-165` by spreading `...measured.report` into `buildReport`)
+- [x] **The AI lane silently deletes the entire motion lane.** (Fixed in `lib/analyze.ts:163-168` by spreading `...measured.report` into `buildReport`)
 - [x] **Cross-origin hover/focus capture drops 3 of its 4 properties.** (Delivered in DIST-048 / #96, #110; property map unified and deduplicated)
 - [x] **The SSRF redirect interceptor can be outrun, and doesn't prevent the request.** (Delivered in DIST-049 / #97, #111; redirect check unraceable in `lib/ingest.ts`)
 - [x] **`structureUnavailableReason` is never set for the no-API-key case.** (Delivered in DIST-050 / #98, #112; set when key is missing)
@@ -426,32 +435,33 @@ All three spikes shipped under the existing optional-lane contract.
 
 ## 14. Risks & Mitigations
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Heuristic changes silently regress extraction quality on real sites | Wrong reports, eroded trust | Offline eval harness with per-site floors + baseline gate, both tracks scored; deliberate-only baseline refresh (`UPDATE_BASELINE=1`) |
-| AI lane drift/hallucination contaminates measured data | Violates core principle | Hard lane separation (`extractFromCapture` is network-free); AI output merged onto — never into — measured fields; provenance stamps; `eval:ai` stability check |
-| **Graceful AI fallback hides real breakage** (proven: `temperature: 0.1` disabled two lanes indefinitely, indistinguishable from "no key set") | Features silently never ship | Phase 5 deletes the offending parameter; live end-to-end verification is an explicit Phase-5 exit criterion; console warnings (`AI Structure Labeller failed`, `Vision structure inference failed`) must be checked, not assumed absent |
-| **Provider rate limits (429)** — a `both`-mode run fires two AI calls with up to four images | Bursty testing 429s; `retryOnce` treats a 429 as failure and falls back, so a rate-limited run *looks identical to a quality regression* | Response cache absorbs repeats; check the server console before concluding the model is bad; raise the OpenRouter limit if it binds |
-| **AI-lane screenshots pass through OpenRouter and the provider that it routes to** | Third-party screenshots leave the operator's control | Documented in §9; operators decide before they point Distill at sensitive properties |
-| Vision quality regression moving off a frontier model | Image-derived skeletons degrade | Explicit spot-check in Phase-5 validation; Zod remains the hard gate on shape |
-| Open URL fetching enables SSRF on public deployments | Server compromise | Resolve-then-check guard on the submitted URL + `SSRF_ALLOWLIST_HOSTS` (§9); redirect interception shipped in DIST-044 but is **best-effort only** — it races the navigation and fires after Chromium has already made the request (§12 Phase 7 / P0-4). Network-level egress filtering (README "Layer 2") is the load-bearing control, not the in-process guard |
-| **A shipped security control is documented as stronger than it is** (proven: the DIST-044 report claims redirects are "aborted immediately … before loading response bodies"; neither holds) | Operators under-provision the real boundary because the in-process guard reads as sufficient | Validate security controls against the adversarial case, not the convenient one — DIST-044's synthetic test used a literal IP, which resolves instantly and hides the race; state the residual gap in the same document that claims the fix |
-| Site anti-bot / consent walls break capture | Empty or skewed reports | Consent-banner dismissal in ingest; best-effort second passes fail to absence; cache + forceRefresh for retries |
-| Capture-shape evolution invalidates frozen eval fixtures | Green-but-meaningless evals | Policy: fixtures refreshed only when capture shape itself changes, in the same PR, with baseline; new lanes must treat absent fields as "nothing observed" |
-| Playwright/Chromium footprint complicates deployment | Failed installs | postinstall auto-install; multi-stage Dockerfile with browser deps baked in, base image pinned to the `package.json` version |
-| Unauthenticated endpoint invites resource exhaustion | Cost/DoS on public deploys | Bounded cache, bounded rate-limiter store, request-body cap, image count/size caps; auth explicitly the deployer's responsibility |
-| **`enrichWithAI` re-assembles the report field-by-field, so any lane added to `extractFromCapture` but not mirrored there is silently dropped** (proven: the motion lane, §12 P0-1) | Measured data lost whenever the AI lane runs — and invisible to the eval harness, which never calls `enrichWithAI` | Treat the AI merge as *additive onto* the measured report rather than a rebuild from parts; failing that, any new optional lane must be added to both `buildReport` call sites in the same change |
-| **Duplicated logic drifts into divergent behavior** (proven: the two CSSOM scanner copies in `styleDump.ts`, whose `STATE_PROPS` divergence disabled 3 of 4 cross-origin state properties) | A lane reports as working while silently measuring less than it claims | §6 "one seam per concern" applies inside `page.evaluate` callbacks too; the self-contained-callback constraint argues for one parameterized copy, not two maintained ones |
-| **Provider-specific capability gaps in a "single seam" that no longer behaves as one** (`callOpenRouterModel` ignores `thinkingLevel` and weakens JSON-schema enforcement) | Identical code produces different output quality depending on which key is set; token-budget assumptions silently break | Shipped 2026-07-29 (DIST-056): `jsonSchema` honored via non-strict `response_format: json_schema`; `thinkingLevel` is the one accepted gap, now asserted via a one-time runtime warning and documented at every call site rather than silently dropped. **Closed 2026-10-14 (#199):** the native Gemini path and `thinkingLevel` were removed, so there is one request builder. |
+| Risk | Impact | Mitigation | Status |
+|---|---|---|---|
+| Heuristic changes silently regress extraction quality on real sites | Wrong reports, eroded trust | Offline eval harness with per-site floors + baseline gate, both tracks scored; deliberate-only baseline refresh (`UPDATE_BASELINE=1`) | In place: `npm run eval` gates every push/PR in CI |
+| AI lane drift/hallucination contaminates measured data | Violates core principle | Hard lane separation (`extractFromCapture` is network-free); AI output merged onto — never into — measured fields; provenance stamps; `eval:ai` stability check | In place: `extractFromCapture` takes no network; `npm run eval:ai` exists but is not run in CI |
+| **Graceful AI fallback hides real breakage** (proven: `temperature: 0.1` disabled two lanes indefinitely, indistinguishable from "no key set") | Features silently never ship | Phase 5 deletes the offending parameter; live end-to-end verification is an explicit Phase-5 exit criterion; console warnings (`AI Structure Labeller failed`, `Vision structure inference failed`) must be checked, not assumed absent | In place: `warnAiFailure` logs each failed attempt, and `meta.aiOutcome` (`failed` vs `no-key`) shows the outcome in the UI |
+| **Provider rate limits (429)** — a `both`-mode run fires two AI calls with up to four images | Bursty testing 429s; `retryOnce` treats a 429 as failure and falls back, so a rate-limited run *looks identical to a quality regression* | Response cache absorbs repeats; check the server console before concluding the model is bad; raise the OpenRouter limit if it binds | Partly: the cache absorbs repeats; a 429 still falls back after one retry |
+| **AI-lane screenshots pass through OpenRouter and the provider that it routes to** | Third-party screenshots leave the operator's control | Documented in §9; operators decide before they point Distill at sensitive properties | Documented in §9; no code control |
+| Vision quality regression moving off a frontier model | Image-derived skeletons degrade | Explicit spot-check in Phase-5 validation; Zod remains the hard gate on shape | Partly: Zod gates shape; no automated quality check |
+| Open URL fetching enables SSRF on public deployments | Server compromise | Resolve-then-check guard on the submitted URL + `SSRF_ALLOWLIST_HOSTS` (§9); redirect interception shipped in DIST-044 and is awaited before the render counts as safe since DIST-049, but is **best-effort only** — it fires after Chromium has already made the request (§12 Phase 7 / P0-4). Network-level egress filtering (README "Layer 2") is the load-bearing control, not the in-process guard | Partly: submitted-URL guard and awaited redirect checks in place; the redirect request is still sent and DNS rebinding remains (§9) |
+| **A shipped security control is documented as stronger than it is** (proven: the DIST-044 report claims redirects are "aborted immediately … before loading response bodies"; neither holds) | Operators under-provision the real boundary because the in-process guard reads as sufficient | Validate security controls against the adversarial case, not the convenient one — DIST-044's synthetic test used a literal IP, which resolves instantly and hides the race; state the residual gap in the same document that claims the fix | In place: §9 states the residual gaps next to the control |
+| Site anti-bot / consent walls break capture | Empty or skewed reports | Consent-banner dismissal in ingest; best-effort second passes fail to absence; cache + forceRefresh for retries | Partly: button-name consent dismissal only; overlay and bot mitigation (#156) is not implemented |
+| Capture-shape evolution invalidates frozen eval fixtures | Green-but-meaningless evals | Policy: fixtures refreshed only when capture shape itself changes, in the same PR, with baseline; new lanes must treat absent fields as "nothing observed" | In place: policy in `AGENTS.md` |
+| Playwright/Chromium footprint complicates deployment | Failed installs | postinstall auto-install; multi-stage Dockerfile with browser deps baked in, base image pinned to the `package.json` version | In place |
+| Unauthenticated endpoint invites resource exhaustion | Cost/DoS on public deploys | Bounded cache, bounded rate-limiter store, request-body cap, image count/size caps; auth explicitly the deployer's responsibility | In place for per-process caps; no auth |
+| **`enrichWithAI` re-assembles the report field-by-field, so any lane added to `extractFromCapture` but not mirrored there is silently dropped** (proven: the motion lane, §12 P0-1) | Measured data lost whenever the AI lane runs — and invisible to the eval harness, which never calls `enrichWithAI` | Treat the AI merge as *additive onto* the measured report rather than a rebuild from parts; failing that, any new optional lane must be added to both `buildReport` call sites in the same change | Closed: `enrichWithAI` spreads `...measured.report` (`lib/analyze.ts:163-168`) |
+| **Duplicated logic drifts into divergent behavior** (proven: the two CSSOM scanner copies in `styleDump.ts`, whose `STATE_PROPS` divergence disabled 3 of 4 cross-origin state properties) | A lane reports as working while silently measuring less than it claims | §6 "one seam per concern" applies inside `page.evaluate` callbacks too; the self-contained-callback constraint argues for one parameterized copy, not two maintained ones | Closed for the CSSOM scanner (DIST-048) |
+| **Provider-specific capability gaps in a "single seam" that no longer behaves as one** (`callOpenRouterModel` ignores `thinkingLevel` and weakens JSON-schema enforcement) | Identical code produces different output quality depending on which key is set; token-budget assumptions silently break | Shipped 2026-07-29 (DIST-056): `jsonSchema` honored via non-strict `response_format: json_schema`; `thinkingLevel` is the one accepted gap, now asserted via a one-time runtime warning and documented at every call site rather than silently dropped. **Closed 2026-10-14 (#199):** the native Gemini path and `thinkingLevel` were removed, so there is one request builder. | Closed (#199) |
 
 ## 15. Appendix
 
 - **Related documents:**
   - `README.md` — user-facing capabilities & setup
-  - `AGENTS.md` — authoritative agent/contributor architecture guide (`CLAUDE.md` points to it)
-  - `PLAN.md` — rounds 1–3 fix-plan history (the de-facto changelog of Phases 1–3)
+  - `AGENTS.md` — authoritative agent/contributor architecture guide (`CLAUDE.md` points to it), with per-subsystem write-ups in `docs/architecture/`
+  - `PROJECT-GUIDE.md` — human-facing overview, codebase map and stack rationale
+  - `TODO.md` and `.agents/issues/todo-issues.md` — the task list and its GitHub issue mapping (PRs #187–#217)
   - `.agents/plans/completed/from-claude-to-gemini-plan.md` — the Phase-5 migration plan (delivered; retained as the record of intent, including the two deltas noted in §12 Phase 5)
   - `.agents/plans/completed/`, `.agents/reports/`, `.agents/reviews/`, `.agents/stories/` — per-story plans, spike reports, code reviews, and backlog
 - **Key spike reports:** `motion-spike.md` (GO → shipped DIST-041), `tailwind-theme-spike-report.md` (GO → shipped DIST-042), `cross-origin-states-spike.md` (GO, Strategy A → shipped DIST-043), `overlay-mitigation-spike.md` (GO, 4-layer pipeline → pending implementation #156)
 - **Key dependencies:** [Playwright](https://playwright.dev), [sharp](https://sharp.pixelplumbing.com), [culori](https://culorijs.org), [Zod](https://zod.dev), and [OpenRouter](https://openrouter.ai) for the AI lane (key: https://openrouter.ai/keys).
-- **Repository structure:** see §6; eval harness under `eval/` (`run.ts`, `score.ts`, `scoreStructure.ts`, `stability.ts`, `corpus/{clean-light,dark-mode}/`, `baseline.json`).
+- **Repository structure:** see §6; eval harness under `eval/` (`run.ts`, `score.ts`, `scoreStructure.ts`, `stability.ts`, `capture.ts`, `corpus.ts`, `corpus/{clean-light,dark-mode,adversarial-shell,saas-landing}/`, `baseline.json`).

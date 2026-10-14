@@ -10,6 +10,8 @@
  *   analyze-images  [--fixtures clean-light,dark-mode,adversarial-shell] [--remove <n>]
  *   error           [--url http://10.0.0.1/]
  *   cross-origin    (no flags; analyzes eval/fixtures/cross-origin.html)
+ *   drop-images     [--fixtures clean-light,dark-mode]
+ *   degenerate-image (no flags; uploads a fully transparent PNG)
  */
 import { chromium, type Locator, type Page } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -272,11 +274,10 @@ async function scenarioTabLayout(page: Page): Promise<void> {
   writeFileSync(join(OUT, "tab-bar-layout.json"), JSON.stringify(layouts, null, 2));
 }
 
-async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typeof chromium.launch>>): Promise<void> {
-  const fixtures = flag("fixtures", "clean-light,dark-mode,adversarial-shell").split(",");
-  const remove = Number(flag("remove", fixtures.length > 1 ? String(fixtures.length) : "0"));
+type Browser = Awaited<ReturnType<typeof chromium.launch>>;
 
-  // Upload inputs: real screenshots of the fixture pages, like a user would drop in.
+/** Upload inputs: real screenshots of the fixture pages, like a user would drop in. */
+async function shootFixtures(browser: Browser, fixtures: string[]): Promise<string[]> {
   const shooter = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const files: string[] = [];
   for (const f of fixtures) {
@@ -286,11 +287,19 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
     files.push(file);
   }
   await shooter.close();
+  return files;
+}
+
+const plural = (n: number) => `${n} image${n > 1 ? "s" : ""} selected`;
+
+async function scenarioAnalyzeImages(page: Page, browser: Browser): Promise<void> {
+  const fixtures = flag("fixtures", "clean-light,dark-mode,adversarial-shell").split(",");
+  const remove = Number(flag("remove", fixtures.length > 1 ? String(fixtures.length) : "0"));
+  const files = await shootFixtures(browser, fixtures);
 
   await page.goto(APP_URL);
   await page.getByRole("button", { name: "Image Input" }).click();
   await page.locator("#image-input").setInputFiles(files);
-  const plural = (n: number) => `${n} image${n > 1 ? "s" : ""} selected`;
   check(`label reads "${plural(files.length)}"`, await appears(page.getByText(plural(files.length))));
   for (const f of fixtures) {
     check(`thumbnail for ${f}.png shown`, await page.getByRole("img", { name: `${f}.png` }).isVisible());
@@ -358,6 +367,68 @@ async function scenarioError(page: Page): Promise<void> {
   check("API answered 400", a.status === 400, `status ${a.status}`);
   check("error banner is shown", await page.getByText("Couldn't analyze this input.").isVisible());
   check("banner carries the API message", message.length > 0 && (await page.getByText(message).isVisible()), message);
+  check("no result tabs rendered", !(await page.getByRole("button", { name: "Design System Preview" }).isVisible()));
+  await shot(page, "error");
+}
+
+/** Drops files on the dashed zone with a real `DataTransfer`, the event a user's drag ends with, instead of the file picker. */
+async function scenarioDropImages(page: Page, browser: Browser): Promise<void> {
+  const fixtures = flag("fixtures", "clean-light,dark-mode").split(",");
+  const files = await shootFixtures(browser, fixtures);
+  const payload = fixtures.map((f, i) => ({ name: `${f}.png`, b64: readFileSync(files[i]).toString("base64") }));
+
+  await page.goto(APP_URL);
+  await page.getByRole("button", { name: "Image Input" }).click();
+  const zone = page.getByText("Drag & drop image(s) here");
+  const dataTransfer = await page.evaluateHandle((items) => {
+    const dt = new DataTransfer();
+    for (const { name, b64 } of items) {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      dt.items.add(new File([bytes], name, { type: "image/png" }));
+    }
+    return dt;
+  }, payload);
+  await zone.dispatchEvent("dragover", { dataTransfer });
+  await zone.dispatchEvent("drop", { dataTransfer });
+
+  check(`label reads "${plural(fixtures.length)}"`, await appears(page.getByText(plural(fixtures.length))));
+  for (const f of fixtures) {
+    check(`dropped ${f}.png shows as a thumbnail`, await page.getByRole("img", { name: `${f}.png`, exact: true }).isVisible());
+  }
+  await shot(page, "images-dropped");
+
+  const a = await submitAndWait(page, /^Analyze Images?$/);
+  const report = a.body.report as { reportKind?: string } | undefined;
+  check("API answered 200 ok", a.status === 200 && a.body.ok === true, `status ${a.status}`);
+  check("reportKind is palette-mood", report?.reportKind === "palette-mood", report?.reportKind);
+  const uploaded = files.map((f) => `data:image/png;base64,${readFileSync(f).toString("base64")}`);
+  check(`Preview shows the ${fixtures.length} dropped image(s), in order`, sameList(await previewSources(page), uploaded));
+  await shot(page, "result-preview");
+}
+
+/** A fully transparent PNG has no colour to measure: the route answers 422 and the page shows the error, never a report. */
+async function scenarioDegenerateImage(page: Page): Promise<void> {
+  await page.goto(APP_URL);
+  const b64 = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    return canvas.toDataURL("image/png").split(",")[1];
+  });
+  const file = join(OUT, "inputs", "transparent.png");
+  writeFileSync(file, Buffer.from(b64, "base64"));
+
+  await page.getByRole("button", { name: "Image Input" }).click();
+  await page.locator("#image-input").setInputFiles(file);
+  check(`label reads "${plural(1)}"`, await appears(page.getByText(plural(1))));
+  await shot(page, "image-selected");
+
+  const a = await submitAndWait(page, /^Analyze Image$/);
+  const message = String(a.body.error ?? "");
+  check("API answered 422", a.status === 422, `status ${a.status}`);
+  check("error names the transparent or invalid image", /fully transparent or not valid images/.test(message), message);
+  check("error banner is shown", await page.getByText("Couldn't analyze this input.").isVisible());
+  check("banner carries the API message", message.length > 0 && (await page.getByText(message).isVisible()));
   check("no result tabs rendered", !(await page.getByRole("button", { name: "Design System Preview" }).isVisible()));
   await shot(page, "error");
 }
@@ -439,6 +510,8 @@ async function main(): Promise<void> {
       case "analyze-images": await scenarioAnalyzeImages(page, browser); break;
       case "error": await scenarioError(page); break;
       case "cross-origin": await scenarioCrossOrigin(page); break;
+      case "drop-images": await scenarioDropImages(page, browser); break;
+      case "degenerate-image": await scenarioDegenerateImage(page); break;
       default: throw new Error(`unknown scenario "${scenario}"`);
     }
   } catch (err) {

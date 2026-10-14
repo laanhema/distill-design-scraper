@@ -45,6 +45,10 @@ export interface AnalyzeResult {
 export const modeSchema = z.enum(["tokens", "structure", "both"]);
 export type AnalyzeMode = z.infer<typeof modeSchema>;
 
+/** Shared by the URL and image paths, so the two cannot gate a lane differently. */
+const wantsTokens = (mode: AnalyzeMode) => mode === "tokens" || mode === "both";
+const wantsStructure = (mode: AnalyzeMode) => mode === "structure" || mode === "both";
+
 /** Run the measured lanes over an already-captured page. Browser-free. */
 export async function extractFromCapture(
   capture: Capture,
@@ -239,14 +243,11 @@ export async function analyzeImages(
     typeof img.data === "string" ? img.data : img.data.toString("base64"),
   );
 
-  const wantsStructure = mode === "structure" || mode === "both";
   // A "structure"-only caller has no use for the identity/imageMood AI pass
   // over the palette-mood report, so skip it rather than paying for both.
-  const wantsTokenEnrichment = mode === "tokens" || mode === "both";
-
   const [enriched, structureOutcome] = await Promise.all([
-    enrichWithAI(measuredResult, screenshotsBase64, { requested: wantsTokenEnrichment }),
-    wantsStructure
+    enrichWithAI(measuredResult, screenshotsBase64, { requested: wantsTokens(mode) }),
+    wantsStructure(mode)
       ? aiLaneAvailable()
         ? structureFromImages({
             imagesPngBase64: screenshotsBase64,
@@ -349,10 +350,6 @@ export async function analyzeUrl(
   const render = await renderUrl(url);
   const capture = captureFromRender(render, url, capturedAt);
   const measured = await extractFromCapture(capture);
-  // Same structure-only skip as `analyzeImages`.
-  const wantsTokenEnrichment = mode === "tokens" || mode === "both";
-  const wantsStructure = mode === "structure" || mode === "both";
-
   // Track A token enrichment and Track B Stage 7 labelling run concurrently:
   // the labelling call needs nothing from the enriched report.
   const [enriched, preliminaryOutcome] = await Promise.all([
@@ -362,9 +359,9 @@ export async function analyzeUrl(
         capture.viewportShot,
         ...subsampleEvenly(capture.scrollShots ?? [], 3),
       ],
-      { requested: wantsTokenEnrichment },
+      { requested: wantsTokens(mode) },
     ),
-    wantsStructure
+    wantsStructure(mode)
       ? capture.rawHarvestNode
         ? extractStructureThroughStage7({
             rawHarvestNode: capture.rawHarvestNode,
@@ -389,7 +386,7 @@ export async function analyzeUrl(
   let structureReport: StructureReport | undefined;
   let structureUnavailableReason: string | undefined;
 
-  if (wantsStructure) {
+  if (wantsStructure(mode)) {
     if (preliminaryOutcome.preliminary) {
       try {
         structureReport = finalizeStructure(preliminaryOutcome.preliminary, {

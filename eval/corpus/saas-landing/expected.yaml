@@ -1,0 +1,51 @@
+# Hand-authored ground truth for the saas-landing fixture.
+#
+# A synthetic page built from production marketing-site patterns (see the
+# comment at the top of eval/fixtures/saas-landing.html). Palette and type come
+# straight from its :root tokens, converted from HSL; they are not read off the
+# extractor's output.
+#
+# The structure spec asserts the seven bands the page really has. The features
+# and the pricing <section> share one shape (a heading over a three-column card
+# grid), and Stage 5 repetition collapses the two into one `SectionCard ×2`, so
+# the pricing band (prices, plan buttons) vanishes from the digest and every
+# later section shifts by one ordinal. That is a real defect on real sites,
+# which often stack similar sections, so this spec scores below 1.00 on
+# purpose. Do not edit it to match the collapsed output; fix the repetition
+# rule instead, and the score rises to 1.00.
+#
+# Component counts are asserted only where the count is unambiguous. `TextLink`
+# is left out: the component map counts a link inside a repeated parent once,
+# not once per repeat.
+name: saas-landing
+bucket: css-variable
+palette:
+  background: "#ffffff"
+  surface: "#f8fafc"
+  text: "#0f172a"
+  primary: "#4f46e5"
+  accent: "#f59e0b"
+  border: "#e4e4e7"
+  muted: "#71717a"
+typography:
+  bodyFamily: "Geist"
+  scale:
+    h1: 56
+    h2: 36
+    h3: 20
+    body: 16
+    small: 14
+structure:
+  expectedSections:
+    - { name: SiteHeader }
+    - { name: Hero }
+    - { name: GridSection }
+    - { name: Section }
+    - { name: Section }
+    - { name: Section }
+    - { name: SiteFooter }
+  expectedRegions: [SiteHeader, MainContent, CardGrid, SiteFooter]
+  expectedComponents:
+    Button: { count: 2 }
+    Details: { count: 3 }
+    Image: { count: 6 }

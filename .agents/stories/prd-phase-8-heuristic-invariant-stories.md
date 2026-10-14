@@ -5,7 +5,7 @@
 **Repository:** `laanhema/distill-design-scraper`
 **Baseline commit:** `d619f19`
 **Story ID range:** DIST-062 → DIST-077 (continues from DIST-061 / issue #109)
-**Last Updated:** 2026-10-13
+**Last Updated:** 2026-10-14
 
 Every finding below was **re-verified against the code at `d619f19`** before a story was written for it — line numbers, predicates, and duplicate bodies were read in the tree, not taken from the PRD text. Verification notes are inline in each story's Technical Notes.
 
@@ -13,32 +13,40 @@ Phase ordering follows the PRD's own P0 → P1 → P2 → P3 priority grouping r
 
 ## Status
 
-All 16 stories are delivered and closed. All corresponding GitHub issues (#124–#139) and PRs (#140–#155) are merged into main.
+All 16 stories are done: each issue (#124–#139) is closed as completed and each pull request (#140–#155) is merged into `main`. No issue or pull request of this file is still open.
 
 | Story | Issue | Pull request | Phase | Status | Acceptance criteria ticked |
 | --- | --- | --- | --- | --- | --- |
-| DIST-062 Adversarial eval fixture | #124 | #140 | 8 | done — issue closed, PR #140 merged | 4 of 4 |
-| DIST-063 Region typing by landmark | #125 | #141 | 8 | done — issue closed, PR #141 merged | 4 of 4 |
-| DIST-064 Non-displaceable semantic roles | #126 | #142 | 8 | done — issue closed, PR #142 merged | 4 of 4 |
-| DIST-065 Capture.viewport on eval path | #127 | #143 | 8 | done — issue closed, PR #143 merged | 4 of 4 |
-| DIST-066 Band-segment regex unification | #128 | #144 | 8 | done — issue closed, PR #144 merged | 3 of 3 |
-| DIST-067 Unify nearestScaleValue | #129 | #145 | 8 | done — issue closed, PR #145 merged | 3 of 3 |
-| DIST-068 Unify mode<T> copies | #130 | #146 | 8 | done — issue closed, PR #146 merged | 3 of 3 |
-| DIST-069 Unify parsePositiveNumber / parsePositiveInteger | #131 | #147 | 8 | done — issue closed, PR #147 merged | 3 of 3 |
-| DIST-070 Remove unreachable landmark branch | #132 | #148 | 8 | done — issue closed, PR #148 merged | 3 of 3 |
-| DIST-071 Move emitTailwindTheme out of emit.ts | #133 | #149 | 8 | done — issue closed, PR #149 merged | 4 of 4 |
-| DIST-072 Join computeContentMaxWidth on landmark | #134 | #150 | 8 | done — issue closed, PR #150 merged | 3 of 3 |
-| DIST-073 Clean up unused exports | #135 | #151 | 8 | done — issue closed, PR #151 merged | 3 of 3 |
-| DIST-074 Stop double-counting fold pixels | #136 | #152 | 8 | done — issue closed, PR #152 merged | 3 of 3 |
-| DIST-075 Emit prefers-color-scheme: dark CSS vars | #137 | #153 | 8 | done — issue closed, PR #153 merged | 3 of 3 |
-| DIST-076 Skip AI interpretation on mode: structure | #138 | #154 | 8 | done — issue closed, PR #154 merged | 3 of 3 |
-| DIST-077 Omit text swatch on single-cluster images | #139 | #155 | 8 | done — issue closed, PR #155 merged | 3 of 3 |
+| DIST-062 Adversarial eval fixture | #124 | #140 | 8 | done | 4 of 6 |
+| DIST-063 Region typing by landmark | #125 | #141 | 8 | done | 6 of 6 |
+| DIST-064 Non-displaceable semantic roles | #126 | #142 | 8 | done | 6 of 6 |
+| DIST-065 Capture.viewport on eval path | #127 | #143 | 8 | done | 4 of 5 |
+| DIST-066 Band-segment regex unification | #128 | #144 | 8 | done | 4 of 4 |
+| DIST-067 Unify nearestScaleValue | #129 | #145 | 8 | done | 4 of 4 |
+| DIST-068 Unify mode<T> copies | #130 | #146 | 8 | done | 4 of 4 |
+| DIST-069 Unify parsePositiveNumber / parsePositiveInteger | #131 | #147 | 8 | done | 4 of 4 |
+| DIST-070 Remove unreachable landmark branch | #132 | #148 | 8 | done | 3 of 3 |
+| DIST-071 Move emitTailwindTheme out of emit.ts | #133 | #149 | 8 | done | 5 of 5 |
+| DIST-072 Join computeContentMaxWidth on landmark | #134 | #150 | 8 | done | 4 of 4 |
+| DIST-073 Clean up unused exports | #135 | #151 | 8 | done | 5 of 5 |
+| DIST-074 Stop double-counting fold pixels | #136 | #152 | 8 | done | 4 of 4 |
+| DIST-075 Emit prefers-color-scheme: dark CSS vars | #137 | #153 | 8 | done | 5 of 5 |
+| DIST-076 Skip AI interpretation on mode: structure | #138 | #154 | 8 | done | 5 of 5 |
+| DIST-077 Omit text swatch on single-cluster images | #139 | #155 | 8 | done | 5 of 5 |
 
-Criteria verified against the codebase at HEAD (`e1f25e7`) and merged pull requests #140–#155.
+The criteria were checked on 2026-10-14 against the code at `4291324`, with offline `npm run typecheck`, `npm run lint` and `npm run eval` runs and a production `npm run build` (all passed); the product was not run. A criterion that only a run can show rests on the validation section of the story's implementation report in `.agents/reports/`, where the code still holds the behaviour. A ticked box means the code satisfies the criterion now, an unticked box carries a note with what is missing, and an As Built section records where the result differs from the text or where it lives. The `Validation checklist` at the end of the file is the author's checklist for the file, not a story, and stays as written. Plans are in `.agents/plans/completed/`, reviews in `.agents/reviews/`.
 
 ### Open Items Without a Story
 
-None
+**Specified in the source but not built**
+
+- PRD §12 Phase 8 / P2-3, a global concurrency ceiling on Chromium, accepted as-is above: `renderUrl` still launches one browser per request with no semaphore.
+
+**Open GitHub issues that no story names**
+
+- #156 [TODO-1] Handle inaccessible URLs, bot-blocks, and view-obscuring overlays gracefully
+- #158 [TODO-3] Investigate secure local distribution and sharing models (Docker / BYOK)
+- #166 [TODO-1] Spike: bypass or detect view-obscuring overlays, cookie walls, and paywalls before capture
 
 ---
 
@@ -122,6 +130,7 @@ P3    DIST-074 #136  panorama-only area weights               (P3-1)
 **Complexity**: Large
 **Phase**: PRD §12 Phase 8 / P1-1 (carried forward from Phase 7 / P3-1)
 **Labels**: `technical`, `eval`, `tooling`
+**Status**: done — issue closed, PR #140 merged. 2 criteria are not met.
 
 ### Description
 
@@ -135,12 +144,14 @@ Both Phase-7 P0s and both Phase-8 P0s were invisible to this gate **by construct
 
 ### Acceptance Criteria
 
-- [ ] Given a new fixture page under `eval/fixtures/`, when it is authored, then its DOM contains **all** of: a root wrapper `<div>` **with at least one sibling** (portal root, toast container, or skip link) so Stage 4b squash cannot absorb it; at least one `<div>`-based page section (no `<section>` tag); a landmark nested below depth 1; a declared `transition` on a recognized recipe element class; and a CSSOM `:hover` rule.
-- [ ] Given the new fixture, when `npm run eval:capture` runs, then `eval/corpus/<slug>/capture.json` is produced and committed, and `eval/corpus.ts` registers the entry **without** `optional: true`.
+- [x] Given a new fixture page under `eval/fixtures/`, when it is authored, then its DOM contains **all** of: a root wrapper `<div>` **with at least one sibling** (portal root, toast container, or skip link) so Stage 4b squash cannot absorb it; at least one `<div>`-based page section (no `<section>` tag); a landmark nested below depth 1; a declared `transition` on a recognized recipe element class; and a CSSOM `:hover` rule.
+- [x] Given the new fixture, when `npm run eval:capture` runs, then `eval/corpus/<slug>/capture.json` is produced and committed, and `eval/corpus.ts` registers the entry **without** `optional: true`.
 - [ ] Given the committed capture, when a hand-authored `eval/corpus/<slug>/expected.yaml` is written, then it asserts the *correct* (post-DIST-063) region names — `SiteHeader` / `MainContent` / `SiteFooter` — and their band annotations, so the fixture **fails** on `main` at `d619f19` and passes only once DIST-063 lands.
-- [ ] Given the new entry, when `npm run eval` runs, then the fixture is scored on both lanes (palette/typography **and** structure), its score is recorded in `eval/baseline.json`, and the run is still fully offline (no browser, no network, no API key).
-- [ ] Given the fixture's declared `transition` and `:hover` rule, when the capture is replayed, then `motion` and `states` are populated in the extracted report — closing the "no fixture exercises these lanes" gap for the two Phase-6 lanes.
+  - *Not met:* `eval/corpus/adversarial-shell/expected.yaml` asserts `SiteHeader`/`MainContent`/`SiteFooter` in `expectedSections` and `expectedRegions`, but no band annotation: `expectedSectionEntrySchema` in `eval/scoreStructure.ts` accepts only `name` and `instances`.
+- [x] Given the new entry, when `npm run eval` runs, then the fixture is scored on both lanes (palette/typography **and** structure), its score is recorded in `eval/baseline.json`, and the run is still fully offline (no browser, no network, no API key).
+- [x] Given the fixture's declared `transition` and `:hover` rule, when the capture is replayed, then `motion` and `states` are populated in the extracted report — closing the "no fixture exercises these lanes" gap for the two Phase-6 lanes.
 - [ ] Given the score is below 1.00, when it is committed to the baseline, then the PR description states the score and why it is not 1.00, so the corpus retains detectable headroom in **both** directions.
+  - *Not met:* the description of PR #140 says only that `eval/baseline.json` was updated; it gives no score and no reason why it was below 1.00. The fixture now scores 1.00 (`eval/baseline.json`), so the corpus has no headroom left on it.
 
 ### Technical Notes
 
@@ -150,6 +161,11 @@ Both Phase-7 P0s and both Phase-8 P0s were invisible to this gate **by construct
 - The structure lane is scored via `eval/scoreStructure.ts` (section-digest order/names/instance counts, region names against `skeletonAscii`, component-map counts) and a structure-lane exception scores `0`, never "skipped" — so a fixture that crashes the lane cannot leave the gate green.
 - **Do not** attempt to un-force `forceHeuristicNaming` for this fixture. Eval must stay deterministic and offline; the AI-naming gap is a separate, acknowledged posture, and `npm run eval:ai` is its (weaker) counterpart.
 - Files: `eval/fixtures/`, `eval/corpus.ts`, `eval/corpus/<slug>/{capture.json,expected.yaml}`, `eval/baseline.json`.
+
+### As Built
+
+- `eval/fixtures/adversarial-shell.html` wraps `header`/`main`/`footer` in `<div id="app-root">` next to a skip link, uses `<div>` sections, a `transition` on `.btn` and a `.btn:hover` rule; `eval/corpus.ts` registers it as a required `hostile` entry.
+- It is the only committed capture that populates `motion` and `states`; eval scores neither lane, so it catches a crash in them but not a wrong value.
 
 ### Dependencies
 
@@ -168,6 +184,7 @@ Both Phase-7 P0s and both Phase-8 P0s were invisible to this gate **by construct
 **Complexity**: Medium
 **Phase**: PRD §12 Phase 8 / P0-1 (also closes the unchecked §11 line *"Structure names are stable under realistic DOM shapes"*)
 **Labels**: `bug`, `structure-lane`, `extraction`
+**Status**: done — issue closed, PR #141 merged
 
 ### Description
 
@@ -204,12 +221,12 @@ The section digest still *finds* the bands — `sections.ts:findBand` correctly 
 
 ### Acceptance Criteria
 
-- [ ] Given a harvest whose landmarks sit at depth 2 behind an unsquashable wrapper, when the structure lane runs, then the header/main/footer nodes are typed `region` and named `SiteHeader` / `MainContent` / `SiteFooter` — matching the depth-1 baseline output exactly.
-- [ ] Given the same harvest, when Stage 8a annotates, then those regions carry their band annotations (`padY …`, `h 100vh`, `sticky`) rather than dropping them.
-- [ ] Given the depth-0 root, when it is typed, then it is still named `Page` and never adopts a landmark-specific or hero name — the existing `depth > 0` guard behavior is preserved.
-- [ ] Given a landmark nested deep inside content (e.g. a `<nav>` inside a card), when it is typed, then it does not spuriously become a top-level page band — the fix gates on landmark *identity*, not on removing the constraint entirely.
-- [ ] Given DIST-062's adversarial fixture, when `npm run eval` runs, then the fixture's structure score reaches its expected value, and the change is proven by the harness rather than by a scratch script.
-- [ ] Given the score legitimately moves, when the PR lands, then `eval/baseline.json` is refreshed **in the same PR** with the delta explained in the description.
+- [x] Given a harvest whose landmarks sit at depth 2 behind an unsquashable wrapper, when the structure lane runs, then the header/main/footer nodes are typed `region` and named `SiteHeader` / `MainContent` / `SiteFooter` — matching the depth-1 baseline output exactly.
+- [x] Given the same harvest, when Stage 8a annotates, then those regions carry their band annotations (`padY …`, `h 100vh`, `sticky`) rather than dropping them.
+- [x] Given the depth-0 root, when it is typed, then it is still named `Page` and never adopts a landmark-specific or hero name — the existing `depth > 0` guard behavior is preserved.
+- [x] Given a landmark nested deep inside content (e.g. a `<nav>` inside a card), when it is typed, then it does not spuriously become a top-level page band — the fix gates on landmark *identity*, not on removing the constraint entirely.
+- [x] Given DIST-062's adversarial fixture, when `npm run eval` runs, then the fixture's structure score reaches its expected value, and the change is proven by the harness rather than by a scratch script.
+- [x] Given the score legitimately moves, when the PR lands, then `eval/baseline.json` is refreshed **in the same PR** with the delta explained in the description.
 
 ### Technical Notes
 
@@ -218,6 +235,11 @@ The section digest still *finds* the bands — `sections.ts:findBand` correctly 
 - Consider whether the *misnaming* of the surviving wrapper as `Hero` needs a separate guard, or falls out of the fix once the real bands are typed as regions. Document whichever it is in the PR.
 - This is the fix §14's new risk row was written for: *"Gate on the identity being tested (landmark), never on a positional proxy for it."*
 - Files: `lib/extract/structure/ontology.ts` (primary), possibly `lib/extract/structure/regionMetrics.ts` (Stage 8a's `region`-only rewrite), `eval/baseline.json`.
+
+### As Built
+
+- `assignOntologyTypes` in `ontology.ts` types a node `region` when it is a landmark and no ancestor already is (`insideRegion`), at any depth; the depth-0 root stays `Page`.
+- PR #141 refreshed `eval/baseline.json`, and `adversarial-shell` scores 1.00.
 
 ### Dependencies
 
@@ -234,6 +256,7 @@ The section digest still *finds* the bands — `sections.ts:findBand` correctly 
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P0-2 (also closes the unchecked §11 line *"The AI lane can never assign an evidence-gated role"*)
 **Labels**: `bug`, `ai-lane`, `palette`
+**Status**: done — issue closed, PR #142 merged
 
 ### Description
 
@@ -266,12 +289,12 @@ A **second, independent defect** sits two lines above: `colors.find((c) => c.hex
 
 ### Acceptance Criteria
 
-- [ ] Given a refinement whose target currently holds a role **outside** `REFINABLE_COLOR_ROLES` (`success`/`warning`/`danger`/`on-primary`), when it is applied, then the displaced role is **dropped** — the holder becomes role-less — rather than being reassigned to the holder.
-- [ ] Given the PRD's exact reproduction (`#1a73e8 = primary`, `#d92d20 = danger`, AI proposes `#d92d20 → primary`), when `applyRoleRefinements` runs, then `#1a73e8` does **not** end up labelled `danger`, and no swatch gains `ROLE_USAGE["danger"]` without evidence.
-- [ ] Given a refinement whose target currently holds a role **inside** `REFINABLE_COLOR_ROLES`, when it is applied, then the existing swap behavior is unchanged — this story narrows the write path, it does not disable refinement.
-- [ ] Given a palette where two swatches share a hex under different roles, when a refinement names that hex, then the correct swatch is targeted (or the ambiguous refinement is skipped) rather than the first array match being silently taken.
-- [ ] Given a role-less swatch results from a dropped displacement, when the report is emitted, then it degrades honestly — no fabricated role name, no fabricated `usage` line — and `renderPalette` / the CSS-variables block handle it without emitting an empty or malformed entry.
-- [ ] Given the fix, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** (the eval path never calls the AI lane).
+- [x] Given a refinement whose target currently holds a role **outside** `REFINABLE_COLOR_ROLES` (`success`/`warning`/`danger`/`on-primary`), when it is applied, then the displaced role is **dropped** — the holder becomes role-less — rather than being reassigned to the holder.
+- [x] Given the PRD's exact reproduction (`#1a73e8 = primary`, `#d92d20 = danger`, AI proposes `#d92d20 → primary`), when `applyRoleRefinements` runs, then `#1a73e8` does **not** end up labelled `danger`, and no swatch gains `ROLE_USAGE["danger"]` without evidence.
+- [x] Given a refinement whose target currently holds a role **inside** `REFINABLE_COLOR_ROLES`, when it is applied, then the existing swap behavior is unchanged — this story narrows the write path, it does not disable refinement.
+- [x] Given a palette where two swatches share a hex under different roles, when a refinement names that hex, then the correct swatch is targeted (or the ambiguous refinement is skipped) rather than the first array match being silently taken.
+- [x] Given a role-less swatch results from a dropped displacement, when the report is emitted, then it degrades honestly — no fabricated role name, no fabricated `usage` line — and `renderPalette` / the CSS-variables block handle it without emitting an empty or malformed entry.
+- [x] Given the fix, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** (the eval path never calls the AI lane).
 
 ### Technical Notes
 
@@ -280,6 +303,12 @@ A **second, independent defect** sits two lines above: `colors.find((c) => c.hex
 - The trailing sort uses `order.get(a.role) ?? 99`, so a role-less swatch already sorts last; confirm the `?? 99` path still behaves once a swatch can legitimately have no role.
 - This is the fix §14's new risk row was written for: *"When a constraint protects an invariant, constrain every write path to the field — not just the one the model drives. Audit permutation/swap logic specifically: it moves values the caller never named."*
 - Files: `lib/interpret.ts` (primary), `lib/schema.ts` (only if the role type must admit "none"), `lib/emit.ts` (role-less rendering).
+
+### As Built
+
+- `applyRoleRefinements` in `lib/interpret.ts` swaps only a refinable displaced role; a non-refinable one (`success`/`warning`/`danger`/`on-primary`) is dropped with `dropRole`, leaving the holder role-less.
+- A refinement whose hex matches several swatches targets the single refinable one, or is skipped.
+- `renderPalette` writes a role-less swatch as a bare hex line, the CSS-variables block skips it, and the sort puts it last.
 
 ### Dependencies
 
@@ -298,6 +327,7 @@ A **second, independent defect** sits two lines above: `colors.find((c) => c.hex
 **Complexity**: Medium
 **Phase**: PRD §12 Phase 8 / P1-2 (carried forward from Phase 7 / P3-2, partially closed by DIST-061)
 **Labels**: `technical`, `eval`, `structure-lane`
+**Status**: done — issue closed, PR #143 merged. 1 criterion is not met.
 
 ### Description
 
@@ -314,11 +344,12 @@ Every eval structure replay therefore silently takes `extractStructure`'s hardco
 
 ### Acceptance Criteria
 
-- [ ] Given `eval/capture.ts`, when it builds a `Capture`, then it sets `viewport: VIEWPORT` from the same constant it passes to the Playwright context — one source, no second literal.
-- [ ] Given the change, when `npm run eval:capture` re-runs, then both committed `capture.json` files carry a top-level `viewport` key with `{ width: 1440, height: 900 }`.
-- [ ] Given a replayed capture, when `extractStructureFromCapture` runs, then it consumes the capture's `viewport` rather than falling through to `extractStructure`'s hardcoded default — verifiable by temporarily changing `VIEWPORT` and observing `regionMetrics` output move.
+- [x] Given `eval/capture.ts`, when it builds a `Capture`, then it sets `viewport: VIEWPORT` from the same constant it passes to the Playwright context — one source, no second literal.
+- [x] Given the change, when `npm run eval:capture` re-runs, then both committed `capture.json` files carry a top-level `viewport` key with `{ width: 1440, height: 900 }`.
+- [x] Given a replayed capture, when `extractStructureFromCapture` runs, then it consumes the capture's `viewport` rather than falling through to `extractStructure`'s hardcoded default — verifiable by temporarily changing `VIEWPORT` and observing `regionMetrics` output move.
 - [ ] Given this is a capture-shape change, when the PR lands, then **both fixtures are refreshed and `eval/baseline.json` is bumped in the same PR**, per the §14 policy — never as a follow-up.
-- [ ] Given a legacy capture without `viewport`, when it is replayed, then the lane still falls back cleanly rather than throwing — an absent field remains "nothing observed."
+  - *Not met:* PR #143 refreshed all three captures (`adversarial-shell`, `clean-light`, `dark-mode`) but did not touch `eval/baseline.json`; the scores did not move.
+- [x] Given a legacy capture without `viewport`, when it is replayed, then the lane still falls back cleanly rather than throwing — an absent field remains "nothing observed."
 
 ### Technical Notes
 
@@ -326,6 +357,10 @@ Every eval structure replay therefore silently takes `extractStructure`'s hardco
 - Coordinate with **DIST-062**: if the adversarial fixture hasn't landed yet, capture it with `viewport` already set so it isn't recaptured twice. If DIST-062 lands first, this PR refreshes three fixtures, not two.
 - This is a genuine capture-shape change — the third in the project's history, after the responsive-harvest/dark-scheme pass and the full-page panorama pass. Follow the same PR discipline those did.
 - Files: `eval/capture.ts`, `eval/corpus/*/capture.json`, `eval/baseline.json`.
+
+### As Built
+
+- `eval/capture.ts` sets `viewport: VIEWPORT` from the same constant it gives the Playwright context, and all three committed captures carry `{"width":1440,"height":900}`.
 
 ### Dependencies
 
@@ -346,6 +381,7 @@ Every eval structure replay therefore silently takes `extractStructure`'s hardco
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P2-1 (row 1 — *highest risk*)
 **Labels**: `technical`, `structure-lane`, `cleanup`
+**Status**: done — issue closed, PR #144 merged
 
 ### Description
 
@@ -364,10 +400,10 @@ Plus two `structuralPart` functions — `sections.ts:42` and `responsive.ts:27` 
 
 ### Acceptance Criteria
 
-- [ ] Given the two modules, when they split a layout annotation, then both call **one** exported helper from a single module — no second regex literal, no second `structuralPart` body anywhere in `lib/extract/structure/`.
-- [ ] Given the shared helper, when it is defined, then its doc comment names both consumers and states that band-vs-structural is one classification with two views, so a future reader adds a segment in one place.
-- [ ] Given the dedup, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** — this is a pure refactor and any score movement means behavior leaked.
-- [ ] Given `grep -rn "sticky|fixed" lib/extract/structure/`, when run after the change, then exactly one segment-classification regex is found.
+- [x] Given the two modules, when they split a layout annotation, then both call **one** exported helper from a single module — no second regex literal, no second `structuralPart` body anywhere in `lib/extract/structure/`.
+- [x] Given the shared helper, when it is defined, then its doc comment names both consumers and states that band-vs-structural is one classification with two views, so a future reader adds a segment in one place.
+- [x] Given the dedup, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** — this is a pure refactor and any score movement means behavior leaked.
+- [x] Given `grep -rn "sticky|fixed" lib/extract/structure/`, when run after the change, then exactly one segment-classification regex is found.
 
 ### Technical Notes
 
@@ -375,6 +411,11 @@ Plus two `structuralPart` functions — `sections.ts:42` and `responsive.ts:27` 
 - Where the seam lives: alongside the other shared structure helpers, next to `styleMatch.ts` — not inside `sections.ts` or `responsive.ts`, or the "which one is canonical" question just moves.
 - **DIST-062's fixture makes this verifiable**: with an adversarial fixture in the corpus, a future divergence becomes a failing score rather than a silent one. Land after DIST-062 if scheduling allows.
 - Files: `lib/extract/structure/sections.ts`, `lib/extract/structure/responsive.ts`, plus one new shared module.
+
+### As Built
+
+- `BAND_SEGMENT_REGEX`, `bandPart` and `structuralPart` live in `lib/extract/structure/annotationSegments.ts` and serve `sections.ts` and `responsive.ts`.
+- `grep "sticky|fixed"` also finds `/sticky|fixed/` in `regionMetrics.ts` (pin detection) and `POSITION_SUFFIX` in `squash.ts` (suffix stripping); neither classifies band segments.
 
 ### Dependencies
 
@@ -391,6 +432,7 @@ Plus two `structuralPart` functions — `sections.ts:42` and `responsive.ts:27` 
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P2-1 (row 2)
 **Labels**: `technical`, `structure-lane`, `cleanup`
+**Status**: done — issue closed, PR #145 merged
 
 ### Description
 
@@ -402,16 +444,20 @@ Verified at `d619f19`: identical bodies at `lib/extract/structure/tokenLink.ts:2
 
 ### Acceptance Criteria
 
-- [ ] Given both modules, when they snap a value to the spacing scale, then both call one exported helper that takes tolerance as an explicit parameter.
-- [ ] Given each call site, when it passes its tolerance, then the value is **unchanged** from the constant that module used before — this is a dedup, not a tolerance change.
-- [ ] Given the shared helper, when it is defined, then its doc comment states why the two consumers legitimately differ (bounds-derived averages vs. exact gap matches).
-- [ ] Given the dedup, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched**.
+- [x] Given both modules, when they snap a value to the spacing scale, then both call one exported helper that takes tolerance as an explicit parameter.
+- [x] Given each call site, when it passes its tolerance, then the value is **unchanged** from the constant that module used before — this is a dedup, not a tolerance change.
+- [x] Given the shared helper, when it is defined, then its doc comment states why the two consumers legitimately differ (bounds-derived averages vs. exact gap matches).
+- [x] Given the dedup, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched**.
 
 ### Technical Notes
 
 - Place it beside `styleMatch.ts` / `roleMatch.ts` — the existing home for shared matchers in this lane.
 - Both consumers must keep "no match within tolerance ⇒ `null`" semantics; `tokenLink.ts` relies on that to *never guess a token that isn't in the report*.
 - Files: `lib/extract/structure/tokenLink.ts`, `lib/extract/structure/regionMetrics.ts`, plus the shared module (reuse DIST-066's if it lands first).
+
+### As Built
+
+- `nearestScaleValue(value, scale, tolerance)` lives in `lib/extract/structure/scaleMatch.ts`; `tokenLink.ts` passes `GAP_MATCH_TOLERANCE = 2` and `regionMetrics.ts` passes `PAD_SNAP_TOLERANCE = 4`.
 
 ### Dependencies
 
@@ -428,6 +474,7 @@ Verified at `d619f19`: identical bodies at `lib/extract/structure/tokenLink.ts:2
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P2-1 (row 3)
 **Labels**: `technical`, `extraction`, `cleanup`
+**Status**: done — issue closed, PR #146 merged
 
 ### Description
 
@@ -439,16 +486,20 @@ Verified at `d619f19`: `lib/extract/tokens.ts:6` is `function mode<T>(values: T[
 
 ### Acceptance Criteria
 
-- [ ] Given both modules, when they take a modal value, then both call one exported helper whose signature makes the tie-break rule and the empty-input behavior explicit.
-- [ ] Given each existing call site, when it is migrated, then its **observable result is identical** for every input the committed captures produce.
-- [ ] Given the unified helper, when it is defined, then its doc comment states the tie-break rule explicitly (first-seen wins, highest-count wins, etc.) rather than leaving it to insertion order.
-- [ ] Given the dedup, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** — **any** score movement here means a tie-break changed and must be investigated, not baselined away.
+- [x] Given both modules, when they take a modal value, then both call one exported helper whose signature makes the tie-break rule and the empty-input behavior explicit.
+- [x] Given each existing call site, when it is migrated, then its **observable result is identical** for every input the committed captures produce.
+- [x] Given the unified helper, when it is defined, then its doc comment states the tie-break rule explicitly (first-seen wins, highest-count wins, etc.) rather than leaving it to insertion order.
+- [x] Given the dedup, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** — **any** score movement here means a tie-break changed and must be investigated, not baselined away.
 
 ### Technical Notes
 
 - This is the riskiest of the four dedups precisely because the two copies **already differ**. Read both bodies fully before unifying, and pick the semantics that preserves current output at both sites — if that means the helper takes an optional `fallback`, take the optional `fallback`.
 - `recipes.ts` and `states.ts` also aggregate modally; check whether either has a third inline copy before landing, so this closes the pattern rather than leaving two of three.
 - Files: `lib/extract/tokens.ts`, `lib/extract/typography.ts`, plus a shared helper module.
+
+### As Built
+
+- `mode<T>(values, fallback?)` lives in `lib/extract/mode.ts`: the first value to reach the highest count wins, and empty input returns `fallback`; `recipes.ts` keeps its own keyed `modal<T>`.
 
 ### Dependencies
 
@@ -465,6 +516,7 @@ Verified at `d619f19`: `lib/extract/tokens.ts:6` is `function mode<T>(values: T[
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P2-1 (row 4)
 **Labels**: `technical`, `cleanup`
+**Status**: done — issue closed, PR #147 merged
 
 ### Description
 
@@ -476,16 +528,20 @@ Verified at `d619f19`: `lib/cache.ts:42-51` and `lib/security/rateLimiter.ts:44-
 
 ### Acceptance Criteria
 
-- [ ] Given both modules, when they read a numeric env var, then both import one shared helper pair; no duplicate body remains.
-- [ ] Given each existing caller (`CACHE_MAX_ENTRIES`, `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_BUCKETS`), when it parses, then its fallback and clamping behavior is unchanged.
-- [ ] Given a fractional value below 1 (e.g. `0.5`), when parsed as an integer, then the documented default is returned rather than `0` — the behavior both copies' comments describe is preserved by a check, not by assumption.
-- [ ] Given the dedup, when `npm run lint` and `npm run typecheck` run, then both pass, and `npm run eval` passes with `eval/baseline.json` untouched.
+- [x] Given both modules, when they read a numeric env var, then both import one shared helper pair; no duplicate body remains.
+- [x] Given each existing caller (`CACHE_MAX_ENTRIES`, `RATE_LIMIT_MAX_REQUESTS`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX_BUCKETS`), when it parses, then its fallback and clamping behavior is unchanged.
+- [x] Given a fractional value below 1 (e.g. `0.5`), when parsed as an integer, then the documented default is returned rather than `0` — the behavior both copies' comments describe is preserved by a check, not by assumption.
+- [x] Given the dedup, when `npm run lint` and `npm run typecheck` run, then both pass, and `npm run eval` passes with `eval/baseline.json` untouched.
 
 ### Technical Notes
 
 - These are config helpers, not extraction helpers — put them somewhere neutral (e.g. `lib/env.ts`), not inside `lib/security/` or `lib/cache.ts`, so neither module owns the other's dependency.
 - Carry the *union* of the two doc comments' intent into the shared one; don't drop the `< 1` rationale, it's the non-obvious part.
 - Files: `lib/cache.ts`, `lib/security/rateLimiter.ts`, plus a shared module.
+
+### As Built
+
+- `parsePositiveNumber` and `parsePositiveInteger` live in `lib/env.ts` and serve `lib/cache.ts` and `lib/security/rateLimiter.ts`; the integer helper returns the fallback for a value that floors below 1.
 
 ### Dependencies
 
@@ -502,6 +558,7 @@ Verified at `d619f19`: `lib/cache.ts:42-51` and `lib/security/rateLimiter.ts:44-
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P2-2
 **Labels**: `technical`, `structure-lane`, `cleanup`
+**Status**: done — issue closed, PR #148 merged
 
 ### Description
 
@@ -521,14 +578,18 @@ But the collapse only runs when `!isMeaningfulContainer`, and `isMeaningfulConta
 
 ### Acceptance Criteria
 
-- [ ] Given `pruner.ts`, when the collapse branch runs, then no unreachable landmark-preservation code remains.
-- [ ] Given the removal, when a comment is left in its place, then it states that landmark-carrying nodes are never collapsed (because `isMeaningfulContainer` includes `landmark`) — preserving the intent without the dead code, the same pattern DIST-051 used for `fullPageShot`.
-- [ ] Given the change, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** — an unreachable branch cannot change output, so any movement means the reachability analysis was wrong.
+- [x] Given `pruner.ts`, when the collapse branch runs, then no unreachable landmark-preservation code remains.
+- [x] Given the removal, when a comment is left in its place, then it states that landmark-carrying nodes are never collapsed (because `isMeaningfulContainer` includes `landmark`) — preserving the intent without the dead code, the same pattern DIST-051 used for `fullPageShot`.
+- [x] Given the change, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** — an unreachable branch cannot change output, so any movement means the reachability analysis was wrong.
 
 ### Technical Notes
 
 - Confirm reachability before deleting: assert that `isMeaningfulContainer` still includes `Boolean(root.landmark)` at the time of the change, and quote both lines in the PR description. If **DIST-063** alters the pruner's landmark handling, re-check this first — do not delete on the strength of this story's snapshot alone.
 - Files: `lib/extract/structure/pruner.ts`.
+
+### As Built
+
+- `pruneAndCollapse` in `pruner.ts` keeps a comment in place of the branch, noting that `isMeaningfulContainer` includes `Boolean(root.landmark)`.
 
 ### Dependencies
 
@@ -545,6 +606,7 @@ But the collapse only runs when `!isMeaningfulContainer`, and `isMeaningfulConta
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P2-4
 **Labels**: `enhancement`, `frontend`, `performance`
+**Status**: done — issue closed, PR #149 merged
 
 ### Description
 
@@ -558,11 +620,11 @@ Verified at `d619f19`: `app/page.tsx:5` imports `emitTailwindTheme` from `@/lib/
 
 ### Acceptance Criteria
 
-- [ ] Given `emitTailwindTheme`, when it is relocated, then it lives in its own module importing only what it uses — no `js-yaml`, no `reportSchema` — and `app/page.tsx` imports it from there.
-- [ ] Given a production build, when `.next/static/chunks/` is inspected, then `js-yaml` no longer appears in any client chunk.
-- [ ] Given the workbench, when "Download Tailwind theme" is clicked, then the emitted `@theme` stylesheet is **byte-identical** to before the move — including the `prefers-color-scheme: dark` override block when `paletteDark` exists.
-- [ ] Given the move, when `npm run build`, `npm run typecheck`, and `npm run lint` run, then all pass, and the reported First Load JS is lower than the 132 kB recorded in §1a.
-- [ ] Given `lib/emit.ts`, when it is re-read, then it still owns the markdown emit path and `renderCssVariables`; only the Tailwind view moved.
+- [x] Given `emitTailwindTheme`, when it is relocated, then it lives in its own module importing only what it uses — no `js-yaml`, no `reportSchema` — and `app/page.tsx` imports it from there.
+- [x] Given a production build, when `.next/static/chunks/` is inspected, then `js-yaml` no longer appears in any client chunk.
+- [x] Given the workbench, when "Download Tailwind theme" is clicked, then the emitted `@theme` stylesheet is **byte-identical** to before the move — including the `prefers-color-scheme: dark` override block when `paletteDark` exists.
+- [x] Given the move, when `npm run build`, `npm run typecheck`, and `npm run lint` run, then all pass, and the reported First Load JS is lower than the 132 kB recorded in §1a.
+- [x] Given `lib/emit.ts`, when it is re-read, then it still owns the markdown emit path and `renderCssVariables`; only the Tailwind view moved.
 
 ### Technical Notes
 
@@ -571,6 +633,11 @@ Verified at `d619f19`: `app/page.tsx:5` imports `emitTailwindTheme` from `@/lib/
 - Quote the before/after First Load JS in the PR description; §1a records 132 kB as the baseline.
 - Coordinate with **DIST-075**, which adds a dark block to `renderCssVariables` in the same file — sequence them to avoid a conflict.
 - Files: `lib/emit.ts`, a new module (e.g. `lib/emitTailwind.ts`), `app/page.tsx`.
+
+### As Built
+
+- `emitTailwindTheme` lives in `lib/emitTailwind.ts`, which imports only `Report` types; `lib/emit.ts` keeps the markdown path and `renderCssVariables`.
+- A production build on 2026-10-14 at `4291324` found no `js-yaml` in `.next/static/chunks/`, and `/` had 108 kB First Load JS.
 
 ### Dependencies
 
@@ -587,6 +654,7 @@ Verified at `d619f19`: `app/page.tsx:5` imports `emitTailwindTheme` from `@/lib/
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P2-5
 **Labels**: `bug`, `structure-lane`
+**Status**: done — issue closed, PR #150 merged
 
 ### Description
 
@@ -604,16 +672,20 @@ The name half is fragile — Stage 7 may rename `MainContent` to anything, and u
 
 ### Acceptance Criteria
 
-- [ ] Given a harvest where the main region is a `<div>` with `landmark: "main"` (no `<section>` tags), when the structure lane runs, then `contentMaxWidth` is still computed.
-- [ ] Given a harvest where Stage 7's AI pass renamed `MainContent` to something else, when the emit runs, then `contentMaxWidth` is unaffected — the join no longer depends on a post-rename name.
-- [ ] Given no identifiable main region, when the emit runs, then `contentMaxWidth` is **omitted**, not defaulted — the optional-field contract is preserved.
-- [ ] Given the fix, when `npm run eval` runs, then it passes; if the committed fixtures' `contentMaxWidth` legitimately changes, the baseline is refreshed **in the same PR** with the before/after quoted.
+- [x] Given a harvest where the main region is a `<div>` with `landmark: "main"` (no `<section>` tags), when the structure lane runs, then `contentMaxWidth` is still computed.
+- [x] Given a harvest where Stage 7's AI pass renamed `MainContent` to something else, when the emit runs, then `contentMaxWidth` is unaffected — the join no longer depends on a post-rename name.
+- [x] Given no identifiable main region, when the emit runs, then `contentMaxWidth` is **omitted**, not defaulted — the optional-field contract is preserved.
+- [x] Given the fix, when `npm run eval` runs, then it passes; if the committed fixtures' `contentMaxWidth` legitimately changes, the baseline is refreshed **in the same PR** with the before/after quoted.
 
 ### Technical Notes
 
 - **`sections.ts:findBand` is the reference predicate** — landmark first, tag second, `componentName` only as a fallback. This is the third site in the sweep pointing at the same correct implementation (see DIST-063); if DIST-063 extracts a shared landmark predicate, reuse it here rather than writing a fourth variant.
 - DIST-062's adversarial fixture is specified to include `<div>`-based sections, so it covers this case once landed.
 - Files: `lib/extract/structure/structureEmit.ts`.
+
+### As Built
+
+- `computeContentMaxWidth` in `structureEmit.ts` matches `landmark === "main"` first, then the `main` and `section` tags, so a Stage 7 rename does not affect it.
 
 ### Dependencies
 
@@ -630,6 +702,7 @@ The name half is fragile — Stage 7 may rename `MainContent` to anything, and u
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P2-6
 **Labels**: `technical`, `cleanup`
+**Status**: done — issue closed, PR #151 merged
 
 ### Description
 
@@ -651,11 +724,11 @@ They read as exported-for-testability in a repo that has **no unit-test framewor
 
 ### Acceptance Criteria
 
-- [ ] Given each of the ten, when it is reviewed, then it is either dropped to module-private **or** kept with a one-line comment naming the intended consumer — the decision is recorded per export, not applied blanket.
-- [ ] Given the SSRF guard's three predicates, when a decision is made, then it accounts for their value as an independently-auditable security surface — keeping them exported with a rationale is a legitimate outcome for these specifically.
-- [ ] Given `AI_MODEL`, when a decision is made, then it accounts for §6's "one pinned model" framing — the export may be the documented way an operator inspects the pin.
-- [ ] Given the change, when `npm run typecheck` and `npm run lint` run, then both pass with no unused-export or unused-symbol warnings introduced.
-- [ ] Given the change, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** — visibility changes cannot alter behavior.
+- [x] Given each of the ten, when it is reviewed, then it is either dropped to module-private **or** kept with a one-line comment naming the intended consumer — the decision is recorded per export, not applied blanket.
+- [x] Given the SSRF guard's three predicates, when a decision is made, then it accounts for their value as an independently-auditable security surface — keeping them exported with a rationale is a legitimate outcome for these specifically.
+- [x] Given `AI_MODEL`, when a decision is made, then it accounts for §6's "one pinned model" framing — the export may be the documented way an operator inspects the pin.
+- [x] Given the change, when `npm run typecheck` and `npm run lint` run, then both pass with no unused-export or unused-symbol warnings introduced.
+- [x] Given the change, when `npm run eval` runs, then it passes with `eval/baseline.json` **untouched** — visibility changes cannot alter behavior.
 
 ### Technical Notes
 
@@ -663,6 +736,10 @@ They read as exported-for-testability in a repo that has **no unit-test framewor
 - `PALETTE_DELTA_E_TOLERANCE` lives in `eval/score.ts`, outside `lib` — same treatment, different blast radius.
 - If a future unit-test framework is on the table, say so in the PR and keep the exports; that is a legitimate resolution, but it should be a stated decision rather than the current default-by-inaction.
 - Files: `lib/security/ssrfGuard.ts`, `lib/extract/structure/styleMatch.ts`, `lib/extract/tokens.ts`, `lib/aiLane.ts`, `eval/score.ts`.
+
+### As Built
+
+- The three SSRF predicates in `ssrfGuard.ts` stay exported, each with a comment calling it an independently auditable security predicate; the other seven are no longer exported, and `AI_MODEL` no longer exists since #199.
 
 ### Dependencies
 
@@ -681,6 +758,7 @@ They read as exported-for-testability in a repo that has **no unit-test framewor
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P3-1
 **Labels**: `bug`, `extraction`, `palette`
+**Status**: done — issue closed, PR #152 merged
 
 ### Description
 
@@ -694,10 +772,10 @@ Measured impact on `clean-light` (PRD): **0.001** — background `0.695` vs `0.6
 
 ### Acceptance Criteria
 
-- [ ] Given a capture with a `panoramaShot`, when `extractPalette` is called, then the panorama is passed **alone** — the viewport shot is not additionally sampled.
-- [ ] Given a capture with **no** panorama (a single-viewport page), when `extractPalette` is called, then the viewport shot is still sampled — coverage is never lost.
-- [ ] Given a tall page, when area weights are computed, then no pixel above the fold contributes twice.
-- [ ] Given the fix, when `npm run eval` runs, then any score movement is quoted in the PR description with the before/after `areaWeight` values, and the baseline is refreshed **deliberately in the same PR** if the rounded score changes.
+- [x] Given a capture with a `panoramaShot`, when `extractPalette` is called, then the panorama is passed **alone** — the viewport shot is not additionally sampled.
+- [x] Given a capture with **no** panorama (a single-viewport page), when `extractPalette` is called, then the viewport shot is still sampled — coverage is never lost.
+- [x] Given a tall page, when area weights are computed, then no pixel above the fold contributes twice.
+- [x] Given the fix, when `npm run eval` runs, then any score movement is quoted in the PR description with the before/after `areaWeight` values, and the baseline is refreshed **deliberately in the same PR** if the rounded score changes.
 
 ### Technical Notes
 
@@ -705,6 +783,11 @@ Measured impact on `clean-light` (PRD): **0.001** — background `0.695` vs `0.6
 - Check the image path (`analyzeImages` → `imagePalette`) is unaffected; it merges across uploads and has no panorama concept.
 - Expect the delta to be sub-0.001 on the committed fixtures (2 tiles). If the eval score doesn't move at all, say so explicitly rather than refreshing the baseline for no reason.
 - Files: `lib/analyze.ts` (primary), `eval/baseline.json` (only if the score moves).
+
+### As Built
+
+- `extractFromCapture` in `lib/analyze.ts` passes `capture.panoramaShot ?? capture.viewportShot` as the one `screenshotPngBase64`; `PaletteInput` has no `additionalScreenshotsPngBase64`.
+- PR #152 did not change `eval/baseline.json`; the rounded scores did not move.
 
 ### Dependencies
 
@@ -721,6 +804,7 @@ Measured impact on `clean-light` (PRD): **0.001** — background `0.695` vs `0.6
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P3-2
 **Labels**: `enhancement`, `emit`
+**Status**: done — issue closed, PR #153 merged
 
 ### Description
 
@@ -732,11 +816,11 @@ Verified at `d619f19`: `emitTailwindTheme` emits a full `prefers-color-scheme: d
 
 ### Acceptance Criteria
 
-- [ ] Given a report **with** `paletteDark`, when `renderCssVariables` runs, then the fence includes a `@media (prefers-color-scheme: dark)` block redeclaring the shifted variables.
-- [ ] Given a report **without** `paletteDark` (a single-scheme site), when `renderCssVariables` runs, then **no** dark block is emitted — the optional-lane contract holds, and the output is unchanged from today.
-- [ ] Given the same report, when both derived views are compared, then the `:root` fence and `emitTailwindTheme` cover the same dark variables — no third source of truth, and every emitted value traces to a field already on the report.
-- [ ] Given the change, when it lands, then **no schema surface is added** — both views remain pure renderings of existing fields.
-- [ ] Given the change, when `npm run eval` runs, then it passes; if the emitted markdown for the `dark-mode` fixture changes, the diff is quoted in the PR description.
+- [x] Given a report **with** `paletteDark`, when `renderCssVariables` runs, then the fence includes a `@media (prefers-color-scheme: dark)` block redeclaring the shifted variables.
+- [x] Given a report **without** `paletteDark` (a single-scheme site), when `renderCssVariables` runs, then **no** dark block is emitted — the optional-lane contract holds, and the output is unchanged from today.
+- [x] Given the same report, when both derived views are compared, then the `:root` fence and `emitTailwindTheme` cover the same dark variables — no third source of truth, and every emitted value traces to a field already on the report.
+- [x] Given the change, when it lands, then **no schema surface is added** — both views remain pure renderings of existing fields.
+- [x] Given the change, when `npm run eval` runs, then it passes; if the emitted markdown for the `dark-mode` fixture changes, the diff is quoted in the PR description.
 
 ### Technical Notes
 
@@ -744,6 +828,10 @@ Verified at `d619f19`: `emitTailwindTheme` emits a full `prefers-color-scheme: d
 - Sequence against **DIST-071**, which moves `emitTailwindTheme` out of `lib/emit.ts`. Landing DIST-071 first makes this a smaller diff.
 - The `dark-mode` fixture exercises this path, so the change is covered by the existing corpus — unusual for this phase, and worth noting in the PR.
 - Files: `lib/emit.ts`.
+
+### As Built
+
+- `renderCssVariables` in `lib/emit.ts` appends a `@media (prefers-color-scheme: dark) { :root { --color-<role> } }` block only when `paletteDark` has colors, with the same selection as `emitTailwindTheme`.
 
 ### Dependencies
 
@@ -760,6 +848,7 @@ Verified at `d619f19`: `emitTailwindTheme` emits a full `prefers-color-scheme: d
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P3-3
 **Labels**: `enhancement`, `ai-lane`, `performance`
+**Status**: done — issue closed, PR #154 merged
 
 ### Description
 
@@ -773,17 +862,23 @@ No user-visible impact today — the workbench always sends `both` — but a `st
 
 ### Acceptance Criteria
 
-- [ ] Given `analyzeUrl` with `mode: "structure"`, when it runs with an API key set, then `enrichWithAI` is **not** called and no interpretation request is issued.
-- [ ] Given `analyzeUrl` with `mode: "tokens"` or `"both"`, when it runs, then behavior is unchanged from today.
-- [ ] Given `mode: "structure"`, when the response is built, then the design report is still returned as measured (the structure lane's `both`-mode token cross-link is unaffected), and `meta.aiApplied` honestly reflects that no token enrichment ran.
-- [ ] Given the change, when the URL and image paths are compared, then they use the **same** gating predicate rather than two independently-written conditions.
-- [ ] Given the change, when `npm run eval` runs, then it passes with `eval/baseline.json` untouched (the eval path never calls the AI lane).
+- [x] Given `analyzeUrl` with `mode: "structure"`, when it runs with an API key set, then `enrichWithAI` is **not** called and no interpretation request is issued.
+- [x] Given `analyzeUrl` with `mode: "tokens"` or `"both"`, when it runs, then behavior is unchanged from today.
+- [x] Given `mode: "structure"`, when the response is built, then the design report is still returned as measured (the structure lane's `both`-mode token cross-link is unaffected), and `meta.aiApplied` honestly reflects that no token enrichment ran.
+- [x] Given the change, when the URL and image paths are compared, then they use the **same** gating predicate rather than two independently-written conditions.
+- [x] Given the change, when `npm run eval` runs, then it passes with `eval/baseline.json` untouched (the eval path never calls the AI lane).
 
 ### Technical Notes
 
 - Reuse `wantsTokenEnrichment` (or hoist it) so the two paths share one predicate — writing a second, parallel condition here would re-create the divergence pattern this phase is otherwise closing.
 - Check Stage 7's AI *naming* lane is unaffected: that is part of the structure lane and **should** still run in `structure` mode when a key is present. This story targets only `enrichWithAI` / `lib/interpret.ts`.
 - Files: `lib/analyze.ts`.
+
+### As Built
+
+- `enrichWithAI` takes `{ requested }` and returns `outcome: "not-requested"` without a model call when it is false; `meta.aiApplied` no longer exists, and `meta.aiOutcome` reports `not-requested`.
+- Stage 7 AI naming still runs in `structure` mode when a key is set.
+- Both paths gate on the shared `wantsTokens(mode)` and `wantsStructure(mode)` helpers in `lib/analyze.ts` (2026-10-14).
 
 ### Dependencies
 
@@ -800,6 +895,7 @@ No user-visible impact today — the workbench always sends `both` — but a `st
 **Complexity**: Small
 **Phase**: PRD §12 Phase 8 / P3-4
 **Labels**: `bug`, `extraction`, `palette`
+**Status**: done — issue closed, PR #155 merged
 
 ### Description
 
@@ -813,11 +909,11 @@ Honest in the sense that it is measured, but it reports a **role the image does 
 
 ### Acceptance Criteria
 
-- [ ] Given a single-cluster image, when the palette is built, then **no** `text` swatch is emitted and no `text on background` contrast pair appears.
-- [ ] Given a multi-cluster image, when the palette is built, then text-role selection is unchanged from today.
-- [ ] Given a report with no `text` role, when it is emitted, then the palette section, contrast pairs, and the CSS-variables block all render without a malformed or empty entry.
-- [ ] Given a single-cluster image, when it is analyzed, then the request still succeeds — this is an omitted field, **not** a new error path; `DegenerateImageError` remains reserved for unreadable/transparent uploads.
-- [ ] Given the change, when `npm run eval` runs, then it passes with `eval/baseline.json` untouched (no fixture exercises the image path).
+- [x] Given a single-cluster image, when the palette is built, then **no** `text` swatch is emitted and no `text on background` contrast pair appears.
+- [x] Given a multi-cluster image, when the palette is built, then text-role selection is unchanged from today.
+- [x] Given a report with no `text` role, when it is emitted, then the palette section, contrast pairs, and the CSS-variables block all render without a malformed or empty entry.
+- [x] Given a single-cluster image, when it is analyzed, then the request still succeeds — this is an omitted field, **not** a new error path; `DegenerateImageError` remains reserved for unreadable/transparent uploads.
+- [x] Given the change, when `npm run eval` runs, then it passes with `eval/baseline.json` untouched (no fixture exercises the image path).
 
 ### Technical Notes
 
@@ -825,6 +921,10 @@ Honest in the sense that it is measured, but it reports a **role the image does 
 - Check that `lib/emit.ts` and the workbench's swatch/contrast preview tolerate an absent `text` role — the optional-field contract says they should, but the image path is the least-exercised one in the codebase.
 - Manual verification: a 1×1 or flat-fill PNG through `analyzeImages` is the smallest reproduction. Delete the scratch script afterwards.
 - Files: `lib/extract/imagePalette.ts`.
+
+### As Built
+
+- `extractImagePalette` in `lib/extract/imagePalette.ts` adds a `text` swatch only when the best-contrast cluster is not already assigned, so a single-cluster image gets no `text` role and no `text on background` pair.
 
 ### Dependencies
 

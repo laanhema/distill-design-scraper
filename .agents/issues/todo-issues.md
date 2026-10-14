@@ -5,34 +5,54 @@ Extended from `.agents/reviews/codebase-analysis-review.md` on 2026-10-13 (TODO-
 Extended from the conversation on 2026-10-14 (TODO-23 and TODO-24, follow-ups of TODO-12 that the owner agreed to).
 Extended from the conversation on 2026-10-14 (TODO-25, a follow-up of TODO-13 that the owner agreed to).
 Extended from `TODO.md` on 2026-10-14 (TODO-26).
+Extended from `TODO.md` on 2026-10-14 (TODO-27).
 Last Updated: 2026-10-14
 
 ## Status
 
-3 stories are done (TODO-2, TODO-4, TODO-5), 2 stories are pending (TODO-1, TODO-3). Issues #156 and #158 remain open on GitHub; spike #166 was completed for #156.
+24 issues are done (TODO-2, TODO-4 to TODO-26) and 3 are pending (TODO-1, TODO-3, TODO-27): #156, #158 and #218 are open on GitHub with no pull request. The spike issue #166 of TODO-1 is still open on GitHub although its report, `.agents/reports/overlay-mitigation-spike.md`, exists.
 
-| Story | Issue | Pull request | Phase | Status | Acceptance criteria ticked |
-| --- | --- | --- | --- | --- | --- |
-| [TODO-1] Handle Inaccessible URLs, Bot-Blocks, and View-Obscuring Overlays Gracefully | #156 | none | Backlog | pending | 0 of 4 |
-| [TODO-2] Set Cursor Pointer on Interactive UI Buttons | #157 | #162 | Backlog | done — issue closed, PR #162 merged | 3 of 3 |
-| [TODO-3] Investigate Secure Local Distribution and Sharing Models (Docker / BYOK) | #158 | none | Backlog | pending | 0 of 3 |
-| [TODO-4] Prevent Layout Shift and Button Width Changes on Tab Selection and State Changes | #159 | #165 | Backlog | done — issue closed, PR #165 merged | 3 of 3 |
-| [TODO-5] Remove "Copy .md" Button from the Workbench Header | #160 | #161 | Backlog | done — issue closed, PR #161 merged | 4 of 4 |
+| Issue | Title | Pull request | Status | Acceptance criteria ticked |
+| --- | --- | --- | --- | --- |
+| #156 | [TODO-1] Handle Inaccessible URLs, Bot-Blocks, and View-Obscuring Overlays Gracefully | none | pending | 0 of 4 |
+| #157 | [TODO-2] Set Cursor Pointer on Interactive UI Buttons | #162 | done | 3 of 3 |
+| #158 | [TODO-3] Investigate Secure Local Distribution and Sharing Models (Docker / BYOK) | none | pending | 0 of 3 |
+| #159 | [TODO-4] Prevent Layout Shift and Button Width Changes on Tab Selection and State Changes | #165 | done | 3 of 3 |
+| #160 | [TODO-5] Remove "Copy .md" Button from the Workbench Header | #161 | done | 4 of 4 |
+| #170 | [TODO-6] Validate the `/api/analyze` request body | #187 | done | 5 of 5 |
+| #171 | [TODO-7] Share one typed response contract between the route and the page | #189 | done | 6 of 6 |
+| #172 | [TODO-8] Show the AI lane's real status instead of "skipped (no key)" | #190 | done | 5 of 5 |
+| #173 | [TODO-9] Hold the analysis lifecycle in one state value | #191 | done | 4 of 4 |
+| #174 | [TODO-10] Type the in-page style walker and remove its double cast | #192 | done | 5 of 5 |
+| #175 | [TODO-11] Run the two model calls of the URL path concurrently | #193 | done | 5 of 5 |
+| #176 | [TODO-12] Fetch cross-origin stylesheets concurrently, with a timeout, once per analysis | #194 | done | 5 of 5 |
+| #177 | [TODO-13] Bring the AI lane's JSON Schema back in line with its Zod schema | #198 | done | 3 of 3 |
+| #178 | [TODO-14] Cache nearest-color lookups in the palette area pass | #202 | done | 3 of 3 |
+| #179 | [TODO-15] Stop repeating screenshots in the `/api/analyze` response | #203 | done | 4 of 4 |
+| #180 | [TODO-16] Remove the dead `Page` overload of `extractStructure` | #188 | done | 3 of 3 |
+| #181 | [TODO-17] Delete three unused leftovers | #188 | done | 4 of 4 |
+| #182 | [TODO-18] Replace seventeen casts with annotations or narrowing | #204 | done | 4 of 4 |
+| #183 | [TODO-19] Validate `expected.yaml` with a strict schema | #205 | done | 3 of 3 |
+| #184 | [TODO-20] Make `CorpusEntry` a union of fixture and URL entries | #206 | done | 3 of 3 |
+| #185 | [TODO-21] Include the verify driver in the type check | #188 | done | 3 of 3 |
+| #186 | [TODO-22] Declare the capture artifacts once | #188 | done | 4 of 4 |
+| #196 | [TODO-23] Add a permanent two-origin check of the cross-origin stylesheet pass | #213 | done | 6 of 6 |
+| #197 | [TODO-24] Warn when a cross-origin stylesheet refetch times out | #214 | done | 5 of 5 |
+| #199 | [TODO-25] Remove the native Gemini provider path and run the AI lane over OpenRouter only | #201 | done | 5 of 5 |
+| #212 | [TODO-26] Prune Non-Essential Comments Across the Codebase | #217 | done | 4 of 4 |
+| #218 | [TODO-27] Keep page sections that share a shape from collapsing into one repeated component | none | pending | 0 of 6 |
 
-Criteria checked on 2026-10-13 against the codebase at HEAD (`e1f25e7`) and GitHub issue/PR records. Ticked boxes indicate empirical verification in code and tests. Delivery records are in git history and PRs #161, #162, #163, #165, and `.agents/reports/overlay-mitigation-spike.md`.
+Criteria were checked on 2026-10-14 against the code at `4291324`, with offline `npm run typecheck`, `npm run lint`, `npm run eval` and `npm run build` runs (all passed) and the CI run on `4291324` (passed); the product was not run in this check. A criterion that needs a live run (`/verify`, a key, a timing) is ticked on the validation table of the issue's report in `.agents/reports/todo-N-*-plan-report.md`, where the code still holds the behaviour; TODO-16, TODO-17, TODO-21 and TODO-22 shipped together in PR #188, which has no report. Plans are in `.agents/plans/completed/`, reports in `.agents/reports/`, reviews in `.agents/reviews/`.
 
-### Open Items Without a Story
-
-**Known issues**
-
-None
+### Open Items Without an Issue
 
 **Specified in the source but not built**
 
-- Overlay and bot mitigation implementation (spiked in #166; unbuilt in code for #156)
-- Distribution and BYOK strategy (pending in #158)
+- Overlay and bot mitigation (TODO-1, #156; spiked in #166)
+- Distribution and BYOK strategy (TODO-3, #158)
+- Page sections that share a shape collapse into one repeated component (TODO-27, #218)
 
-**Open GitHub issues that no story names**
+**Open GitHub issues that no issue entry names**
 
 - #166 [TODO-1] Spike: bypass or detect view-obscuring overlays, cookie walls, and paywalls before capture
 
@@ -248,7 +268,7 @@ Remove the "Copy Design System .md" / "Copy Structure .md" button from the workb
 ## [TODO-6] Validate the `/api/analyze` request body
 
 **GitHub**: #170
-**Status**: pending
+**Status**: done — issue closed, PR #187 merged
 **Type**: Bug
 **GitHub Label**: bug
 **Priority**: High
@@ -263,11 +283,11 @@ Remove the "Copy Design System .md" / "Copy Structure .md" button from the workb
 
 ### Acceptance Criteria
 
-- [ ] The request body is parsed as `unknown` and validated with a Zod schema before any field is read.
-- [ ] `null`, `{"url":123}`, `{"images":[null]}`, `{"images":"abc"}` and `{"images":[{"data":5}]}` each get a 400 that names the invalid field; none throws out of the handler or returns 502.
-- [ ] An unknown `mode` gets a 400 and is not cached; an absent `mode` still defaults to `"both"`.
-- [ ] The mode type is exported once and replaces the repeated literal union in `lib/analyze.ts`.
-- [ ] `npm run check` and `/verify` (`error`, `analyze-url`, `analyze-images`) pass.
+- [x] The request body is parsed as `unknown` and validated with a Zod schema before any field is read.
+- [x] `null`, `{"url":123}`, `{"images":[null]}`, `{"images":"abc"}` and `{"images":[{"data":5}]}` each get a 400 that names the invalid field; none throws out of the handler or returns 502.
+- [x] An unknown `mode` gets a 400 and is not cached; an absent `mode` still defaults to `"both"`.
+- [x] The mode type is exported once and replaces the repeated literal union in `lib/analyze.ts`.
+- [x] `npm run check` and `/verify` (`error`, `analyze-url`, `analyze-images`) pass.
 
 ### Technical Notes
 
@@ -277,6 +297,12 @@ Remove the "Copy Design System .md" / "Copy Structure .md" button from the workb
 - Use the exported mode type at `lib/analyze.ts:185` and `:335`.
 - Read `docs/architecture/api-route.md` and `docs/architecture/security.md` before editing (AGENTS.md).
 - Finding H1 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, `unknown` over `any`.
+
+### As Built
+
+- `analyzeBodySchema.safeParse` in `app/api/analyze/route.ts` validates the parsed `unknown` body before any field is read; a failure returns 400 naming each failing path, before the cache lookup.
+- `modeSchema` and `AnalyzeMode` are exported from `lib/analyze.ts` and used by the route.
+- The malformed-body reproduction and the verify runs are recorded in `.agents/reports/todo-6-validate-analyze-request-body-plan-report.md`.
 
 ### Dependencies
 
@@ -288,7 +314,7 @@ Remove the "Copy Design System .md" / "Copy Structure .md" button from the workb
 ## [TODO-7] Share one typed response contract between the route and the page
 
 **GitHub**: #171
-**Status**: pending
+**Status**: done — issue closed, PR #189 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Medium
@@ -303,12 +329,12 @@ The response of `/api/analyze` has no shared type: `app/page.tsx` re-declares `M
 
 ### Acceptance Criteria
 
-- [ ] One type-only module declares `AnalyzeResponse` as a union discriminated on `ok`; `app/page.tsx` and `app/api/analyze/route.ts` both import it, and `page.tsx` no longer declares `Meta`, `Refinement` or `AnalyzeResponse`.
-- [ ] Both success payloads in `route.ts` are checked with `satisfies`, and every error reply carries `ok: false`.
-- [ ] `MAX_IMAGES` is declared once and imported by both files.
-- [ ] A reply that is not JSON shows a readable error, and the client narrows on `ok` with no cast on `res.json()`.
-- [ ] A refinement with no previous role does not render as "undefined→…".
-- [ ] `npm run check` and `/verify` (`error`, `analyze-url`, `analyze-images`) pass.
+- [x] One type-only module declares `AnalyzeResponse` as a union discriminated on `ok`; `app/page.tsx` and `app/api/analyze/route.ts` both import it, and `page.tsx` no longer declares `Meta`, `Refinement` or `AnalyzeResponse`.
+- [x] Both success payloads in `route.ts` are checked with `satisfies`, and every error reply carries `ok: false`.
+- [x] `MAX_IMAGES` is declared once and imported by both files.
+- [x] A reply that is not JSON shows a readable error, and the client narrows on `ok` with no cast on `res.json()`.
+- [x] A refinement with no previous role does not render as "undefined→…".
+- [x] `npm run check` and `/verify` (`error`, `analyze-url`, `analyze-images`) pass.
 
 ### Technical Notes
 
@@ -317,6 +343,11 @@ The response of `/api/analyze` has no shared type: `app/page.tsx` re-declares `M
 - `page.tsx`: interfaces at lines 7-36, cast at 144, check at 145, fallbacks at 149-158, error text at 161, refinement rendering at 490. `Refinement.from` is `string` there but `from?: ColorRole` in `lib/interpret.ts:213`.
 - `MAX_IMAGES` is declared in `page.tsx:49` and in `route.ts:21`.
 - Finding M1 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, Discriminated unions.
+
+### As Built
+
+- `lib/api.ts` is type-only and holds `AnalyzeResponse = AnalyzeSuccess | AnalyzeFailure`, `AiOutcome`, `MAX_IMAGES` and the `isAnalyzeResponse` guard.
+- `app/page.tsx` reads `res.json()` as `unknown`, shows "server returned an unexpected non-JSON response" when parsing fails, and narrows with `isAnalyzeResponse`; a refinement without `from` renders as `#hex →to`.
 
 ### Dependencies
 
@@ -328,7 +359,7 @@ The response of `/api/analyze` has no shared type: `app/page.tsx` re-declares `M
 ## [TODO-8] Show the AI lane's real status instead of "skipped (no key)"
 
 **GitHub**: #172
-**Status**: pending
+**Status**: done — issue closed, PR #190 merged
 **Type**: Bug
 **GitHub Label**: bug
 **Priority**: Medium
@@ -343,11 +374,11 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 
 ### Acceptance Criteria
 
-- [ ] `enrichWithAI` returns the lane's outcome as `"applied" | "no-key" | "failed" | "not-requested"`.
-- [ ] `meta` carries that outcome in place of `aiApplied`.
-- [ ] The preview shows one label per outcome, and the setup hint only for `"no-key"`.
-- [ ] With a key set and a failing model, the page does not say "no key".
-- [ ] `drive.ts` asserts the new label; `npm run check` and `/verify` (`analyze-url`, `tabs-downloads`, `analyze-images`) pass.
+- [x] `enrichWithAI` returns the lane's outcome as `"applied" | "no-key" | "failed" | "not-requested"`.
+- [x] `meta` carries that outcome in place of `aiApplied`.
+- [x] The preview shows one label per outcome, and the setup hint only for `"no-key"`.
+- [x] With a key set and a failing model, the page does not say "no key".
+- [x] `drive.ts` asserts the new label; `npm run check` and `/verify` (`analyze-url`, `tabs-downloads`, `analyze-images`) pass.
 
 ### Technical Notes
 
@@ -356,6 +387,11 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 - `.claude/skills/verify/scripts/drive.ts:129` asserts the current text.
 - `meta` is part of the shared response type of TODO-7.
 - Finding M2 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, Impossible states.
+
+### As Built
+
+- `enrichWithAI` returns `outcome`, carried as `meta.aiOutcome: AiOutcome`; `AI_LANE_LABELS` in `app/page.tsx` maps the four values to `applied` / `skipped (no key)` / `failed` / `skipped (not requested)`.
+- The setup hint shows only for `no-key`; `drive.ts` asserts `meta.aiOutcome` and the visible label.
 
 ### Dependencies
 
@@ -368,7 +404,7 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 ## [TODO-9] Hold the analysis lifecycle in one state value
 
 **GitHub**: #173
-**Status**: pending
+**Status**: done — issue closed, PR #191 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Medium
@@ -383,10 +419,10 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 
 ### Acceptance Criteria
 
-- [ ] One union over `idle`, `loading`, `error` and `done` replaces the eight `useState` calls of `app/page.tsx:77-84`.
-- [ ] Each transition sets the state once, and no render guard reads `status === "done" && report && meta`.
-- [ ] The download file names come from the analysed result and do not change when the form is edited afterwards.
-- [ ] `npm run check` and `/verify` (`analyze-url`, `tabs-downloads`, `analyze-images`) pass.
+- [x] One union over `idle`, `loading`, `error` and `done` replaces the eight `useState` calls of `app/page.tsx:77-84`.
+- [x] Each transition sets the state once, and no render guard reads `status === "done" && report && meta`.
+- [x] The download file names come from the analysed result and do not change when the form is edited afterwards.
+- [x] `npm run check` and `/verify` (`analyze-url`, `tabs-downloads`, `analyze-images`) pass.
 
 ### Technical Notes
 
@@ -395,6 +431,11 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 - The `tab` state can stay separate; keep the fallback to `preview` when a result has no structure report (`docs/architecture/frontend.md`).
 - Colours stay on the semantic tokens (`docs/architecture/frontend.md`).
 - Finding M3 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, Impossible states.
+
+### As Built
+
+- `app/page.tsx` holds an `AnalysisState` union (`idle` / `loading` / `error` / `done`); the `done` value carries the result, `sourceName` and `sourceImages`, and `tab` stays a separate state.
+- `deriveHost(sourceName, defaultHost)` builds the download names from the analyzed result.
 
 ### Dependencies
 
@@ -406,7 +447,7 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 ## [TODO-10] Type the in-page style walker and remove its double cast
 
 **GitHub**: #174
-**Status**: pending
+**Status**: done — issue closed, PR #192 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Medium
@@ -421,11 +462,11 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 
 ### Acceptance Criteria
 
-- [ ] Records, the node list and the color list inside the walker are typed `NodeStyle`, `NodeStyle[]` and `NodeStyle["colors"]`.
-- [ ] `collectStyleDump` has no `as unknown as StyleDump`; the return type of `page.evaluate` is inferred.
-- [ ] `scanRules` is typed `ReturnType<typeof createStateScanner>` at both call sites.
-- [ ] The style dump of the fixture pages is the same as before the change.
-- [ ] `npm run check` and `/verify` (`analyze-url`) pass.
+- [x] Records, the node list and the color list inside the walker are typed `NodeStyle`, `NodeStyle[]` and `NodeStyle["colors"]`.
+- [x] `collectStyleDump` has no `as unknown as StyleDump`; the return type of `page.evaluate` is inferred.
+- [x] `scanRules` is typed `ReturnType<typeof createStateScanner>` at both call sites.
+- [x] The style dump of the fixture pages is the same as before the change.
+- [x] `npm run check` and `/verify` (`analyze-url`) pass.
 
 ### Technical Notes
 
@@ -435,6 +476,11 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 - Read `docs/architecture/tokens-lane.md` first. Do not refresh `eval/corpus/*/capture.json`: the capture shape does not change.
 - TODO-12 edits the same function.
 - Finding M4 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, No `as` casts.
+
+### As Built
+
+- `collectStyleDump` in `lib/extract/styleDump.ts` builds typed `NodeStyle` records with no `as unknown as StyleDump`; both scanner sites are annotated `ReturnType<typeof createStateScanner>`.
+- The one remaining `as unknown as` is the `__name` shim on `globalThis`, which the issue left in place.
 
 ### Dependencies
 
@@ -446,7 +492,7 @@ The preview's AI-lane field reads "skipped (no key)" and shows the setup hint wh
 ## [TODO-11] Run the two model calls of the URL path concurrently
 
 **GitHub**: #175
-**Status**: pending
+**Status**: done — issue closed, PR #193 merged
 **Type**: Enhancement
 **GitHub Label**: enhancement
 **Priority**: Medium
@@ -461,11 +507,11 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 
 ### Acceptance Criteria
 
-- [ ] On the URL path the Stage 7 labelling call starts together with `enrichWithAI`, not after it.
-- [ ] Stages 8a and 8b still receive the enriched report.
-- [ ] A failure of the structure lane still yields `structureUnavailableReason` and a response that is not cached.
-- [ ] `npm run eval` prints the same scores.
-- [ ] Checked in the running app with an API key (`AI_LANE=on`).
+- [x] On the URL path the Stage 7 labelling call starts together with `enrichWithAI`, not after it.
+- [x] Stages 8a and 8b still receive the enriched report.
+- [x] A failure of the structure lane still yields `structureUnavailableReason` and a response that is not cached.
+- [x] `npm run eval` prints the same scores.
+- [x] Checked in the running app with an API key (`AI_LANE=on`).
 
 ### Technical Notes
 
@@ -477,6 +523,11 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 - Read `docs/architecture/orchestration.md` and `docs/architecture/structure-lane.md` first.
 - Finding M5 of `.agents/reviews/codebase-analysis-review.md`; rule: react-best-practices, `async-dependencies`.
 
+### As Built
+
+- `analyzeUrl` runs `enrichWithAI` and `extractStructureThroughStage7` together with `Promise.all`, then passes the enriched report to `finalizeStructure` (Stages 8a–10).
+- The `VERIFY_AI=1` run is recorded in `.agents/reports/todo-11-run-url-model-calls-concurrently-plan-report.md` (`aiOutcome: "applied"`).
+
 ### Dependencies
 
 - Blocked by: None
@@ -487,7 +538,7 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 ## [TODO-12] Fetch cross-origin stylesheets concurrently, with a timeout, once per analysis
 
 **GitHub**: #176
-**Status**: pending
+**Status**: done — issue closed, PR #194 merged
 **Type**: Enhancement
 **GitHub Label**: enhancement
 **Priority**: Medium
@@ -502,11 +553,11 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 
 ### Acceptance Criteria
 
-- [ ] Cross-origin stylesheets are fetched concurrently, each with an explicit timeout of a few seconds.
-- [ ] Their rules are applied in the original stylesheet order.
-- [ ] The dark-scheme pass reuses the CSS text that the light pass fetched.
-- [ ] A sheet that fails or times out is skipped without failing the analysis.
-- [ ] Checked on a page with a cross-origin stylesheet: the same hover/focus states and keyframes are recovered as before.
+- [x] Cross-origin stylesheets are fetched concurrently, each with an explicit timeout of a few seconds.
+- [x] Their rules are applied in the original stylesheet order.
+- [x] The dark-scheme pass reuses the CSS text that the light pass fetched.
+- [x] A sheet that fails or times out is skipped without failing the analysis.
+- [x] Checked on a page with a cross-origin stylesheet: the same hover/focus states and keyframes are recovered as before.
 
 ### Technical Notes
 
@@ -516,6 +567,11 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 - The check needs a local page with a cross-origin sheet; `.agents/reports/cross-origin-states-spike.md` describes the two-origin fixture.
 - TODO-10 edits the same function.
 - Finding M6 of `.agents/reviews/codebase-analysis-review.md`; rule: react-best-practices, `async-parallel`.
+
+### As Built
+
+- `fetchCrossOriginSheet` requests every sheet at once under `CROSS_ORIGIN_SHEET_TIMEOUT_MS` (5 s), and the texts are applied in stylesheet order.
+- A `CrossOriginSheetCache` that `capturePage` creates per capture is shared by the light and dark dumps; a failed sheet is remembered as `null` and not retried.
 
 ### Dependencies
 
@@ -527,7 +583,7 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 ## [TODO-13] Bring the AI lane's JSON Schema back in line with its Zod schema
 
 **GitHub**: #177
-**Status**: pending
+**Status**: done — issue closed, PR #198 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Medium
@@ -542,9 +598,9 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 
 ### Acceptance Criteria
 
-- [ ] The schema sent for the interpretation lane states the bounds of `aiResponseSchema`: 3 to 6 adjectives, a non-empty archetype and description, and at least one hero and one texture query.
-- [ ] `npm run eval:ai` passes with a key on Gemini, and the request is accepted over OpenRouter.
-- [ ] `npm run check` passes.
+- [x] The schema sent for the interpretation lane states the bounds of `aiResponseSchema`: 3 to 6 adjectives, a non-empty archetype and description, and at least one hero and one texture query.
+- [x] `npm run eval:ai` passes with a key on Gemini, and the request is accepted over OpenRouter.
+- [x] `npm run check` passes.
 
 ### Technical Notes
 
@@ -553,6 +609,11 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 - `STRUCTURE_SCHEMA` (`lib/extract/structure/structureAI.ts:31`) is a second hand-written copy, in sync today. It uses `additionalProperties` dictionaries, which is why the OpenRouter request is not `strict` (`lib/aiLane.ts:147-155`).
 - Only a live call shows whether a provider accepts the generated keywords, so keep this change in a pull request of its own.
 - Finding M7 of `.agents/reviews/codebase-analysis-review.md`; outside the guides.
+
+### As Built
+
+- `OUTPUT_SCHEMA = z.toJSONSchema(aiResponseSchema)` in `lib/interpret.ts`, sent non-strict; `STRUCTURE_SCHEMA` stays a hand-written mirror.
+- At the time, the stability gate of `npm run eval:ai` failed on the native Gemini API while the schema was accepted; the native path was removed later (#199), and `npm run eval:ai` has passed over OpenRouter on the default Gemini model since #209 (`.agents/reports/issue-209-seed-interpretation-lane-plan-report.md`).
 
 ### Dependencies
 
@@ -564,7 +625,7 @@ With an API key, a URL analysis makes two model calls in series: `analyzeUrl` aw
 ## [TODO-14] Cache nearest-color lookups in the palette area pass
 
 **GitHub**: #178
-**Status**: pending
+**Status**: done — issue closed, PR #202 merged
 **Type**: Enhancement
 **GitHub Label**: enhancement
 **Priority**: Medium
@@ -579,9 +640,9 @@ The palette's area pass converts every sampled pixel to Lab and scans all canoni
 
 ### Acceptance Criteria
 
-- [ ] The area pass takes each pixel's nearest canonical color from a per-call cache keyed by its RGB value, and computes Lab only on a miss.
-- [ ] Area weights and image-sourced colors are identical to before for the three committed captures.
-- [ ] `npm run eval` prints the same scores, with the baseline untouched.
+- [x] The area pass takes each pixel's nearest canonical color from a per-call cache keyed by its RGB value, and computes Lab only on a miss.
+- [x] Area weights and image-sourced colors are identical to before for the three committed captures.
+- [x] `npm run eval` prints the same scores, with the baseline untouched.
 
 ### Technical Notes
 
@@ -590,6 +651,10 @@ The palette's area pass converts every sampled pixel to Lab and scans all canoni
 - Workflow from AGENTS.md: make the change, run `npm run eval`, and do not refresh the baseline, because the scores must not move.
 - Read `docs/architecture/tokens-lane.md` first.
 - Finding M8 of `.agents/reviews/codebase-analysis-review.md`; rule: react-best-practices, `js-cache-function-results`.
+
+### As Built
+
+- `assignAreaWeights` in `lib/extract/palette.ts` keys a per-call cache by `(r << 16) | (g << 8) | b`; a miss still counts toward `farCount`/`farBuckets`.
 
 ### Dependencies
 
@@ -601,7 +666,7 @@ The palette's area pass converts every sampled pixel to Lab and scans all canoni
 ## [TODO-15] Stop repeating screenshots in the `/api/analyze` response
 
 **GitHub**: #179
-**Status**: pending
+**Status**: done — issue closed, PR #203 merged
 **Type**: Enhancement
 **GitHub Label**: enhancement
 **Priority**: Medium
@@ -616,10 +681,10 @@ The response carries `viewportShot` in addition to `viewportShots[0]`, and in im
 
 ### Acceptance Criteria
 
-- [ ] The response has no `viewportShot`; the page reads `viewportShots[0]`.
-- [ ] In image mode the response returns no screenshots, and the preview shows the images captured at submit time.
-- [ ] `README.md` and `docs/architecture/api-route.md` describe the new response.
-- [ ] `/verify` (`analyze-url`, `analyze-images`) passes, with the `viewportShots` check in `drive.ts` updated.
+- [x] The response has no `viewportShot`; the page reads `viewportShots[0]`.
+- [x] In image mode the response returns no screenshots, and the preview shows the images captured at submit time.
+- [x] `README.md` and `docs/architecture/api-route.md` describe the new response.
+- [x] `/verify` (`analyze-url`, `analyze-images`) passes, with the `viewportShots` check in `drive.ts` updated.
 
 ### Technical Notes
 
@@ -631,6 +696,11 @@ The response carries `viewportShot` in addition to `viewportShots[0]`, and in im
 - Measured on `clean-light`: 119 KiB of the 366 KiB of image data is the repeat.
 - Finding M9 of `.agents/reviews/codebase-analysis-review.md`; outside the guides.
 
+### As Built
+
+- The URL response carries only `meta.viewportShots` (viewport, then panorama); the image response carries no screenshots, and the page shows the `sourceImages` it held at submit.
+- `docs/architecture/api-route.md` describes the response; the README described it when the issue closed, but the rewrite of the README in `a3dd6ef` removed its API section, so the README no longer mentions the response.
+
 ### Dependencies
 
 - Blocked by: TODO-7, TODO-9
@@ -641,7 +711,7 @@ The response carries `viewportShot` in addition to `viewportShots[0]`, and in im
 ## [TODO-16] Remove the dead `Page` overload of `extractStructure`
 
 **GitHub**: #180
-**Status**: pending
+**Status**: done — issue closed, PR #188 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Low
@@ -656,15 +726,19 @@ The response carries `viewportShot` in addition to `viewportShots[0]`, and in im
 
 ### Acceptance Criteria
 
-- [ ] `extractStructure` takes one options parameter with `rawHarvestNode` required.
-- [ ] The `Page` branch, its two casts and the `harvestDomTree` import are gone from `lib/extract/structure/index.ts`.
-- [ ] `npm run check` passes.
+- [x] `extractStructure` takes one options parameter with `rawHarvestNode` required.
+- [x] The `Page` branch, its two casts and the `harvestDomTree` import are gone from `lib/extract/structure/index.ts`.
+- [x] `npm run check` passes.
 
 ### Technical Notes
 
 - `lib/extract/structure/index.ts:38-76`; the caller is `lib/analyze.ts:119`, which already checks `capture.rawHarvestNode` at line 116.
 - History: the overload was added in 1434c3f; `git log -S"extractStructure(page"` finds no commit.
 - Finding L1 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, Impossible states.
+
+### As Built
+
+- `ExtractStructureOptions.rawHarvestNode` is required in `lib/extract/structure/index.ts`, which imports no Playwright `Page` and no `harvestDomTree`.
 
 ### Dependencies
 
@@ -676,7 +750,7 @@ The response carries `viewportShot` in addition to `viewportShots[0]`, and in im
 ## [TODO-17] Delete three unused leftovers
 
 **GitHub**: #181
-**Status**: pending
+**Status**: done — issue closed, PR #188 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Low
@@ -691,16 +765,20 @@ Three leftovers have no caller: the `additionalScreenshotsPngBase64` field of `P
 
 ### Acceptance Criteria
 
-- [ ] `additionalScreenshotsPngBase64` is removed from `PaletteInput` and from `extractPalette`.
-- [ ] The `foldCutoffY` parameter is removed from `pruneAndCollapse`.
-- [ ] `lightness` is removed from `lib/color.ts`.
-- [ ] `npm run check` passes.
+- [x] `additionalScreenshotsPngBase64` is removed from `PaletteInput` and from `extractPalette`.
+- [x] The `foldCutoffY` parameter is removed from `pruneAndCollapse`.
+- [x] `lightness` is removed from `lib/color.ts`.
+- [x] `npm run check` passes.
 
 ### Technical Notes
 
 - `lib/extract/palette.ts:464`, `:498`, `:501`; `lib/extract/structure/pruner.ts:8`, `:14`, `:17`; `lib/color.ts:46-50`.
 - History: e954cca (DIST-074, #136) stopped passing the extra screenshots; `foldCutoffY` has never been passed since 1434c3f; `lightness` has never been called since 4936522.
 - Finding L2 of `.agents/reviews/codebase-analysis-review.md`; outside the guides.
+
+### As Built
+
+- `additionalScreenshotsPngBase64`, `foldCutoffY` and `lightness` no longer appear in `lib/`.
 
 ### Dependencies
 
@@ -712,7 +790,7 @@ Three leftovers have no caller: the `additionalScreenshotsPngBase64` field of `P
 ## [TODO-18] Replace seventeen casts with annotations or narrowing
 
 **GitHub**: #182
-**Status**: pending
+**Status**: done — issue closed, PR #204 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Low
@@ -727,10 +805,10 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 
 ### Acceptance Criteria
 
-- [ ] The casts at `lib/analyze.ts` 242, 264, 270, 275, 276 and 359 and at `lib/extract/imagePalette.ts:142` give way to one declared outcome type and annotations.
-- [ ] `app/page.tsx:54` and `lib/color.ts:55` test with `typeof`; `lib/extract/styleDump.ts:351` and `lib/extract/structure/harvester.ts:52`, `:54` narrow with `instanceof`.
-- [ ] `lib/extract/states.ts:73` keeps `{ target, state }` in the bucket; `getCache` returns `unknown`; the maps of `eval/score.ts` are typed `Map<string, …>`; `lib/aiLane.ts:168` reads the reply as `unknown` and narrows it.
-- [ ] `npm run check` passes with the same eval scores.
+- [x] The casts at `lib/analyze.ts` 242, 264, 270, 275, 276 and 359 and at `lib/extract/imagePalette.ts:142` give way to one declared outcome type and annotations.
+- [x] `app/page.tsx:54` and `lib/color.ts:55` test with `typeof`; `lib/extract/styleDump.ts:351` and `lib/extract/structure/harvester.ts:52`, `:54` narrow with `instanceof`.
+- [x] `lib/extract/states.ts:73` keeps `{ target, state }` in the bucket; `getCache` returns `unknown`; the maps of `eval/score.ts` are typed `Map<string, …>`; `lib/aiLane.ts:168` reads the reply as `unknown` and narrows it.
+- [x] `npm run check` passes with the same eval scores.
 
 ### Technical Notes
 
@@ -738,6 +816,11 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 - Not in scope: `lib/interpret.ts:249` (inside a type guard), the `__name` shim at `styleDump.ts:283`, and the casts that TODO-7, TODO-10, TODO-16 and TODO-19 remove.
 - `getCache<T>` (`lib/cache.ts:75`) has one caller, `app/api/analyze/route.ts:123`, which already passes `unknown`.
 - Finding L3 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, Narrowing hierarchy.
+
+### As Built
+
+- Fifteen casts were replaced, not seventeen: the other two (`lib/analyze.ts:242` and `:359`) had already gone with #172; the trial lint rule went from 38 assertions to 23.
+- 61 recorded outputs were identical before and after (`.agents/reports/todo-18-replace-seventeen-casts-with-annotations-or-narrowing-plan-report.md`).
 
 ### Dependencies
 
@@ -749,7 +832,7 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 ## [TODO-19] Validate `expected.yaml` with a strict schema
 
 **GitHub**: #183
-**Status**: pending
+**Status**: done — issue closed, PR #205 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Low
@@ -764,9 +847,9 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 
 ### Acceptance Criteria
 
-- [ ] `expected.yaml` is parsed with a strict Zod schema at load, and `as ExpectedSpec` is gone.
-- [ ] A spec with an unknown key fails `npm run eval` with a message that names the key.
-- [ ] `npm run eval` passes with the three committed specs unchanged.
+- [x] `expected.yaml` is parsed with a strict Zod schema at load, and `as ExpectedSpec` is gone.
+- [x] A spec with an unknown key fails `npm run eval` with a message that names the key.
+- [x] `npm run eval` passes with the three committed specs unchanged.
 
 ### Technical Notes
 
@@ -775,6 +858,10 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 - The fix covers the spec. The `as Capture` reads of the captures are named in the finding but are not required here.
 - Do not edit `eval/corpus/adversarial-shell/expected.yaml` to make it fit (AGENTS.md).
 - Finding L4 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, No `as` casts.
+
+### As Built
+
+- `loadExpectedSpec` in `eval/run.ts` parses each spec with `expectedSpecSchema` (`z.strictObject` in `eval/score.ts`), whose structure part is `expectedStructureSpecSchema` in `eval/scoreStructure.ts`.
 
 ### Dependencies
 
@@ -786,7 +873,7 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 ## [TODO-20] Make `CorpusEntry` a union of fixture and URL entries
 
 **GitHub**: #184
-**Status**: pending
+**Status**: done — issue closed, PR #206 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Low
@@ -801,14 +888,18 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 
 ### Acceptance Criteria
 
-- [ ] An entry has either `fixture` or `url`; one with neither does not compile.
-- [ ] `eval/capture.ts` narrows with `in` and has no `!` on `entry.url` or `entry.fixture`.
-- [ ] `npm run eval` passes.
+- [x] An entry has either `fixture` or `url`; one with neither does not compile.
+- [x] `eval/capture.ts` narrows with `in` and has no `!` on `entry.url` or `entry.fixture`.
+- [x] `npm run eval` passes.
 
 ### Technical Notes
 
 - `eval/corpus.ts:14-29`; `eval/capture.ts:23-25`, `:47` and `:75`.
 - Finding L5 of `.agents/reviews/codebase-analysis-review.md`; rule: ts-best-practices, Discriminated unions.
+
+### As Built
+
+- `CorpusEntry` in `eval/corpus.ts` is a union of a `fixture` entry and a `url` entry, and `eval/capture.ts` narrows with `"fixture" in entry`.
 
 ### Dependencies
 
@@ -820,7 +911,7 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 ## [TODO-21] Include the verify driver in the type check
 
 **GitHub**: #185
-**Status**: pending
+**Status**: done — issue closed, PR #188 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Low
@@ -835,15 +926,19 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 
 ### Acceptance Criteria
 
-- [ ] `tsconfig.json` includes `.claude/skills/verify/scripts/**/*.ts`.
-- [ ] `tsc --listFilesOnly` lists `drive.ts`.
-- [ ] `npm run check` passes.
+- [x] `tsconfig.json` includes `.claude/skills/verify/scripts/**/*.ts`.
+- [x] `tsc --listFilesOnly` lists `drive.ts`.
+- [x] `npm run check` passes.
 
 ### Technical Notes
 
 - `tsconfig.json:21`.
 - `next build` type-checks the same program, so the driver must keep compiling under `npm run check`.
 - Finding L6 of `.agents/reviews/codebase-analysis-review.md`; outside the guides.
+
+### As Built
+
+- `tsconfig.json` includes `.claude/skills/verify/scripts/**/*.ts`, and `tsc --listFilesOnly` lists `drive.ts`.
 
 ### Dependencies
 
@@ -855,7 +950,7 @@ Seventeen type assertions stand where an annotation or a narrowing check does th
 ## [TODO-22] Declare the capture artifacts once
 
 **GitHub**: #186
-**Status**: pending
+**Status**: done — issue closed, PR #188 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Low
@@ -870,10 +965,10 @@ The set of capture artifacts is declared three times and copied field by field t
 
 ### Acceptance Criteria
 
-- [ ] The capture artifacts are declared once, in `lib/ingest.ts`.
-- [ ] `RenderResult`, the return type of `capturePage` and `Capture` are built from that one type.
-- [ ] `renderUrl`, `captureFromRender` and `eval/capture.ts` copy the artifacts with a spread, not field by field.
-- [ ] `npm run check` passes.
+- [x] The capture artifacts are declared once, in `lib/ingest.ts`.
+- [x] `RenderResult`, the return type of `capturePage` and `Capture` are built from that one type.
+- [x] `renderUrl`, `captureFromRender` and `eval/capture.ts` copy the artifacts with a spread, not field by field.
+- [x] `npm run check` passes.
 
 ### Technical Notes
 
@@ -882,6 +977,11 @@ The set of capture artifacts is declared three times and copied field by field t
 - The shape of `capture.json` must not change, and the committed captures are not refreshed.
 - Precedent: the comment at `lib/analyze.ts:157-160`.
 - Finding L7 of `.agents/reviews/codebase-analysis-review.md`; outside the guides.
+
+### As Built
+
+- `CaptureArtifacts` in `lib/ingest.ts` is extended by `RenderResult` and `Capture` and is the return type of `capturePage`; `renderUrl`, `captureFromRender` and `eval/capture.ts` copy it with a rest/spread.
+- PR #188 also added `scripts/guard-build.mjs` as the `prebuild` guard and the Rules & Enforcements table of `AGENTS.md`.
 
 ### Dependencies
 
@@ -893,7 +993,7 @@ The set of capture artifacts is declared three times and copied field by field t
 ## [TODO-23] Add a permanent two-origin check of the cross-origin stylesheet pass
 
 **GitHub**: #196
-**Status**: pending
+**Status**: done — issue closed, PR #213 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Medium
@@ -908,12 +1008,12 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 
 ### Acceptance Criteria
 
-- [ ] The verify fixture server serves a stylesheet from a second origin, and a fixture page links it.
-- [ ] A `verify.sh drive` scenario analyzes that page and checks that the hover/focus states and the keyframes of the cross-origin sheet are in the report.
-- [ ] The scenario fails on a tree where the cross-origin pass is disabled, shown once before the change is merged. (inferred)
-- [ ] The scenario also covers a cross-origin sheet that never answers: the analysis completes, and that sheet is skipped. (inferred)
-- [ ] The feature map and the scenario table of the verify `SKILL.md` list the new scenario. (inferred)
-- [ ] `npm run check` passes. (inferred)
+- [x] The verify fixture server serves a stylesheet from a second origin, and a fixture page links it.
+- [x] A `verify.sh drive` scenario analyzes that page and checks that the hover/focus states and the keyframes of the cross-origin sheet are in the report.
+- [x] The scenario fails on a tree where the cross-origin pass is disabled, shown once before the change is merged. (inferred)
+- [x] The scenario also covers a cross-origin sheet that never answers: the analysis completes, and that sheet is skipped. (inferred)
+- [x] The feature map and the scenario table of the verify `SKILL.md` list the new scenario. (inferred)
+- [x] `npm run check` passes. (inferred)
 
 ### Technical Notes
 
@@ -924,6 +1024,12 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 - The verify proof standard applies: drive the real UI or `/api/analyze`, not `collectStyleDump` directly.
 - CI does not run the verify skill, so this check stays a manual gate. Assumption: that is enough for "permanent".
 - `drive.ts` is type-checked and linted with the repo.
+
+### As Built
+
+- The fixture server serves `eval/fixtures/*.css` on a second port of `127.0.0.1`; `eval/fixtures/cross-origin.html` links `cross-origin.css` and `cross-origin-stalled.css`, the second answered only for the browser's own load.
+- `scenarioCrossOrigin` in `drive.ts` checks the states, the keyframes, the skipped stalled sheet and a 20 s render budget; the negative controls are recorded in `.agents/reports/todo-23-add-two-origin-cross-origin-stylesheet-check-plan-report.md`.
+- CI does not run it; it is a manual gate.
 
 ### Dependencies
 
@@ -936,7 +1042,7 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 ## [TODO-24] Warn when a cross-origin stylesheet refetch times out
 
 **GitHub**: #197
-**Status**: pending
+**Status**: done — issue closed, PR #214 merged
 **Type**: Enhancement
 **GitHub Label**: enhancement
 **Priority**: Medium
@@ -951,11 +1057,11 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 
 ### Acceptance Criteria
 
-- [ ] A cross-origin sheet whose refetch times out produces a `console.warn` that names the sheet's URL and the timeout.
-- [ ] A sheet that answers with a status that is not ok, or with an empty body, is still skipped without a log line.
-- [ ] The warning appears once per sheet per analysis; the dark-scheme pass does not repeat it. (inferred)
-- [ ] The analysis still completes, and the report is the same as without the warning. (inferred)
-- [ ] `npm run check` passes. (inferred)
+- [x] A cross-origin sheet whose refetch times out produces a `console.warn` that names the sheet's URL and the timeout.
+- [x] A sheet that answers with a status that is not ok, or with an empty body, is still skipped without a log line.
+- [x] The warning appears once per sheet per analysis; the dark-scheme pass does not repeat it. (inferred)
+- [x] The analysis still completes, and the report is the same as without the warning. (inferred)
+- [x] `npm run check` passes. (inferred)
 
 ### Technical Notes
 
@@ -965,6 +1071,10 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 - The promise is cached per capture in `CrossOriginSheetCache`, so a warning in the fetch itself is logged once for both passes.
 - Pattern: the `console.warn` calls of the best-effort passes at `lib/ingest.ts:160`, `:189`, `:279`, `:316`.
 - `npm run eval` does not run this path. Check it with a scratch script against a local server that never answers (`AGENTS.md`, "Manually verifying extraction changes"), or with the scenario of TODO-23 when it exists.
+
+### As Built
+
+- `fetchCrossOriginSheet` logs a `console.warn` naming the URL and `CROSS_ORIGIN_SHEET_TIMEOUT_MS` only for a Playwright `errors.TimeoutError`, from inside the cached promise, so once per analysis; other failures stay silent.
 
 ### Dependencies
 
@@ -977,7 +1087,7 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 ## [TODO-25] Remove the native Gemini provider path and run the AI lane over OpenRouter only
 
 **GitHub**: #199
-**Status**: pending
+**Status**: done — issue closed, PR #201 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Medium
@@ -992,11 +1102,11 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 
 ### Acceptance Criteria
 
-- [ ] `callModel` has one path, OpenRouter: `callGeminiModel`, `AI_MODEL`, and every read of `GEMINI_API_KEY` and `GEMINI_MODEL` are gone from the code, and `@google/genai` is removed from `package.json` and the lockfile.
-- [ ] `ModelCall` has no `thinkingLevel` field, the three callers do not pass one, and the once-per-process warning about it is gone.
-- [ ] The tooling and the docs name OpenRouter as the only provider: the README, `techstack.md`, `docs/architecture/orchestration.md`, the PRD, the verify skill, the skip message of `npm run eval:ai`, and the setup hint in the UI.
-- [ ] All three AI lanes still return a validated reply over OpenRouter: `npm run eval:ai` passes, and a `VERIFY_AI=1` run of the verify skill shows an applied interpretation for a URL and an inferred structure for an image.
-- [ ] `npm run check` passes.
+- [x] `callModel` has one path, OpenRouter: `callGeminiModel`, `AI_MODEL`, and every read of `GEMINI_API_KEY` and `GEMINI_MODEL` are gone from the code, and `@google/genai` is removed from `package.json` and the lockfile.
+- [x] `ModelCall` has no `thinkingLevel` field, the three callers do not pass one, and the once-per-process warning about it is gone.
+- [x] The tooling and the docs name OpenRouter as the only provider: the README, `techstack.md`, `docs/architecture/orchestration.md`, the PRD, the verify skill, the skip message of `npm run eval:ai`, and the setup hint in the UI.
+- [x] All three AI lanes still return a validated reply over OpenRouter: `npm run eval:ai` passes, and a `VERIFY_AI=1` run of the verify skill shows an applied interpretation for a URL and an inferred structure for an image.
+- [x] `npm run check` passes.
 
 ### Technical Notes
 
@@ -1011,6 +1121,12 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 - CI has no key, so nothing in `npm run check` reaches a provider; the live checks need `OPENROUTER_API_KEY`.
 - The plans, reports and reviews under `.agents/` that mention Gemini are history and are not edited.
 
+### As Built
+
+- `lib/aiLane.ts` talks to OpenRouter only, `ModelCall` has no `thinkingLevel`, and `package.json` has no model SDK.
+- `techstack.md` no longer exists (`TECHSTACK.md` was deleted in `949dc12`, and `PROJECT-GUIDE.md` took its place).
+- When the issue closed, the stability gate of `npm run eval:ai` failed as written (also on unchanged `main`); it has passed in 5 of 5 runs since #209 seeded the interpretation lane. The `VERIFY_AI=1` run showed `aiOutcome: applied` for a URL and images and `fidelity: inferred`.
+
 ### Dependencies
 
 - Blocked by: None
@@ -1022,7 +1138,7 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 ## [TODO-26] Prune Non-Essential Comments Across the Codebase
 
 **GitHub**: #212
-**Status**: pending
+**Status**: done — issue closed, PR #217 merged
 **Type**: Technical
 **GitHub Label**: technical
 **Priority**: Medium
@@ -1037,10 +1153,10 @@ Audit and prune excessive, redundant, or narrative comments across the codebase.
 
 ### Acceptance Criteria
 
-- [ ] Redundant, narrative comments that merely restate what adjacent code does (e.g. obvious fall-throughs or mechanical step descriptions) are removed across `lib/`, `app/`, and `eval/`.
-- [ ] Essential comments are preserved: non-obvious design constraints, safety/security invariants (SSRF/rate-limit bounds), and tricky color math or Playwright browser workarounds.
-- [ ] Code documentation integrity is maintained without altering runtime behavior or types.
-- [ ] `npm run check` (typecheck, lint, build, eval) passes with zero regressions.
+- [x] Redundant, narrative comments that merely restate what adjacent code does (e.g. obvious fall-throughs or mechanical step descriptions) are removed across `lib/`, `app/`, and `eval/`.
+- [x] Essential comments are preserved: non-obvious design constraints, safety/security invariants (SSRF/rate-limit bounds), and tricky color math or Playwright browser workarounds.
+- [x] Code documentation integrity is maintained without altering runtime behavior or types.
+- [x] `npm run check` (typecheck, lint, build, eval) passes with zero regressions.
 
 ### Technical Notes
 
@@ -1049,8 +1165,53 @@ Audit and prune excessive, redundant, or narrative comments across the codebase.
 - Remove comments that explain "what" where the TypeScript types or self-explanatory function names already express it clearly.
 - Ensure strict adherence to repository guidelines (`AGENTS.md`) and run `npm run check`.
 
+### As Built
+
+- PR #217 pruned comments across `lib/`, `app/` and `eval/`; the comments on the SSRF residual gaps (`lib/ingest.ts`), the panorama warning and the Docker tag lockstep remain.
+- `npm run typecheck`, `npm run lint` and `npm run eval` passed on 2026-10-14 at `4291324`, and CI passed on the same commit.
+
 ### Dependencies
 
 - Blocked by: None
 - Blocks: None
 
+---
+
+## [TODO-27] Keep page sections that share a shape from collapsing into one repeated component
+
+**GitHub**: #218
+**Status**: pending
+**Type**: Bug
+**GitHub Label**: bug
+**Priority**: Medium
+**Complexity**: Medium
+**Phase**: Backlog
+**Labels**: bug, structure-lane, extraction
+**Source**: `TODO.md:11` — "Stage 5 repetition merges two page sections that share a shape (a heading over a card grid), so the second one, with different content (pricing after features), vanishes from the skeleton and the page-sections digest. Keep page bands apart, or compare more than tag shape, so `saas-landing` scores 1.00."
+
+### Description
+
+Stage 5 (`detectRepetition` in `lib/extract/structure/repetition.ts`) collapses sibling nodes whose signature matches, and the signature is only the node's tag plus the tags of its first five children. Two page sections with the same shape but different content therefore count as one repeated component: the first is kept with `instanceCount: 2` and the second is dropped from the tree. On the `saas-landing` eval fixture, the features and the pricing section become one `SectionCard ×2`, so the pricing band is missing from the skeleton and the page-sections digest, and every later section shifts by one position.
+
+### Acceptance Criteria
+
+- [ ] Two sibling page sections with the same tag shape but different content stay two nodes in the skeleton and two entries in the page-sections digest.
+- [ ] Repeated content that really is one component (the cards inside a grid, the logos of a logo cloud, FAQ `details`) still collapses to `×N` as today.
+- [ ] `saas-landing` scores 1.00 in `npm run eval`, with its `expected.yaml` unchanged, and `eval/baseline.json` is refreshed deliberately in the same change.
+- [ ] `clean-light`, `dark-mode` and `adversarial-shell` keep their scores.
+- [ ] The responsive diff still aligns the trees, since Stage 7b runs the same stages on each secondary-viewport harvest. (inferred)
+- [ ] `npm run check` passes. (inferred)
+
+### Technical Notes
+
+- The collapse is the `count >= 2` branch of `detectRepetition`: the first match is pushed with `instanceCount: count`, every later match hits `continue`. `getBaseSignature` builds `tag[childTag,…]` from at most five children.
+- On `saas-landing`, both sections squash to `section[h2,div]` (Stage 4b merges the `max-w` wrapper), which is why they match.
+- Two directions, not decided: keep the bands that `findDigestBands` (`sections.ts`) reports out of the collapse, or make the signature compare more than tag shape (for example the subtree's text or child count). The first keeps the change small and leaves card grids alone; the second also affects footer columns, which collapse the same way.
+- The fixture's `expected.yaml` documents the defect and must not be edited to match the collapsed output (`docs/architecture/eval.md`).
+- Read `docs/architecture/structure-lane.md` and `docs/architecture/eval.md` first.
+
+### Dependencies
+
+- Blocked by: None
+- Blocks: None
+- Related: TODO.md:10 (eval headroom)

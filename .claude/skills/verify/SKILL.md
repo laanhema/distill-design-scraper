@@ -22,7 +22,7 @@ Read [`features/README.md`](features/README.md) before driving. It holds the fea
 
 `verify.sh up` starts two process groups, each in its own session:
 
-- **Fixture server** (`scripts/fixture-server.mjs`): serves `eval/fixtures/*.html` (`clean-light`, `dark-mode`, `adversarial-shell`, `cross-origin`) on `http://127.0.0.1:<FIXTURE_PORT>/`. This is verification scaffolding. It gives the app a known page to analyze without the network. A second port, `http://127.0.0.1:<FIXTURE_XO_PORT>/`, serves the fixtures' `*.css` as a second origin with no CORS headers. A served page's `__XO_ORIGIN__` token is replaced with that origin, and a `*-stalled.css` sheet answers only the browser's own load (`Sec-Fetch-Dest: style`), never the app's refetch.
+- **Fixture server** (`scripts/fixture-server.mjs`): serves `eval/fixtures/*.html` (`clean-light`, `dark-mode`, `adversarial-shell`, `saas-landing`, `cross-origin`) on `http://127.0.0.1:<FIXTURE_PORT>/`. This is verification scaffolding. It gives the app a known page to analyze without the network. A second port, `http://127.0.0.1:<FIXTURE_XO_PORT>/`, serves the fixtures' `*.css` as a second origin with no CORS headers. A served page's `__XO_ORIGIN__` token is replaced with that origin, and a `*-stalled.css` sheet answers only the browser's own load (`Sec-Fetch-Dest: style`), never the app's refetch.
 - **App**: `next dev -p <APP_PORT> -H 127.0.0.1` with:
   - `SSRF_ALLOWLIST_HOSTS=127.0.0.1`, so the SSRF guard allows the fixture server. Every other private address is still blocked, and the `error` scenario depends on that.
   - `OPENROUTER_API_KEY=` set empty, so the AI lane is **off**. Next never overrides an env var that is already defined, so the `.env.local` key is ignored. The run stays deterministic, free, and offline. Start with `VERIFY_AI=1 verify.sh up` to keep the `.env.local` key. That run makes real paid model calls.
@@ -60,7 +60,9 @@ Every scenario runs at 1280×900, except `tab-layout`, which resizes to each `--
 | `tabs-downloads` | `--target clean-light` | each tab shows the right markdown; all three downloads match the API payload |
 | `tab-layout` | `--target clean-light`, `--widths 1280,1024,768,390` | at each width, the result header's tab and download buttons keep identical boxes across tab switches, every label stays on one line, and the page has no horizontal overflow |
 | `analyze-images` | `--fixtures clean-light,dark-mode,adversarial-shell`, `--remove <n>` (default: last; `0` removes none before submit) | upload, thumbnails, remove, palette-mood report, a response without screenshots, a preview built from the uploads held at submit, structure behavior with and without a key |
+| `drop-images` | `--fixtures clean-light,dark-mode` | files dropped on the dashed zone (a real `DataTransfer` `drop` event, not the file picker) show as thumbnails and analyze into a palette-mood report |
 | `error` | `--url http://10.0.0.1/` | a blocked URL gives a 400, the error banner, and no result tabs |
+| `degenerate-image` | none | a fully transparent PNG gives a 422 with the transparent-or-invalid message, the error banner, and no result tabs |
 | `cross-origin` | none | the hover/focus states and `@keyframes` of a stylesheet on a second origin reach the report and the tokens tab; a second-origin sheet that never answers the refetch is skipped, and the render stays under 20 s |
 
 Each check prints `ok` or `FAIL`. The command exits 1 if any check fails. A scenario that throws records `scenario ran to completion: FAIL` and saves `failure.png`. A `--target` outside `127.0.0.1` reaches the public internet and real third-party pages, so results vary between runs.
