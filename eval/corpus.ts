@@ -24,7 +24,7 @@ interface CorpusEntryBase {
   optional?: boolean;
 }
 
-/** Exactly one source: a committed local fixture, or a live URL. */
+/** One source: a committed local fixture, or a live URL. An entry with neither does not compile; with both, capture uses the fixture. */
 export type CorpusEntry =
   | (CorpusEntryBase & {
       /** Local fixture filename under eval/fixtures (offline, committed capture). */
