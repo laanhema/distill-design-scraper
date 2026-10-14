@@ -9,6 +9,7 @@
  *   tab-layout      [--target …] [--widths 1280,1024,768,390]
  *   analyze-images  [--fixtures clean-light,dark-mode,adversarial-shell] [--remove <n>]
  *   error           [--url http://10.0.0.1/]
+ *   cross-origin    (no flags; analyzes eval/fixtures/cross-origin.html)
  */
 import { chromium, type Locator, type Page } from "playwright";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -19,6 +20,8 @@ const FIXTURE_URL = need("FIXTURE_URL");
 const OUT = need("EVIDENCE_DIR");
 const AI_ON = process.env.AI_LANE === "on";
 const ANALYZE_TIMEOUT_MS = 180_000;
+/** One 5 s refetch timeout (CROSS_ORIGIN_SHEET_TIMEOUT_MS) plus the render itself; without the timeout a stalled sheet costs 30 s per style dump. */
+const XO_RENDER_BUDGET_MS = 20_000;
 
 function need(name: string): string {
   const v = process.env[name];
@@ -359,6 +362,64 @@ async function scenarioError(page: Page): Promise<void> {
   await shot(page, "error");
 }
 
+interface StateChange {
+  property: string;
+  to: string;
+}
+
+interface CrossOriginReport {
+  states?: { entries: { state: string; changes: StateChange[] }[] };
+  motion?: { entries: { property: string }[]; keyframes?: { name: string }[] };
+}
+
+/**
+ * `cross-origin.html` takes all of its hover/focus states and @keyframes from
+ * two sheets on the fixture server's second origin. `cross-origin.css` answers
+ * the app's refetch; `cross-origin-stalled.css` never does, so the browser
+ * applies it but its rules can only reach the report if the skip is broken.
+ */
+async function scenarioCrossOrigin(page: Page): Promise<void> {
+  const xo = need("FIXTURE_XO_URL");
+  // A new query string misses the app's response cache, so every run renders the page and refetches the sheets.
+  const url = `${targetUrl("cross-origin")}?run=${Date.now()}`;
+  const html = await (await fetch(url)).text();
+  check(
+    "the fixture page links both sheets from the second origin",
+    html.includes(`${xo}/cross-origin.css`) && html.includes(`${xo}/cross-origin-stalled.css`),
+    xo,
+  );
+
+  const a = await analyzeUrl(page, url);
+  await Promise.all(checkDesignReport(page, a, url));
+  const report = (a.body.report ?? {}) as CrossOriginReport;
+  const changes = (state: string) =>
+    (report.states?.entries ?? []).filter((e) => e.state === state).flatMap((e) => e.changes);
+  const has = (state: string, property: string, to: string) =>
+    changes(state).some((c) => c.property === property && c.to === to);
+  const keyframes = (report.motion?.keyframes ?? []).map((k) => k.name);
+  const animations = (report.motion?.entries ?? []).map((e) => e.property);
+
+  check("report.states has the cross-origin hover change", has("hover", "background-color", "#0b3d91"), JSON.stringify(changes("hover")));
+  check("report.states has the cross-origin focus change", has("focus", "border-color", "#e8590c"), JSON.stringify(changes("focus")));
+  check("report.motion.keyframes has the cross-origin @keyframes xo-rise", keyframes.includes("xo-rise"), keyframes.join(", "));
+
+  // The stalled sheet: the browser applied it (its animation is measured), the refetch of its rules was skipped.
+  check("report.motion lists the stalled sheet's animation, so the browser applied it", animations.includes("xo-stalled-fade"), animations.join(", "));
+  check("report.motion.keyframes leaves out the stalled sheet's @keyframes", !keyframes.includes("xo-stalled-fade"));
+  check("report.states leaves out the stalled sheet's hover change", !changes("hover").some((c) => c.property === "box-shadow"));
+  const elapsedMs = Number((a.body.meta as { elapsedMs?: number } | undefined)?.elapsedMs);
+  check(`render finished within ${XO_RENDER_BUDGET_MS} ms despite the stalled sheet`, elapsedMs < XO_RENDER_BUDGET_MS, `${elapsedMs} ms`);
+
+  await shot(page, "result-preview");
+
+  await page.getByRole("button", { name: "Design System Markdown" }).click();
+  await shot(page, "tab-tokens");
+  const md = await page.locator("pre code").innerText();
+  check("tokens tab shows the cross-origin hover and focus colours", md.includes("`#0b3d91`") && md.includes("`#e8590c`"));
+  check("tokens tab shows @keyframes xo-rise", md.includes("@keyframes xo-rise"));
+  check("tokens tab leaves out @keyframes xo-stalled-fade", !md.includes("@keyframes xo-stalled-fade"));
+}
+
 async function main(): Promise<void> {
   const scenario = process.argv[2];
   for (const dir of ["", "downloads", "inputs"]) mkdirSync(join(OUT, dir), { recursive: true });
@@ -377,6 +438,7 @@ async function main(): Promise<void> {
       case "tab-layout": await scenarioTabLayout(page); break;
       case "analyze-images": await scenarioAnalyzeImages(page, browser); break;
       case "error": await scenarioError(page); break;
+      case "cross-origin": await scenarioCrossOrigin(page); break;
       default: throw new Error(`unknown scenario "${scenario}"`);
     }
   } catch (err) {

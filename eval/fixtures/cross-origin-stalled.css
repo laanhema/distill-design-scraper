@@ -1,0 +1,10 @@
+/* Served from the second origin, which answers the browser's load of this sheet
+   and never answers the app's refetch of it (see fixture-server.mjs). The
+   browser applies the animation below, so the report lists it, but its
+   @keyframes and the hover change can only come from the refetch. */
+.btn-ghost { animation: xo-stalled-fade 400ms linear 1; }
+.btn:hover { box-shadow: rgb(124, 45, 18) 0px 0px 0px 4px; }
+@keyframes xo-stalled-fade {
+  from { opacity: 0.6; }
+  to { opacity: 1; }
+}

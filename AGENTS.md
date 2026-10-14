@@ -79,6 +79,7 @@ The subsystem write-ups are in `docs/architecture/`; "Start here by task" above 
 | Hand-written eval specs must not carry a key the spec schema does not define | `expectedSpecSchema` (`z.strictObject`) parsed in `loadExpectedSpec` in `eval/run.ts` | Schema / Runtime validation (Level 2) |
 | Measured extraction scores must not regress below committed baselines | `npm run eval` regression gate across required fixtures in CI | Eval / Test gate (Level 3) |
 | Result tab bar action buttons must not shift layout on tab switch | `scenarioTabLayout` in `.claude/skills/verify/scripts/drive.ts` | Test / Verification (Level 3) |
+| Cross-origin stylesheets must keep contributing their hover/focus states and keyframes, and a stalled one must not stall the analysis | `scenarioCrossOrigin` in `.claude/skills/verify/scripts/drive.ts` (manual gate; CI does not run it) | Test / Verification (Level 3) |
 | Frontmatter and Markdown body must never drift | Generated from the same report object via `buildReport` and `renderMarkdown` | Architecture (Level 1) |
 | Do not commit, push, or open PRs unless explicitly asked | Project policy | Docs (Level 4) |
 

@@ -22,15 +22,15 @@ Read [`features/README.md`](features/README.md) before driving. It holds the fea
 
 `verify.sh up` starts two process groups, each in its own session:
 
-- **Fixture server** (`scripts/fixture-server.mjs`): serves `eval/fixtures/*.html` (`clean-light`, `dark-mode`, `adversarial-shell`) on `http://127.0.0.1:<FIXTURE_PORT>/`. This is verification scaffolding. It gives the app a known page to analyze without the network.
+- **Fixture server** (`scripts/fixture-server.mjs`): serves `eval/fixtures/*.html` (`clean-light`, `dark-mode`, `adversarial-shell`, `cross-origin`) on `http://127.0.0.1:<FIXTURE_PORT>/`. This is verification scaffolding. It gives the app a known page to analyze without the network. A second port, `http://127.0.0.1:<FIXTURE_XO_PORT>/`, serves the fixtures' `*.css` as a second origin with no CORS headers. A served page's `__XO_ORIGIN__` token is replaced with that origin, and a `*-stalled.css` sheet answers only the browser's own load (`Sec-Fetch-Dest: style`), never the app's refetch.
 - **App**: `next dev -p <APP_PORT> -H 127.0.0.1` with:
   - `SSRF_ALLOWLIST_HOSTS=127.0.0.1`, so the SSRF guard allows the fixture server. Every other private address is still blocked, and the `error` scenario depends on that.
   - `OPENROUTER_API_KEY=` set empty, so the AI lane is **off**. Next never overrides an env var that is already defined, so the `.env.local` key is ignored. The run stays deterministic, free, and offline. Start with `VERIFY_AI=1 verify.sh up` to keep the `.env.local` key. That run makes real paid model calls.
   - Any other env var you prefix on `up` reaches the app, for example `RATE_LIMIT_MAX_REQUESTS=2 verify.sh up` or `RATE_LIMIT_DISABLED=1 verify.sh up`.
 
-Both ports are random free ports unless you set `APP_PORT` or `FIXTURE_PORT`. The instance is ready when `up` prints `ready: app http://127.0.0.1:<port> …`; run `up` with its output unpiped or redirected to a file, because the detached servers keep a pipe such as `| tail` open and the call then does not return until `down`. The first request compiles the page, so allow up to about 30s. `up` polls `GET /` until the `<h1>Distill</h1>` shell renders, or fails after 120s and names the log.
+All three ports are random free ports unless you set `APP_PORT`, `FIXTURE_PORT` or `FIXTURE_XO_PORT`. The instance is ready when `up` prints `ready: app http://127.0.0.1:<port> …`; run `up` with its output unpiped or redirected to a file, because the detached servers keep a pipe such as `| tail` open and the call then does not return until `down`. The first request compiles the page, so allow up to about 30s. `up` polls `GET /` until the `<h1>Distill</h1>` shell renders, or fails after 120s and names the log.
 
-Run state is in `.verify/current.env` (`RUN_ID`, `RUN_DIR`, `APP_URL`, `FIXTURE_URL`, PGIDs, `AI_LANE`, `GIT_HEAD`). Run `source .verify/current.env` to get `$APP_URL`, `$FIXTURE_URL` and `$RUN_DIR` for `curl` recipes. The `.verify/` directory is git-ignored.
+Run state is in `.verify/current.env` (`RUN_ID`, `RUN_DIR`, `APP_URL`, `FIXTURE_URL`, `FIXTURE_XO_URL`, PGIDs, `AI_LANE`, `GIT_HEAD`). Run `source .verify/current.env` to get `$APP_URL`, `$FIXTURE_URL` and `$RUN_DIR` for `curl` recipes. The `.verify/` directory is git-ignored.
 
 **Isolation:** use one instance per checkout. `next dev` writes to the shared `.next/` directory, so `up` refuses to start when this checkout already has a Next.js process, such as the user's own `npm run dev`. It also refuses while a previous run is still up. Don't work around this. Reuse the existing run, or ask the user. Don't run `npm run build` or `npm run check` (its third step is the build) while an instance is up, because the build also writes `.next/`. Run `verify.sh down` first.
 
@@ -42,6 +42,7 @@ Run state is in `.verify/current.env` (`RUN_ID`, `RUN_DIR`, `APP_URL`, `FIXTURE_
 - `APP_PORT` is owned by our process group, not a stranger's server.
 - `GET /` renders the Distill shell.
 - The fixture server serves `clean-light.html`.
+- The second origin serves `cross-origin.css`.
 - `POST /api/analyze` with `{}` answers `400`.
 - No foreign Next.js process is running in this checkout.
 
@@ -60,6 +61,7 @@ Every scenario runs at 1280×900, except `tab-layout`, which resizes to each `--
 | `tab-layout` | `--target clean-light`, `--widths 1280,1024,768,390` | at each width, the result header's tab and download buttons keep identical boxes across tab switches, every label stays on one line, and the page has no horizontal overflow |
 | `analyze-images` | `--fixtures clean-light,dark-mode,adversarial-shell`, `--remove <n>` (default: last; `0` removes none before submit) | upload, thumbnails, remove, palette-mood report, a response without screenshots, a preview built from the uploads held at submit, structure behavior with and without a key |
 | `error` | `--url http://10.0.0.1/` | a blocked URL gives a 400, the error banner, and no result tabs |
+| `cross-origin` | none | the hover/focus states and `@keyframes` of a stylesheet on a second origin reach the report and the tokens tab; a second-origin sheet that never answers the refetch is skipped, and the render stays under 20 s |
 
 Each check prints `ok` or `FAIL`. The command exits 1 if any check fails. A scenario that throws records `scenario ran to completion: FAIL` and saves `failure.png`. A `--target` outside `127.0.0.1` reaches the public internet and real third-party pages, so results vary between runs.
 
@@ -93,7 +95,7 @@ Proof standards:
 All helpers are in `.claude/skills/verify/scripts/`:
 
 - `verify.sh up|doctor|drive|down`: the lifecycle commands described above.
-- `drive.ts`: the Playwright scenarios. `verify.sh drive` runs it with `APP_URL`, `FIXTURE_URL`, `EVIDENCE_DIR` and `AI_LANE` set. Don't run it directly.
-- `fixture-server.mjs <port> <dir>`: a static server for the fixture HTML, started by `up`.
+- `drive.ts`: the Playwright scenarios. `verify.sh drive` runs it with `APP_URL`, `FIXTURE_URL`, `FIXTURE_XO_URL`, `EVIDENCE_DIR` and `AI_LANE` set. Don't run it directly.
+- `fixture-server.mjs <port> <dir> <xo-port>`: a static server for the fixture HTML, plus the second origin for their stylesheets, started by `up`.
 
 `drive.ts` is covered by the repo's `tsconfig` and `eslint`. Run `npm run typecheck && npm run lint` after you edit it.

@@ -1,0 +1,17 @@
+/* Served from the verify fixture server's second origin (see cross-origin.html). */
+.btn {
+  background-color: #1a73e8;
+  color: #ffffff;
+  border: 2px solid #1a73e8;
+  border-radius: 8px;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 600;
+  animation: xo-rise 600ms ease-out 1;
+}
+.btn:hover { background-color: #0b3d91; }
+.btn:focus-visible { border-color: #e8590c; }
+@keyframes xo-rise {
+  from { transform: translateY(4px); }
+  to { transform: translateY(0); }
+}
