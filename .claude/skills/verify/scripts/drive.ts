@@ -1,8 +1,8 @@
 /**
  * Playwright driver for Distill's UI. Invoked through `verify.sh drive`, which
- * supplies APP_URL, FIXTURE_URL, EVIDENCE_DIR and AI_LANE from the running
- * instance. Each scenario drives the real page the way a user would, writes
- * evidence to EVIDENCE_DIR, and exits non-zero if any check fails.
+ * supplies APP_URL, FIXTURE_URL, FIXTURE_XO_URL, EVIDENCE_DIR and AI_LANE from
+ * the running instance. Each scenario drives the real page the way a user
+ * would, writes evidence to EVIDENCE_DIR, and exits non-zero if any check fails.
  *
  *   analyze-url     [--target clean-light|dark-mode|adversarial-shell|<http url>]
  *   tabs-downloads  [--target …]
@@ -20,7 +20,7 @@ const FIXTURE_URL = need("FIXTURE_URL");
 const OUT = need("EVIDENCE_DIR");
 const AI_ON = process.env.AI_LANE === "on";
 const ANALYZE_TIMEOUT_MS = 180_000;
-/** One 5 s refetch timeout (CROSS_ORIGIN_SHEET_TIMEOUT_MS) plus the render itself; without the timeout a stalled sheet costs 30 s per style dump. */
+/** One 5 s refetch timeout (CROSS_ORIGIN_SHEET_TIMEOUT_MS) plus the render itself; without the timeout a stalled sheet costs Playwright's 30 s default once per analysis. */
 const XO_RENDER_BUDGET_MS = 20_000;
 
 function need(name: string): string {

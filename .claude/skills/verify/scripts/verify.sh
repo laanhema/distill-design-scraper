@@ -117,8 +117,8 @@ cmd_doctor() {
     "ss -ltnpH 'sport = :$APP_PORT' | grep -oP 'pid=\K[0-9]+' | xargs -r ps -o pgid= -p | tr -d ' ' | grep -qx $APP_PGID"
   check "GET $APP_URL/ renders the Distill shell" "curl -sf $APP_URL/ | grep -q '<h1[^>]*>Distill</h1>'"
   check "GET $FIXTURE_URL/clean-light.html serves the fixture" "curl -sf $FIXTURE_URL/clean-light.html | grep -q 'Clean Light'"
-  check "GET $FIXTURE_XO_URL/cross-origin.css serves the second-origin sheet" \
-    "curl -sf $FIXTURE_XO_URL/cross-origin.css | grep -q 'xo-rise'"
+  check "GET ${FIXTURE_XO_URL:-}/cross-origin.css serves the second-origin sheet" \
+    "curl -sf ${FIXTURE_XO_URL:-}/cross-origin.css | grep -q 'xo-rise'"
   check "POST /api/analyze answers 400 on empty body" \
     "[ \"\$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' $APP_URL/api/analyze)\" = 400 ]"
   local others; others="$(foreign_next)"
