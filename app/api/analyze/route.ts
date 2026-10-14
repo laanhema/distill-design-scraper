@@ -152,7 +152,7 @@ export async function POST(request: Request) {
   const imagesKeyPart = images.map((img) => img.data).join("|");
   const cacheKey = createCacheKey(`${url || ""}:${imagesKeyPart}:${mode}`);
   if (!body.forceRefresh) {
-    const cached = getCache<unknown>(cacheKey);
+    const cached = getCache(cacheKey);
     if (cached) {
       return NextResponse.json(cached);
     }

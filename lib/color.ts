@@ -47,7 +47,7 @@ export function chroma(color: Color): number {
 /** OKLCH hue in degrees [0, 360). Undefined (achromatic greys) reads as 0. */
 export function hue(color: Color): number {
   const h = toOklch(color).h;
-  return Number.isFinite(h) ? (h as number) : 0;
+  return typeof h === "number" && Number.isFinite(h) ? h : 0;
 }
 
 /** WCAG contrast ratio (1–21) between two colors. Order-independent. */

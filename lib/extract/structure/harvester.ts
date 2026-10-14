@@ -42,16 +42,19 @@ export async function harvestDomTree(page: Page): Promise<RawHarvestNode> {
 
     const SKIP_TEXT_TAGS = new Set(["script", "style", "noscript", "template"]);
 
-    /** Concatenate visible text, excluding script/style/noscript/template subtrees. */
-    function collectVisibleText(el: Element): string {
+    /** Concatenate visible text, excluding script/style/noscript/template
+     *  subtrees. Takes a `Node` and reads `nodeName`, which for an element is
+     *  its `tagName`, so no child has to be narrowed to `Element`: an
+     *  `instanceof Element` test is false for an element that a script created
+     *  in another frame's document and moved here. */
+    function collectVisibleText(node: Node): string {
       let text = "";
-      for (const child of Array.from(el.childNodes)) {
+      for (const child of Array.from(node.childNodes)) {
         if (child.nodeType === Node.TEXT_NODE) {
           text += child.textContent || "";
         } else if (child.nodeType === Node.ELEMENT_NODE) {
-          const tag = (child as Element).tagName.toLowerCase();
-          if (SKIP_TEXT_TAGS.has(tag)) continue;
-          text += collectVisibleText(child as Element);
+          if (SKIP_TEXT_TAGS.has(child.nodeName.toLowerCase())) continue;
+          text += collectVisibleText(child);
         }
       }
       return text;

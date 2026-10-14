@@ -30,7 +30,12 @@ interface SelectedImage {
 function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = () => {
+      // `readAsDataURL` always leaves a string in `result`; the check proves
+      // to the compiler what a cast would only claim.
+      if (typeof reader.result === "string") resolve(reader.result);
+      else reject(new Error(`Failed to read ${file.name}`));
+    };
     reader.onerror = () => reject(reader.error ?? new Error(`Failed to read ${file.name}`));
     reader.readAsDataURL(file);
   });

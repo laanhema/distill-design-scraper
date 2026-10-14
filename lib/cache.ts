@@ -72,7 +72,9 @@ export function createCacheKey(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex");
 }
 
-export function getCache<T>(key: string): T | null {
+/** The live value stored under `key`, or `null`. Typed `unknown`: the store
+ *  holds whatever `setCache` was given, so the caller narrows what it reads. */
+export function getCache(key: string): unknown {
   const entry = cacheStore.get(key);
   if (!entry) return null;
 
@@ -86,7 +88,7 @@ export function getCache<T>(key: string): T | null {
   cacheStore.delete(key);
   cacheStore.set(key, entry);
 
-  return entry.value as T;
+  return entry.value;
 }
 
 export function setCache<T>(key: string, value: T, ttlMs = DEFAULT_TTL_MS): void {

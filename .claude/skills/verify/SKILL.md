@@ -73,7 +73,7 @@ Each `drive` writes to `$RUN_DIR/evidence/<scenario>-<HHMMSS>/`, that is `.verif
 - `NN-<step>.aria.yaml`: the ARIA snapshot of `<main>` at that step. Quote it when a claim depends on text or labels.
 - `response.json`: the `/api/analyze` body with base64 screenshots replaced by length placeholders. `report.md` and `structure.md` hold the markdown the API returned.
 - `downloads/`: the files the browser actually saved. `inputs/`: the PNGs that were uploaded.
-- `checks.json`: every check with its result. `console-errors.txt`: browser console errors and page errors. An empty file is a pass signal worth citing.
+- `checks.json`: an object `{scenario, argv, checks}`, where `checks` is the array of every check with its `ok` result (count them with `jq '.checks|length'`). `console-errors.txt`: browser console errors and page errors. An empty file is a pass signal worth citing.
 - For `curl` recipes, save bodies under `$RUN_DIR/evidence/api-<HHMMSS>/` yourself.
 
 Proof standards:

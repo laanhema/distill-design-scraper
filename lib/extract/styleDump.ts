@@ -389,9 +389,11 @@ export async function collectStyleDump(
       if (INTERACTIVE.has(el.tagName)) return true;
       const role = el.getAttribute("role");
       if (role === "button" || role === "link") return true;
-      if (el.tagName === "INPUT") {
-        const t = (el as HTMLInputElement).type;
-        return t === "submit" || t === "button";
+      // `in`, not `instanceof HTMLInputElement`: an element that a script
+      // created in another frame's document and moved here is no instance of
+      // this window's classes, but it does carry `type`.
+      if (el.tagName === "INPUT" && "type" in el) {
+        return el.type === "submit" || el.type === "button";
       }
       return false;
     }
