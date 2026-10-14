@@ -137,7 +137,8 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
  *
  * Two shapes throw rather than read as "no text", so that they reach
  * `retryOnce`'s `onError` like any other failed call: a `null` body, and a
- * `content` that is set but is no string.
+ * truthy `content` that is no string (`0` and `false` read as no text, as
+ * before).
  */
 function firstChoiceText(reply: unknown): string | null {
   if (reply === null) throw new Error("OpenRouter reply is null, not a JSON object.");

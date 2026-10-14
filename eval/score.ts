@@ -39,10 +39,11 @@ export function scorePalette(
   expected: Record<string, string>,
 ): PaletteScore {
   // Keyed by plain strings, so a role name read from `expected.yaml` looks
-  // itself up without a cast. A swatch without a role sits under `undefined`.
-  const byRole = new Map<string | undefined, string>(
-    palette.colors.map((c) => [c.role, c.hex]),
-  );
+  // itself up without a cast. A swatch without a role is left out.
+  const byRole = new Map<string, string>();
+  for (const c of palette.colors) {
+    if (c.role !== undefined) byRole.set(c.role, c.hex);
+  }
   const roles = Object.keys(expected);
   let matched = 0;
   let deltaSum = 0;
