@@ -8,17 +8,19 @@ import { CORPUS } from "./corpus";
  * AI-lane stability eval (§10). The interpretive lane has no golden label, so
  * we use **stability as the proxy for quality**: run each input 3× and assert
  * the `identity.adjectives` set and `archetype` stay consistent across runs
- * (Jaccard overlap above a threshold). This catches temperature/prompt
+ * (Jaccard overlap above a threshold). This catches temperature/seed/prompt
  * regressions without a "correct" answer.
  *
- * The interpretation lane pins its temperature (`TEMPERATURE` in
- * `lib/interpret.ts`): at the provider default, the routed model words the same
- * reading differently on each run, and these floors failed on the last 4 runs
- * on `main` that way (#200). The pin was measured stable on
- * `google/gemini-2.5-flash` only: on the code default `google/gemini-3.5-flash`,
- * these floors still fail at temperature 0 (#209). On 2.5 Flash, a failure here
- * therefore first means the pin was lost or the routed model ignores it; on the
- * code default, it is the known gap of #209.
+ * The interpretation lane pins its temperature (`TEMPERATURE`) and its seed
+ * (`SEED`, both in `lib/interpret.ts`). At the provider default, the routed
+ * model words the same reading differently on each run, and these floors
+ * failed on the last 4 runs on `main` that way (#200). On the code default
+ * `google/gemini-3.5-flash`, temperature 0 alone still did not repeat a reply
+ * until a seed was sent, and the seed holds only on Google AI Studio, which
+ * `callModel` therefore prefers for a seeded call (#209). A failure here
+ * therefore first means that the pin or the seed was lost, or that OpenRouter
+ * routed the calls past AI Studio (an AI Studio outage falls back to another
+ * endpoint, where the seed does not hold).
  *
  * Unlike `npm run eval` (the measured lane, offline and CI-gated), this makes
  * live model calls, so it is opt-in: `npm run eval:ai`, and a no-op without an
@@ -128,7 +130,7 @@ async function main() {
     `\n  thresholds: adjectives ≥ ${ADJECTIVE_JACCARD_FLOOR}, archetype ≥ ${ARCHETYPE_JACCARD_FLOOR}`,
   );
   if (failed) {
-    console.error("\n  ✗ AI lane unstable — check temperature/prompt\n");
+    console.error("\n  ✗ AI lane unstable — check temperature/seed/prompt\n");
     process.exit(1);
   }
   console.log("\n  ✓ AI lane stable\n");

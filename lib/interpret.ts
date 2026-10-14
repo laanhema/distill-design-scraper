@@ -43,6 +43,11 @@ const MAX_TOKENS = 2048;
 // same reading differently each time, which `npm run eval:ai` measures (#200).
 const TEMPERATURE = 0;
 
+// Temperature 0 is not enough on the code default `google/gemini-3.5-flash`:
+// the same request still got a different reading on each call until a seed was
+// sent (#209). Any fixed value works; 7 is the value that was measured.
+const SEED = 7;
+
 const SYSTEM_PROMPT = `You are the interpretation layer of a design-system extractor.
 You are given a screenshot of a rendered page (or an image) plus a JSON summary of
 tokens that have ALREADY been measured deterministically from it. Your job is to
@@ -150,6 +155,7 @@ async function requestOnce(
     jsonSchema: OUTPUT_SCHEMA,
     maxOutputTokens: MAX_TOKENS,
     temperature: TEMPERATURE,
+    seed: SEED,
   });
 
   // The `json_schema` response format should return clean JSON, but a fence
