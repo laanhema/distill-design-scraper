@@ -258,7 +258,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
   "refinements": [{ "hex": "#…", "from": "accent", "to": "primary" }],  // AI role relabels applied
   "meta": {
     "finalUrl": "…", "title": "…", "elapsedMs": 1234,
-    "bannerDismissed": false, "aiApplied": true, "capturedAt": "…",
+    "bannerDismissed": false, "aiOutcome": "applied", "capturedAt": "…",
     "viewportShots": ["data:image/png;base64,…"]   // URL only: viewport, then panorama when captured. Absent for images (#179)
   }
 }
