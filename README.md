@@ -4,7 +4,7 @@ Distill inspects a live URL or a batch of uploaded screenshots and outputs a Mar
 
 ## Tech stack
 
-Distill runs as a single Next.js monolith with no external database. Detailed notes on architectural constraints live in [TECHSTACK.md](TECHSTACK.md).
+Distill runs as a single Next.js monolith with no external database. Detailed notes on architecture and technology choices live in [PROJECT-GUIDE.md](PROJECT-GUIDE.md).
 
 | Layer | Stack | Purpose |
 | --- | --- | --- |

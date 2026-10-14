@@ -4,6 +4,7 @@ Generated from `TODO.md` on 2026-10-04.
 Extended from `.agents/reviews/codebase-analysis-review.md` on 2026-10-13 (TODO-6 to TODO-22, one per finding).
 Extended from the conversation on 2026-10-14 (TODO-23 and TODO-24, follow-ups of TODO-12 that the owner agreed to).
 Extended from the conversation on 2026-10-14 (TODO-25, a follow-up of TODO-13 that the owner agreed to).
+Extended from `TODO.md` on 2026-10-14 (TODO-26).
 Last Updated: 2026-10-14
 
 ## Status
@@ -1015,3 +1016,41 @@ The second pass of `collectStyleDump` refetches cross-origin stylesheets and rec
 - Blocked by: None
 - Blocks: None
 - Related: TODO-13 (#177), TODO-3 (#158)
+
+---
+
+## [TODO-26] Prune Non-Essential Comments Across the Codebase
+
+**GitHub**: #212
+**Status**: pending
+**Type**: Technical
+**GitHub Label**: technical
+**Priority**: Medium
+**Complexity**: Medium
+**Phase**: Backlog
+**Labels**: technical, cleanup
+**Source**: `TODO.md:9` — "There are so many comments all over the codebase. Prune them - keep only the absolutely necessary ones."
+
+### Description
+
+Audit and prune excessive, redundant, or narrative comments across the codebase. Retain only necessary comments: non-obvious architectural invariants, critical security/SSRF constraints, and complex domain math rationale.
+
+### Acceptance Criteria
+
+- [ ] Redundant, narrative comments that merely restate what adjacent code does (e.g. obvious fall-throughs or mechanical step descriptions) are removed across `lib/`, `app/`, and `eval/`.
+- [ ] Essential comments are preserved: non-obvious design constraints, safety/security invariants (SSRF/rate-limit bounds), and tricky color math or Playwright browser workarounds.
+- [ ] Code documentation integrity is maintained without altering runtime behavior or types.
+- [ ] `npm run check` (typecheck, lint, build, eval) passes with zero regressions.
+
+### Technical Notes
+
+- Scan `lib/`, `app/`, and `eval/` for obsolete, conversational, or line-by-line narrative comments.
+- Keep comments that explain "why" (architectural constraints, Chromium bundling requirements in `next.config.mjs`, Docker base image version coupling, SSRF DNS-rebinding mitigations).
+- Remove comments that explain "what" where the TypeScript types or self-explanatory function names already express it clearly.
+- Ensure strict adherence to repository guidelines (`AGENTS.md`) and run `npm run check`.
+
+### Dependencies
+
+- Blocked by: None
+- Blocks: None
+
