@@ -59,9 +59,9 @@ const SEEDED_PROVIDER = "google-ai-studio";
  * `/chat/completions`, which routes to `OPENROUTER_MODEL` (a Gemini model by
  * default). Returns `null` only for the "call succeeded but produced no usable
  * text" case — network/auth errors, non-2xx responses, and a 200 reply whose
- * body is an `error` object deliberately propagate, because `retryOnce`'s `onError` is the only place an AI failure
- * becomes visible, and a swallowed 401/429 would be indistinguishable from a
- * quality regression.
+ * body is an `error` object deliberately propagate, because `retryOnce`'s
+ * `onError` is the only place an AI failure becomes visible, and a swallowed
+ * 401/429 would be indistinguishable from a quality regression.
  *
  * Support for `response_format: json_schema` varies by the routed model — a
  * custom `OPENROUTER_MODEL` override that doesn't support it will surface as
