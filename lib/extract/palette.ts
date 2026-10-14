@@ -43,14 +43,15 @@ const PIXEL_MATCH_LAB = 15; // Lab distance under which a pixel "is" a color.
 const PIXEL_MATCH_LAB_SQ = PIXEL_MATCH_LAB * PIXEL_MATCH_LAB;
 const PIXEL_SAMPLE_WIDTH = 640; // Downscale screenshot for the area pass.
 const IMAGE_COLOR_MIN_SHARE = 0.02; // Min pixel share to surface a CSS-missed color.
-// Ceiling on the entries of the area pass's per-call nearest-color cache. A UI
-// screenshot holds a few thousand distinct RGB values and is cached in full. A
-// photograph-heavy page can hold millions, and there an unbounded map costs
-// more memory and time than the Lab math it saves. A full cache is emptied and
-// filled again, not frozen: frozen, a hero photograph at the top of a page
-// would use it up and leave the flat UI below uncached. The cache only skips
-// repeated work, so neither the ceiling nor a reset changes a result.
-const NEAREST_CACHE_MAX = 1 << 16;
+// Size of the area pass's per-call nearest-color cache, as a power of two: a
+// direct-mapped table of 2^16 slots in typed arrays, where each RGB value has
+// one slot and a new value overwrites the slot's previous one. A UI screenshot
+// holds a few thousand distinct RGB values and nearly all of them keep their
+// slot. A photograph-heavy page can hold millions, and there a growing map
+// costs more memory and time than the Lab math it saves, while a fixed table
+// costs one array read and write per pixel. The cache only skips repeated
+// work, so neither its size nor an overwrite changes a result.
+const NEAREST_CACHE_BITS = 16;
 const MIN_TEXT_CONTRAST = 4.5; // WCAG AA; hard guardrail for the `text` role.
 // Below this pixel share a swatch is effectively never painted on screen.
 // Scoped to `border` (a role about visible stroked lines, unlike e.g. a
@@ -159,17 +160,26 @@ async function assignAreaWeights(
   // pixels, so the Lab conversion and the scan over `canon` run once per value
   // rather than once per pixel. Valid for this call only: the answer depends on
   // `canon`, which must not change while the loop runs (the image-sourced
-  // colors are appended after it).
-  const nearest = new Map<number, number>();
+  // colors are appended after it). `slotKey` holds the RGB value that owns
+  // each slot (-1 for an empty slot, which no 24-bit key equals) and
+  // `slotMatch` holds that value's answer.
+  const slotKey = new Int32Array(1 << NEAREST_CACHE_BITS).fill(-1);
+  const slotMatch = new Int32Array(1 << NEAREST_CACHE_BITS);
+  const slotShift = 32 - NEAREST_CACHE_BITS;
 
   for (let i = 0; i < data.length; i += step) {
     const r = data[i];
     const g = data[i + 1];
     const b = data[i + 2];
     const rgbKey = (r << 16) | (g << 8) | b;
+    // Multiplicative (Fibonacci) hash: the top bits of the product spread
+    // neighbouring RGB values over the table.
+    const slot = Math.imul(rgbKey, 0x9e3779b1) >>> slotShift;
 
-    let match = nearest.get(rgbKey);
-    if (match === undefined) {
+    let match: number;
+    if (slotKey[slot] === rgbKey) {
+      match = slotMatch[slot];
+    } else {
       const lab = labTriple({ mode: "rgb", r: r / 255, g: g / 255, b: b / 255 });
 
       let best = -1;
@@ -183,8 +193,8 @@ async function assignAreaWeights(
       }
 
       match = bestDist <= PIXEL_MATCH_LAB_SQ ? best : -1;
-      if (nearest.size >= NEAREST_CACHE_MAX) nearest.clear();
-      nearest.set(rgbKey, match);
+      slotKey[slot] = rgbKey;
+      slotMatch[slot] = match;
     }
 
     if (match >= 0) {
