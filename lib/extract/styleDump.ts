@@ -1,4 +1,4 @@
-import type { Page } from "playwright";
+import { errors, type Page } from "playwright";
 
 /**
  * The style dump (§5): one record per visible node, capturing every color it
@@ -119,12 +119,16 @@ const CROSS_ORIGIN_SHEET_TIMEOUT_MS = 5_000;
  * that capture, so the dark-scheme dump re-parses the text that the light
  * dump fetched and never downloads a sheet again. An entry is the request
  * itself: `null` is a sheet that failed, timed out or came back empty, which
- * is remembered too, so a stalled host costs one timeout per analysis.
+ * is remembered too, so a stalled host costs one timeout (and logs one
+ * warning) per analysis.
  */
 export type CrossOriginSheetCache = Map<string, Promise<string | null>>;
 
 /** Start (or reuse) the refetch of one cross-origin stylesheet. Best-effort:
- *  the returned promise never rejects — any failure resolves to `null`. */
+ *  the returned promise never rejects — any failure resolves to `null`. Only
+ *  a timeout logs a warning, from inside the cached promise, so it is logged
+ *  once per analysis; a non-ok status, an empty body, or a refused
+ *  connection is skipped silently. */
 function fetchCrossOriginSheet(
   page: Page,
   href: string,
@@ -140,7 +144,14 @@ function fetchCrossOriginSheet(
         const cssText = await res.text();
         return cssText.trim() ? cssText : null;
       })
-      .catch(() => null);
+      .catch((err: unknown) => {
+        if (err instanceof errors.TimeoutError) {
+          console.warn(
+            `Cross-origin stylesheet refetch timed out after ${CROSS_ORIGIN_SHEET_TIMEOUT_MS} ms; skipping its hover/focus states and keyframes: ${href}`,
+          );
+        }
+        return null;
+      });
     cache.set(href, pending);
   }
   return pending;
