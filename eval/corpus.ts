@@ -11,7 +11,7 @@
  *     authored its expected.yaml from the captured render.
  */
 
-export interface CorpusEntry {
+interface CorpusEntryBase {
   slug: string;
   bucket:
     | "clean-design-system"
@@ -20,13 +20,20 @@ export interface CorpusEntry {
     | "css-variable"
     | "gradient-hero"
     | "hostile";
-  /** Local fixture filename under eval/fixtures (offline, committed capture). */
-  fixture?: string;
-  /** Live reference URL (captured on demand; capture git-ignored). */
-  url?: string;
   /** If true, missing capture.json / expected.yaml is logged as a skip rather than failing the run. */
   optional?: boolean;
 }
+
+/** Exactly one source: a committed local fixture, or a live URL. */
+export type CorpusEntry =
+  | (CorpusEntryBase & {
+      /** Local fixture filename under eval/fixtures (offline, committed capture). */
+      fixture: string;
+    })
+  | (CorpusEntryBase & {
+      /** Live reference URL (captured on demand; capture git-ignored). */
+      url: string;
+    });
 
 export const CORPUS: CorpusEntry[] = [
   // Committed, offline fixtures — the regression floor for CI.

@@ -20,9 +20,10 @@ const VIEWPORT = { width: 1440, height: 900 };
 const here = (rel: string) => fileURLToPath(new URL(rel, import.meta.url));
 
 async function captureEntry(entry: CorpusEntry): Promise<Capture> {
-  const target = entry.fixture
-    ? new URL(`fixtures/${entry.fixture}`, import.meta.url).href
-    : entry.url!;
+  const { target, ref } =
+    "fixture" in entry
+      ? { target: new URL(`fixtures/${entry.fixture}`, import.meta.url).href, ref: entry.fixture }
+      : { target: entry.url, ref: entry.url };
 
   const browser = await chromium.launch({ headless: true });
   try {
@@ -45,7 +46,7 @@ async function captureEntry(entry: CorpusEntry): Promise<Capture> {
     const capture: Capture = {
       source: {
         type: "url",
-        ref: entry.url ?? entry.fixture!,
+        ref,
         capturedAt: new Date().toISOString(),
       },
       finalUrl: page.url(),
@@ -67,7 +68,7 @@ function selectEntries(args: string[]): CorpusEntry[] {
     return CORPUS.filter((e) => named.includes(e.slug));
   }
   // Default: offline fixtures only — never touch the network unprompted.
-  return CORPUS.filter((e) => e.fixture);
+  return CORPUS.filter((e) => "fixture" in e);
 }
 
 async function main() {

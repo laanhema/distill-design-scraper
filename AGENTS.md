@@ -73,6 +73,7 @@ The subsystem write-ups are in `docs/architecture/`; "Start here by task" above 
 | Structure extraction requires a DOM harvest node; no dead browser-page overloads | `ExtractStructureOptions.rawHarvestNode` required in `lib/extract/structure/index.ts` | Architecture (Level 1) |
 | Palette area weighting processes single-pass screenshot; no dead fold-doubling options | `PaletteInput.screenshotPngBase64` in `lib/extract/palette.ts` (dead `additionalScreenshotsPngBase64` deleted) | Architecture (Level 1) |
 | Verification and test automation scripts must be strictly typechecked | `tsconfig.json` includes `".claude/skills/verify/scripts/**/*.ts"` | Types (Level 2) |
+| An eval corpus entry must name a local fixture or a live URL | `CorpusEntry` union in `eval/corpus.ts`, narrowed with `in` in `eval/capture.ts` | Types (Level 2) |
 | Do not run `npm run build` or `npm run check` while a `verify.sh` dev server is running | `prebuild` script runs `scripts/guard-build.mjs` which exits non-zero naming `verify.sh down` | Tooling / Build guard (Level 2) |
 | Request payloads to `POST /api/analyze` must be validated before access | `analyzeBodySchema.safeParse` in `app/api/analyze/route.ts` | Schema / Runtime validation (Level 2) |
 | Hand-written eval specs must not carry a key the spec schema does not define | `expectedSpecSchema` (`z.strictObject`) parsed in `loadExpectedSpec` in `eval/run.ts` | Schema / Runtime validation (Level 2) |
