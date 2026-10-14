@@ -58,8 +58,8 @@ const SEEDED_PROVIDER = "google-ai-studio";
  * The single model round-trip for every AI lane: one `POST` to OpenRouter's
  * `/chat/completions`, which routes to `OPENROUTER_MODEL` (a Gemini model by
  * default). Returns `null` only for the "call succeeded but produced no usable
- * text" case — network/auth errors and non-2xx responses deliberately
- * propagate, because `retryOnce`'s `onError` is the only place an AI failure
+ * text" case — network/auth errors, non-2xx responses, and a 200 reply whose
+ * body is an `error` object deliberately propagate, because `retryOnce`'s `onError` is the only place an AI failure
  * becomes visible, and a swallowed 401/429 would be indistinguishable from a
  * quality regression.
  *
@@ -161,14 +161,19 @@ export async function callModel(opts: ModelCall): Promise<string | null> {
  * `null` when that path is missing or holds no text. The reply is untyped
  * provider output, so each step is narrowed before it is read.
  *
- * Two shapes throw rather than read as "no text", so that they reach
- * `retryOnce`'s `onError` like any other failed call: a `null` body, and a
- * truthy `content` that is no string (`0` and `false` read as no text, as
- * before).
+ * Three shapes throw rather than read as "no text", so that they reach
+ * `retryOnce`'s `onError` like any other failed call: a `null` body, a body
+ * with an `error` field (OpenRouter's HTTP 200 reply for a call that failed
+ * after the provider accepted it, #207), and a truthy `content` that is no
+ * string (`0` and `false` read as no text, as before).
  */
 function firstChoiceText(reply: unknown): string | null {
   if (reply === null) throw new Error("OpenRouter reply is null, not a JSON object.");
-  if (typeof reply !== "object" || !("choices" in reply)) return null;
+  if (typeof reply !== "object") return null;
+  if ("error" in reply && reply.error !== null && reply.error !== undefined) {
+    throw providerError(reply.error);
+  }
+  if (!("choices" in reply)) return null;
 
   const choices = reply.choices;
   if (typeof choices !== "object" || choices === null || !("0" in choices)) return null;
@@ -183,6 +188,19 @@ function firstChoiceText(reply: unknown): string | null {
   if (typeof content === "string") return content.trim() ? content : null;
   if (content) throw new Error("OpenRouter reply's message content is not a string.");
   return null;
+}
+
+/**
+ * The error for a 200 reply that carries OpenRouter's `{ error: { code, message } }`
+ * body. The message names the code the way the non-2xx path names the status,
+ * so `warnAiFailure` classifies both alike; the raw object rides along as `cause`.
+ */
+function providerError(error: unknown): Error {
+  const fields = typeof error === "object" && error !== null ? error : {};
+  const code = "code" in fields ? String(fields.code) : "unknown";
+  const message =
+    "message" in fields && typeof fields.message === "string" ? fields.message : JSON.stringify(error);
+  return new Error(`OpenRouter API error (code ${code} in an HTTP 200 reply): ${message}`, { cause: error });
 }
 
 /**
