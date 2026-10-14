@@ -175,15 +175,12 @@ export async function POST(request: Request) {
 
   try {
     if (images.length > 0) {
-      const cleaned = images.map((img, i) => ({
-        raw: img.data,
-        clean: stripDataUrlPrefix(img.data),
-        name: img.name || `uploaded-image-${i + 1}`,
-      }));
-
       const { report, markdown, meta, refinements, structureReport, structureUnavailableReason } =
         await analyzeImages(
-          cleaned.map((img) => ({ data: img.clean, name: img.name })),
+          images.map((img, i) => ({
+            data: stripDataUrlPrefix(img.data),
+            name: img.name || `uploaded-image-${i + 1}`,
+          })),
           mode,
         );
 
@@ -194,16 +191,11 @@ export async function POST(request: Request) {
         structureReport: structureReport ?? null,
         structureUnavailableReason,
         refinements,
+        // No `viewportShots` here: the uploads are not sent back to the client
+        // that sent them, nor held in the cache for the TTL (#179).
         meta: {
           ...meta,
           capturedAt: report.source.capturedAt,
-          // Preview strip: every source image, in submitted order.
-          viewportShots: cleaned.map((img) =>
-            img.raw.startsWith("data:") ? img.raw : `data:image/png;base64,${img.clean}`,
-          ),
-          viewportShot: cleaned[0].raw.startsWith("data:")
-            ? cleaned[0].raw
-            : `data:image/png;base64,${cleaned[0].clean}`,
         },
       } satisfies AnalyzeSuccess;
 
@@ -244,7 +236,6 @@ export async function POST(request: Request) {
       meta: {
         ...meta,
         capturedAt: capture.source.capturedAt,
-        viewportShot: `data:image/png;base64,${capture.viewportShot}`,
         viewportShots: [capture.viewportShot, ...(capture.panoramaShot ? [capture.panoramaShot] : [])].map(
           (shot) => `data:image/png;base64,${shot}`,
         ),

@@ -17,8 +17,9 @@ export interface AnalyzeMeta {
   elapsedMs: number;
   bannerDismissed: boolean;
   capturedAt: string;
-  viewportShot: string;
-  /** Every source image, in submitted order (image mode only, §P6-1). */
+  /** Screenshots of a URL render, as data URLs: the viewport shot, then the
+   *  panorama when one was captured. Absent for image input — the uploads are
+   *  not sent back to the client that sent them (#179). */
   viewportShots?: string[];
   aiOutcome: AiOutcome;
 }

@@ -27,5 +27,5 @@ Preconditions:
 
 - Without `x-forwarded-for` or `x-real-ip`, every local request shares the `unknown` bucket. That includes the UI's own requests, so tests can starve one another.
 - Without `forceRefresh`, repeated identical requests are cache hits and never reach the limiter.
-- The response embeds base64 screenshots of several hundred KB. Save the body to a file rather than printing it.
+- A URL response embeds base64 screenshots of several hundred KB. Save the body to a file rather than printing it. An image response has none.
 - `structureUnavailableReason` responses are deliberately not cached when a key is set. Don't treat a changed second response as a cache bug in that case.

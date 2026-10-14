@@ -16,7 +16,7 @@ type AnalysisState =
   | { status: "idle" }
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "done"; result: AnalyzeSuccess; sourceName: string };
+  | { status: "done"; result: AnalyzeSuccess; sourceName: string; sourceImages: string[] };
 type InputMode = "url" | "image";
 
 /** A selected file and its data-URL preview, kept in one entry so the pairing
@@ -103,6 +103,10 @@ export default function Home() {
     if (inputMode === "url" && !url.trim()) return;
     if (inputMode === "image" && images.length === 0) return;
 
+    // The selection as it stands at submit: the result is built from this
+    // snapshot, never from the live form, which can change while the request
+    // is in flight or after it settles (#173, #179).
+    const submittedImages = images;
     setState({ status: "loading" });
 
     try {
@@ -112,7 +116,7 @@ export default function Home() {
       } else {
         // Image mode's structure lane is vision-inferred rather than DOM-measured
         // (§P6-2 step 2) — the API reports back if it couldn't run (no key).
-        bodyData.images = images.map(({ file, preview }, i) => ({
+        bodyData.images = submittedImages.map(({ file, preview }, i) => ({
           data: preview,
           name: file.name || `uploaded-image-${i + 1}`,
         }));
@@ -150,12 +154,20 @@ export default function Home() {
       const sourceName =
         data.report.source.type === "url"
           ? (data.meta.finalUrl || url)
-          : (images[0]?.file.name || data.report.source.ref || "image");
+          : (submittedImages[0]?.file.name || data.report.source.ref || "image");
+
+      // A URL response carries its screenshots. An image response carries
+      // none, so the preview shows the uploads this request was built from.
+      const sourceImages =
+        data.report.source.type === "url"
+          ? (data.meta.viewportShots ?? [])
+          : submittedImages.map((img) => img.preview);
 
       setState({
         status: "done",
         result: data,
         sourceName,
+        sourceImages,
       });
     } catch (err) {
       setState({
@@ -375,6 +387,7 @@ export default function Home() {
               report={state.result.report}
               meta={state.result.meta}
               refinements={state.result.refinements}
+              sourceImages={state.sourceImages}
             />
           )}
 
@@ -406,10 +419,13 @@ function Preview({
   report,
   meta,
   refinements,
+  sourceImages,
 }: {
   report: Report;
   meta: AnalyzeMeta;
   refinements: RefinementChange[];
+  /** URL: the response's `viewportShots`. Images: the uploads held at submit time. */
+  sourceImages: string[];
 }) {
   return (
     <div className="space-y-10">
@@ -628,9 +644,9 @@ function Preview({
         </section>
       )}
 
-      {meta.viewportShots && meta.viewportShots.length > 1 ? (
+      {sourceImages.length > 1 ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          {meta.viewportShots.map((src, i) => (
+          {sourceImages.map((src, i) => (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               key={i}
@@ -640,14 +656,14 @@ function Preview({
             />
           ))}
         </div>
-      ) : (
+      ) : sourceImages.length === 1 ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={meta.viewportShot}
+          src={sourceImages[0]}
           alt={`Screenshot of ${meta.finalUrl}`}
           className="w-full rounded-lg border border-line shadow-sm"
         />
-      )}
+      ) : null}
     </div>
   );
 }
