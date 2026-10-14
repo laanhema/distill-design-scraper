@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Relay — Cross-Origin Stylesheet Fixture</title>
+    <!--
+      Verification fixture of the verify skill (`verify.sh drive cross-origin`),
+      not an eval corpus entry. The fixture server replaces __XO_ORIGIN__ with
+      its second origin, so both sheets below are cross-origin: their
+      `.cssRules` throw in the page, and every hover/focus state and @keyframes
+      in the report has to come from the app's refetch of them. This page
+      declares no state and no keyframes of its own.
+    -->
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      body {
+        background: #ffffff;
+        color: #1a2233;
+        font-family: Inter, system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      header { padding: 24px 48px; border-bottom: 1px solid #e2e8f0; }
+      .hero { padding: 96px 48px; }
+      h1 { font-size: 48px; font-weight: 700; line-height: 1.1; }
+      p { margin-top: 16px; max-width: 60ch; }
+      .actions { display: flex; gap: 16px; margin-top: 32px; }
+      footer { padding: 48px; color: #64748b; border-top: 1px solid #e2e8f0; }
+    </style>
+    <link rel="stylesheet" href="__XO_ORIGIN__/cross-origin.css" />
+    <link rel="stylesheet" href="__XO_ORIGIN__/cross-origin-stalled.css" />
+  </head>
+  <body>
+    <header><strong>Relay</strong></header>
+    <main>
+      <section class="hero">
+        <h1>Styles from another origin</h1>
+        <p>Every interactive state on this page is declared in a stylesheet served from a second origin.</p>
+        <div class="actions">
+          <button class="btn">Get started</button>
+          <button class="btn">Read the docs</button>
+          <button class="btn btn-ghost">Contact sales</button>
+        </div>
+      </section>
+    </main>
+    <footer>Relay fixture</footer>
+  </body>
+</html>

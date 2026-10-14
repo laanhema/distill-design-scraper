@@ -44,6 +44,8 @@ APP_URL=http://127.0.0.1:$APP_PORT
 APP_PGID=$APP_PGID
 FIXTURE_PORT=$FIXTURE_PORT
 FIXTURE_URL=http://127.0.0.1:$FIXTURE_PORT
+FIXTURE_XO_PORT=$FIXTURE_XO_PORT
+FIXTURE_XO_URL=http://127.0.0.1:$FIXTURE_XO_PORT
 FIXTURE_PGID=$FIXTURE_PGID
 AI_LANE=$([ "${VERIFY_AI:-}" = "1" ] && echo on || echo off)
 GIT_HEAD=$(git -C "$REPO" rev-parse --short HEAD)$(git -C "$REPO" diff --quiet HEAD -- . ':!.claude' ':!.gitignore' || echo -dirty)
@@ -67,8 +69,10 @@ cmd_up() {
   mkdir -p "$RUN_DIR/logs" "$RUN_DIR/evidence"
   APP_PORT="${APP_PORT:-$(free_port)}"
   FIXTURE_PORT="${FIXTURE_PORT:-$(free_port)}"
+  FIXTURE_XO_PORT="${FIXTURE_XO_PORT:-$(free_port)}"
+  [ "$FIXTURE_XO_PORT" != "$FIXTURE_PORT" ] || die "FIXTURE_XO_PORT must differ from FIXTURE_PORT ($FIXTURE_PORT)"
 
-  setsid node "$SCRIPTS/fixture-server.mjs" "$FIXTURE_PORT" "$REPO/eval/fixtures" \
+  setsid node "$SCRIPTS/fixture-server.mjs" "$FIXTURE_PORT" "$REPO/eval/fixtures" "$FIXTURE_XO_PORT" \
     >"$RUN_DIR/logs/fixture.log" 2>&1 < /dev/null &
   FIXTURE_PGID="$!"
   APP_PGID=""
@@ -93,7 +97,7 @@ cmd_up() {
   # First request triggers the page compile; poll until the shell answers.
   for _ in $(seq 1 120); do
     if curl -sf "http://127.0.0.1:$APP_PORT/" 2>/dev/null | grep -q '<h1[^>]*>Distill</h1>'; then
-      echo "ready: app http://127.0.0.1:$APP_PORT  fixtures http://127.0.0.1:$FIXTURE_PORT  run $RUN_ID"
+      echo "ready: app http://127.0.0.1:$APP_PORT  fixtures http://127.0.0.1:$FIXTURE_PORT (second origin :$FIXTURE_XO_PORT)  run $RUN_ID"
       return 0
     fi
     pgid_alive "$APP_PGID" || die "next dev exited; see $RUN_DIR/logs/next.log"
@@ -113,6 +117,8 @@ cmd_doctor() {
     "ss -ltnpH 'sport = :$APP_PORT' | grep -oP 'pid=\K[0-9]+' | xargs -r ps -o pgid= -p | tr -d ' ' | grep -qx $APP_PGID"
   check "GET $APP_URL/ renders the Distill shell" "curl -sf $APP_URL/ | grep -q '<h1[^>]*>Distill</h1>'"
   check "GET $FIXTURE_URL/clean-light.html serves the fixture" "curl -sf $FIXTURE_URL/clean-light.html | grep -q 'Clean Light'"
+  check "GET ${FIXTURE_XO_URL:-}/cross-origin.css serves the second-origin sheet" \
+    "curl -sf ${FIXTURE_XO_URL:-}/cross-origin.css | grep -q 'xo-rise'"
   check "POST /api/analyze answers 400 on empty body" \
     "[ \"\$(curl -s -o /dev/null -w '%{http_code}' -X POST -H 'content-type: application/json' -d '{}' $APP_URL/api/analyze)\" = 400 ]"
   local others; others="$(foreign_next)"
@@ -125,7 +131,7 @@ cmd_drive() {
   local scenario="${1:-}"; [ -n "$scenario" ] || die "usage: verify.sh drive <scenario> [--flag value …]"
   shift
   local out; out="$RUN_DIR/evidence/$scenario-$(date +%H%M%S)"
-  (cd "$REPO" && APP_URL="$APP_URL" FIXTURE_URL="$FIXTURE_URL" EVIDENCE_DIR="$out" AI_LANE="$AI_LANE" \
+  (cd "$REPO" && APP_URL="$APP_URL" FIXTURE_URL="$FIXTURE_URL" FIXTURE_XO_URL="${FIXTURE_XO_URL:-}" EVIDENCE_DIR="$out" AI_LANE="$AI_LANE" \
     node_modules/.bin/tsx "$SCRIPTS/drive.ts" "$scenario" "$@")
 }
 
