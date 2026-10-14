@@ -1,39 +1,37 @@
-# Tech Stack
+# Tech stack
 
-A snapshot of Distill's tech stack: what it's built on, what it depends on, and the
-non-obvious constraints those choices carry.
+What Distill runs on, what it pulls in, and the specific constraints behind those choices.
 
 ## Core framework
 
-**Next.js 15 (App Router) + React 19, TypeScript 5.7 strict, ESM throughout.** It's a
-single-app monolith — no separate backend service. The whole app surface is:
+The whole project is a single Next.js 15 app on React 19, written in strict TypeScript 5.7 with ESM throughout. There is no separate backend service or database to juggle. The visible app surface fits in three places:
 
-- `app/page.tsx` — one client component (the entire UI; no state library, no component library)
-- `app/api/analyze/route.ts` — the only API route; does render → extract → optional AI enrichment
-- `app/layout.tsx` + `app/globals.css` — Tailwind v4 via `@import "tailwindcss"`
+- `app/page.tsx`: A single client component that renders the entire UI. No state management library, no component kits.
+- `app/api/analyze/route.ts`: The only API endpoint in the project. It drives the render pipeline, extracts design tokens and layout structure, and runs optional AI enrichment.
+- `app/layout.tsx` and `app/globals.css`: Page shell and Tailwind v4 loaded directly through `@import "tailwindcss"`.
 
-Everything else is plain TypeScript modules under `lib/` (~30 files) and `eval/`.
-Path alias `@/*` → project root (`tsconfig.json`).
+Everything else lives in plain TypeScript modules under `lib/` (around 30 files) and `eval/`. The `@/*` path alias points straight to the project root.
 
-## Runtime dependencies (8 total — deliberately thin)
+## Runtime dependencies (8 total, deliberately thin)
 
-| Package               | Version                 | Role                                                                                                                                |
-| --------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `next`                | ^15.1.6                 | app framework (App Router)                                                                                                          |
-| `react` / `react-dom` | ^19.0.0                 | UI runtime                                                                                                                          |
-| `playwright`          | 1.61.1 (pinned exactly) | headless Chromium — the ingestion engine in `lib/ingest.ts`; renders the URL, runs the in-page style dump, screenshots, DOM harvest |
-| `sharp`               | ^0.35.3                 | image pipeline — pixel quantization for palette area-weighting, panorama tile stitching, upload format sniffing                     |
-| `culori`              | ^4.0.2                  | perceptual color math (Lab/OKLCH, ΔE) — all color decisions go through `lib/color.ts`, never raw RGB                                |
-| `zod`                 | ^4.4.3                  | **the schema source of truth** (`lib/schema.ts`, `lib/extract/structureSchema.ts`) — also the shape gate on every AI response       |
-| `js-yaml`             | ^5.2.1                  | YAML frontmatter emit/parse for the report contract                                                                                 |
+| Package               | Version         | Role                                                                                                                                            |
+| --------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `next`                | ^15.1.6         | App Router web framework                                                                                                                        |
+| `react` / `react-dom` | ^19.0.0         | UI runtime                                                                                                                                      |
+| `playwright`          | 1.61.1 (pinned) | Headless Chromium ingestion engine in `lib/ingest.ts`. Renders target URLs, dumps in-page styles, captures screenshots, and harvests DOM nodes. |
+| `sharp`               | ^0.35.3         | Image processing: pixel quantization for palette area weights, panorama tile stitching, and upload format sniffing.                             |
+| `culori`              | ^4.0.2          | Perceptual color math (Lab, OKLCH, and ΔE). All color calculations run through `lib/color.ts` instead of raw RGB.                               |
+| `zod`                 | ^4.4.3          | Primary schema definitions in `lib/schema.ts` and `lib/extract/structureSchema.ts`, plus runtime validation on every AI response.               |
+| `js-yaml`             | ^5.2.1          | Emits and parses YAML frontmatter in the report contract.                                                                                       |
 
-## Dev / build tooling
+## Dev and build tooling
 
-- **Tailwind CSS v4** via `@tailwindcss/postcss` — no `tailwind.config.js`; CSS-first config
-  in `app/globals.css`
-- **ESLint 9** flat config (`eslint.config.mjs`) with `eslint-config-next`
-- **tsx** — runs the `eval/*` scripts directly
-- **`postinstall`** auto-runs `playwright install chromium`
+Tooling is kept straightforward:
+
+- Tailwind CSS v4 runs through `@tailwindcss/postcss`. There is no `tailwind.config.js`; theme variables and utility configurations live directly in `app/globals.css`.
+- ESLint 9 uses the flat config format in `eslint.config.mjs` alongside `eslint-config-next`.
+- `tsx` executes TypeScript eval scripts directly without a build step.
+- The `postinstall` script downloads the matching Playwright Chromium binary automatically.
 
 ## Scripts
 
@@ -43,36 +41,21 @@ npm run build           # production build
 npm run start           # production server
 npm run lint            # eslint .
 npm run typecheck       # tsc --noEmit
+npm run check           # typecheck + lint + build + eval (runs in CI)
 
 npm run eval            # regression gate over the measured extraction lane
-npm run eval:capture    # (re)capture eval/corpus/*/capture.json
+npm run eval:capture    # capture eval/corpus/*/capture.json from live pages or fixtures
 npm run eval:ai         # stability check on AI-lane outputs across repeated runs
 ```
 
 ## Notable architectural details
 
-**One AI provider, no SDK.** `lib/aiLane.ts` speaks to OpenRouter over plain `fetch`
-(`/chat/completions`), so no model SDK is a dependency. The model defaults to
-`google/gemini-3.5-flash`, and `OPENROUTER_MODEL` overrides it. No other file is allowed to
-call a model provider, inline a model id, or scrape JSON out of a model response.
+Rather than importing an official client library, `lib/aiLane.ts` speaks directly to OpenRouter via standard `fetch` against `/chat/completions`. That keeps the dependency tree lean and avoids tying the codebase to any vendor's abstractions. The default model is `google/gemini-3.5-flash`, which can be overridden with the `OPENROUTER_MODEL` environment variable. To prevent AI logic from leaking across the project, no other file is permitted to touch a provider endpoint, hardcode a model identifier, or parse model JSON.
 
-**Playwright is excluded from Next's bundler** (`serverExternalPackages: ["playwright",
-"playwright-core"]` in `next.config.mjs`) because it spawns a real browser binary off disk
-and needs the actual `node_modules` present.
+Playwright is explicitly excluded from Next.js bundling via `serverExternalPackages: ["playwright", "playwright-core"]` in `next.config.mjs`. Because it launches a physical Chromium binary from disk, bundling breaks it; it needs real filesystem access to `node_modules`.
 
-**Deployment is Docker**, based on `mcr.microsoft.com/playwright:v1.61.1-jammy` (two-stage
-build, runs as the image's non-root `pwuser`). The image tag is intentionally locked to the
-`playwright` dependency version — bumping one without the other means "browser not found" at
-launch. Bump both in the same commit.
+Docker deployment is built around `mcr.microsoft.com/playwright:v1.61.1-jammy` in a two-stage build running under the container's unprivileged `pwuser`. The base image tag is tightly coupled to the `playwright` version in `package.json`. If you bump one without the other, the container will throw "browser not found" errors at startup. Always update both in the same commit.
 
-**No test framework.** There's no jest/vitest. The correctness gate is a custom eval harness
-(`npm run eval`) that replays committed JSON captures offline — no browser, no network — and
-scores extraction against hand-authored `expected.yaml` specs, with a per-site absolute floor
-plus a no-regression check against `eval/baseline.json`. CI (`.github/workflows/ci.yml`) runs
-`typecheck → lint → eval` on Node 20 with **no API key** in the environment, so anything that
-only passes with a key set will fail there.
+There is no Jest or Vitest in the repository. Instead, correctness is enforced by a custom eval harness (`npm run eval`). It replays frozen JSON captures completely offline (no live browser, no network) and scores extraction against hand-written `expected.yaml` fixture targets. Each fixture must clear an absolute score floor, and the combined score cannot fall below `eval/baseline.json`. CI runs `npm run check` on Node 20 without an API key in the environment, which guarantees that extraction passes without depending on external LLM calls.
 
-**No database, no auth.** Persistent state is an in-process TTL + LRU cache (`lib/cache.ts`)
-and an in-memory token-bucket rate limiter (`lib/security/rateLimiter.ts`) — both explicitly
-per-process, a documented single-instance MVP limitation rather than an oversight. Both are
-bounded via env vars parsed through `lib/env.ts`.
+The system intentionally skips a database and user authentication. State is ephemeral: an in-process TTL and LRU cache (`lib/cache.ts`) for scrape results, and an in-memory token-bucket rate limiter (`lib/security/rateLimiter.ts`). Both are scoped to the running Node process, which is a conscious design tradeoff for a single-instance deployment rather than an oversight. Both limits are configurable via environment variables parsed in `lib/env.ts`.

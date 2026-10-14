@@ -32,10 +32,11 @@ next-env.d.ts
 !/eval/corpus/dark-mode/capture.json
 !/eval/corpus/adversarial-shell/capture.json
 
-# Temporary files & folders
+# temporary files & folders
 temp.txt
 .agents/temp/
 todo.txt
 TODO.md
+
 # verification skill runs (evidence + logs)
 .verify/
