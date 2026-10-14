@@ -31,6 +31,7 @@ next-env.d.ts
 !/eval/corpus/clean-light/capture.json
 !/eval/corpus/dark-mode/capture.json
 !/eval/corpus/adversarial-shell/capture.json
+!/eval/corpus/saas-landing/capture.json
 
 # temporary files & folders
 temp.txt
