@@ -60,14 +60,23 @@ async function shot(page: Page, name: string): Promise<void> {
   writeFileSync(join(OUT, `${file}.aria.yaml`), await page.locator("main").ariaSnapshot());
 }
 
-/** Response JSON minus the base64 screenshots, which would bloat the evidence. */
+/** Response JSON with every data URL in `meta` replaced by its length, since base64 screenshots would bloat the evidence. Absent fields stay absent. */
 function slim(body: Record<string, unknown>): Record<string, unknown> {
+  const short = (v: unknown): unknown =>
+    typeof v === "string" && v.startsWith("data:") ? `<${v.length} chars>` : Array.isArray(v) ? v.map(short) : v;
   const meta = (body.meta ?? {}) as Record<string, unknown>;
-  const shots = (meta.viewportShots as string[] | undefined) ?? [];
-  return {
-    ...body,
-    meta: { ...meta, viewportShot: "<omitted>", viewportShots: shots.map((s) => `<${s.length} chars>`) },
-  };
+  return { ...body, meta: Object.fromEntries(Object.entries(meta).map(([k, v]) => [k, short(v)])) };
+}
+
+/** `src` of each source image in the Preview tab. Their alt text tells them apart from the upload thumbnails, whose alt is the file name. */
+function previewSources(page: Page): Promise<string[]> {
+  return page
+    .getByRole("img", { name: /^(Screenshot|Source image \d+) of / })
+    .evaluateAll((els) => els.map((el) => (el as HTMLImageElement).src));
+}
+
+function sameList(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((v, i) => v === b[i]);
 }
 
 interface Analysis {
@@ -127,7 +136,17 @@ function checkDesignReport(page: Page, a: Analysis, url: string): Promise<void>[
     (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome === expectedOutcome,
     (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome,
   );
+  const meta = (a.body.meta ?? {}) as Record<string, unknown>;
+  const shots = (meta.viewportShots as string[] | undefined) ?? [];
+  check("meta has no legacy viewportShot", !("viewportShot" in meta));
+  check(
+    "meta.viewportShots holds the screenshots as PNG data URLs",
+    shots.length > 0 && shots.every((s) => s.startsWith("data:image/png;base64,")),
+    String(shots.length),
+  );
   return [
+    previewSources(page)
+      .then((shown) => check("Preview shows every viewportShots entry, in order", sameList(shown, shots), `${shown.length} of ${shots.length}`)),
     page.getByRole("button", { name: "Layout Structure Markdown" }).isVisible()
       .then((v) => check("Layout Structure Markdown tab is shown", v)),
     page.getByRole("heading", { name: /^Palette/ }).first().isVisible()
@@ -288,10 +307,18 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
 
   const a = await submitAndWait(page, /^Analyze Images?$/);
   const report = a.body.report as { reportKind?: string } | undefined;
-  const shots = ((a.body.meta as Record<string, unknown>)?.viewportShots as string[] | undefined) ?? [];
+  const meta = (a.body.meta ?? {}) as Record<string, unknown>;
   check("API answered 200 ok", a.status === 200 && a.body.ok === true, `status ${a.status}`);
   check("reportKind is palette-mood", report?.reportKind === "palette-mood", report?.reportKind);
-  check(`viewportShots has one entry per kept image (${kept.length})`, shots.length === kept.length, String(shots.length));
+  check(
+    "response returns no screenshots (no viewportShot, no viewportShots)",
+    !("viewportShot" in meta) && !("viewportShots" in meta),
+    Object.keys(meta).join(", "),
+  );
+  // The browser reads a .png upload as this data URL, so the preview must carry exactly these bytes.
+  const uploaded = kept.map((f) => `data:image/png;base64,${readFileSync(join(OUT, "inputs", `${f}.png`)).toString("base64")}`);
+  const shown = await previewSources(page);
+  check(`Preview shows the ${kept.length} uploaded image(s), in order`, sameList(shown, uploaded), `${shown.length} of ${uploaded.length}`);
   const expectedOutcome = AI_ON ? "applied" : "no-key";
   check(
     `meta.aiOutcome is ${expectedOutcome}`,
@@ -308,6 +335,17 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
     check("no structure tab without a key", !(await page.getByRole("button", { name: /Layout Structure Markdown/ }).isVisible()));
   }
   await shot(page, "result-preview");
+
+  // The preview belongs to the analyzed result: editing the form afterwards must not change it.
+  const firstThumb = page.getByRole("img", { name: `${kept[0]}.png`, exact: true });
+  await firstThumb.hover();
+  await page.getByRole("button", { name: "Remove image 1" }).click();
+  check(
+    `${kept[0]}.png thumbnail is gone after the analysis`,
+    await firstThumb.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false),
+  );
+  check("Preview still shows the images held at submit time", sameList(await previewSources(page), uploaded));
+  await shot(page, "form-edited-after-result");
 }
 
 async function scenarioError(page: Page): Promise<void> {

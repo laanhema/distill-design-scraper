@@ -1,0 +1,265 @@
+diff --git a/.claude/skills/verify/scripts/drive.ts b/.claude/skills/verify/scripts/drive.ts
+index 3e7b205..595bd96 100644
+--- a/.claude/skills/verify/scripts/drive.ts
++++ b/.claude/skills/verify/scripts/drive.ts
+@@ -60,14 +60,23 @@ async function shot(page: Page, name: string): Promise<void> {
+   writeFileSync(join(OUT, `${file}.aria.yaml`), await page.locator("main").ariaSnapshot());
+ }
+ 
+-/** Response JSON minus the base64 screenshots, which would bloat the evidence. */
++/** Response JSON with every data URL in `meta` replaced by its length, since base64 screenshots would bloat the evidence. Absent fields stay absent. */
+ function slim(body: Record<string, unknown>): Record<string, unknown> {
++  const short = (v: unknown): unknown =>
++    typeof v === "string" && v.startsWith("data:") ? `<${v.length} chars>` : Array.isArray(v) ? v.map(short) : v;
+   const meta = (body.meta ?? {}) as Record<string, unknown>;
+-  const shots = (meta.viewportShots as string[] | undefined) ?? [];
+-  return {
+-    ...body,
+-    meta: { ...meta, viewportShot: "<omitted>", viewportShots: shots.map((s) => `<${s.length} chars>`) },
+-  };
++  return { ...body, meta: Object.fromEntries(Object.entries(meta).map(([k, v]) => [k, short(v)])) };
++}
++
++/** `src` of each source image in the Preview tab. Their alt text tells them apart from the upload thumbnails, whose alt is the file name. */
++function previewSources(page: Page): Promise<string[]> {
++  return page
++    .getByRole("img", { name: /^(Screenshot|Source image \d+) of / })
++    .evaluateAll((els) => els.map((el) => (el as HTMLImageElement).src));
++}
++
++function sameList(a: string[], b: string[]): boolean {
++  return a.length === b.length && a.every((v, i) => v === b[i]);
+ }
+ 
+ interface Analysis {
+@@ -127,7 +136,17 @@ function checkDesignReport(page: Page, a: Analysis, url: string): Promise<void>[
+     (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome === expectedOutcome,
+     (a.body.meta as { aiOutcome?: string } | undefined)?.aiOutcome,
+   );
++  const meta = (a.body.meta ?? {}) as Record<string, unknown>;
++  const shots = (meta.viewportShots as string[] | undefined) ?? [];
++  check("meta has no legacy viewportShot", !("viewportShot" in meta));
++  check(
++    "meta.viewportShots holds the screenshots as PNG data URLs",
++    shots.length > 0 && shots.every((s) => s.startsWith("data:image/png;base64,")),
++    String(shots.length),
++  );
+   return [
++    previewSources(page)
++      .then((shown) => check("Preview shows every viewportShots entry, in order", sameList(shown, shots), `${shown.length} of ${shots.length}`)),
+     page.getByRole("button", { name: "Layout Structure Markdown" }).isVisible()
+       .then((v) => check("Layout Structure Markdown tab is shown", v)),
+     page.getByRole("heading", { name: /^Palette/ }).first().isVisible()
+@@ -288,10 +307,18 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
+ 
+   const a = await submitAndWait(page, /^Analyze Images?$/);
+   const report = a.body.report as { reportKind?: string } | undefined;
+-  const shots = ((a.body.meta as Record<string, unknown>)?.viewportShots as string[] | undefined) ?? [];
++  const meta = (a.body.meta ?? {}) as Record<string, unknown>;
+   check("API answered 200 ok", a.status === 200 && a.body.ok === true, `status ${a.status}`);
+   check("reportKind is palette-mood", report?.reportKind === "palette-mood", report?.reportKind);
+-  check(`viewportShots has one entry per kept image (${kept.length})`, shots.length === kept.length, String(shots.length));
++  check(
++    "response returns no screenshots (no viewportShot, no viewportShots)",
++    !("viewportShot" in meta) && !("viewportShots" in meta),
++    Object.keys(meta).join(", "),
++  );
++  // The browser reads a .png upload as this data URL, so the preview must carry exactly these bytes.
++  const uploaded = kept.map((f) => `data:image/png;base64,${readFileSync(join(OUT, "inputs", `${f}.png`)).toString("base64")}`);
++  const shown = await previewSources(page);
++  check(`Preview shows the ${kept.length} uploaded image(s), in order`, sameList(shown, uploaded), `${shown.length} of ${uploaded.length}`);
+   const expectedOutcome = AI_ON ? "applied" : "no-key";
+   check(
+     `meta.aiOutcome is ${expectedOutcome}`,
+@@ -308,6 +335,17 @@ async function scenarioAnalyzeImages(page: Page, browser: Awaited<ReturnType<typ
+     check("no structure tab without a key", !(await page.getByRole("button", { name: /Layout Structure Markdown/ }).isVisible()));
+   }
+   await shot(page, "result-preview");
++
++  // The preview belongs to the analyzed result: editing the form afterwards must not change it.
++  const firstThumb = page.getByRole("img", { name: `${kept[0]}.png`, exact: true });
++  await firstThumb.hover();
++  await page.getByRole("button", { name: "Remove image 1" }).click();
++  check(
++    `${kept[0]}.png thumbnail is gone after the analysis`,
++    await firstThumb.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false),
++  );
++  check("Preview still shows the images held at submit time", sameList(await previewSources(page), uploaded));
++  await shot(page, "form-edited-after-result");
+ }
+ 
+ async function scenarioError(page: Page): Promise<void> {
+diff --git a/app/api/analyze/route.ts b/app/api/analyze/route.ts
+index 3fe5697..87a41b8 100644
+--- a/app/api/analyze/route.ts
++++ b/app/api/analyze/route.ts
+@@ -175,15 +175,12 @@ export async function POST(request: Request) {
+ 
+   try {
+     if (images.length > 0) {
+-      const cleaned = images.map((img, i) => ({
+-        raw: img.data,
+-        clean: stripDataUrlPrefix(img.data),
+-        name: img.name || `uploaded-image-${i + 1}`,
+-      }));
+-
+       const { report, markdown, meta, refinements, structureReport, structureUnavailableReason } =
+         await analyzeImages(
+-          cleaned.map((img) => ({ data: img.clean, name: img.name })),
++          images.map((img, i) => ({
++            data: stripDataUrlPrefix(img.data),
++            name: img.name || `uploaded-image-${i + 1}`,
++          })),
+           mode,
+         );
+ 
+@@ -194,16 +191,11 @@ export async function POST(request: Request) {
+         structureReport: structureReport ?? null,
+         structureUnavailableReason,
+         refinements,
++        // No `viewportShots` here: the uploads are not sent back to the client
++        // that sent them, nor held in the cache for the TTL (#179).
+         meta: {
+           ...meta,
+           capturedAt: report.source.capturedAt,
+-          // Preview strip: every source image, in submitted order.
+-          viewportShots: cleaned.map((img) =>
+-            img.raw.startsWith("data:") ? img.raw : `data:image/png;base64,${img.clean}`,
+-          ),
+-          viewportShot: cleaned[0].raw.startsWith("data:")
+-            ? cleaned[0].raw
+-            : `data:image/png;base64,${cleaned[0].clean}`,
+         },
+       } satisfies AnalyzeSuccess;
+ 
+@@ -244,7 +236,6 @@ export async function POST(request: Request) {
+       meta: {
+         ...meta,
+         capturedAt: capture.source.capturedAt,
+-        viewportShot: `data:image/png;base64,${capture.viewportShot}`,
+         viewportShots: [capture.viewportShot, ...(capture.panoramaShot ? [capture.panoramaShot] : [])].map(
+           (shot) => `data:image/png;base64,${shot}`,
+         ),
+diff --git a/app/page.tsx b/app/page.tsx
+index ac36d8c..8da543a 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -16,7 +16,7 @@ type AnalysisState =
+   | { status: "idle" }
+   | { status: "loading" }
+   | { status: "error"; message: string }
+-  | { status: "done"; result: AnalyzeSuccess; sourceName: string };
++  | { status: "done"; result: AnalyzeSuccess; sourceName: string; sourceImages: string[] };
+ type InputMode = "url" | "image";
+ 
+ /** A selected file and its data-URL preview, kept in one entry so the pairing
+@@ -103,6 +103,10 @@ export default function Home() {
+     if (inputMode === "url" && !url.trim()) return;
+     if (inputMode === "image" && images.length === 0) return;
+ 
++    // The selection as it stands at submit: the result is built from this
++    // snapshot, never from the live form, which can change while the request
++    // is in flight or after it settles (#173, #179).
++    const submittedImages = images;
+     setState({ status: "loading" });
+ 
+     try {
+@@ -112,7 +116,7 @@ export default function Home() {
+       } else {
+         // Image mode's structure lane is vision-inferred rather than DOM-measured
+         // (§P6-2 step 2) — the API reports back if it couldn't run (no key).
+-        bodyData.images = images.map(({ file, preview }, i) => ({
++        bodyData.images = submittedImages.map(({ file, preview }, i) => ({
+           data: preview,
+           name: file.name || `uploaded-image-${i + 1}`,
+         }));
+@@ -150,12 +154,20 @@ export default function Home() {
+       const sourceName =
+         data.report.source.type === "url"
+           ? (data.meta.finalUrl || url)
+-          : (images[0]?.file.name || data.report.source.ref || "image");
++          : (submittedImages[0]?.file.name || data.report.source.ref || "image");
++
++      // A URL response carries its screenshots. An image response carries
++      // none, so the preview shows the uploads this request was built from.
++      const sourceImages =
++        data.report.source.type === "url"
++          ? (data.meta.viewportShots ?? [])
++          : submittedImages.map((img) => img.preview);
+ 
+       setState({
+         status: "done",
+         result: data,
+         sourceName,
++        sourceImages,
+       });
+     } catch (err) {
+       setState({
+@@ -375,6 +387,7 @@ export default function Home() {
+               report={state.result.report}
+               meta={state.result.meta}
+               refinements={state.result.refinements}
++              sourceImages={state.sourceImages}
+             />
+           )}
+ 
+@@ -406,10 +419,13 @@ function Preview({
+   report,
+   meta,
+   refinements,
++  sourceImages,
+ }: {
+   report: Report;
+   meta: AnalyzeMeta;
+   refinements: RefinementChange[];
++  /** URL: the response's `viewportShots`. Images: the uploads held at submit time. */
++  sourceImages: string[];
+ }) {
+   return (
+     <div className="space-y-10">
+@@ -628,9 +644,9 @@ function Preview({
+         </section>
+       )}
+ 
+-      {meta.viewportShots && meta.viewportShots.length > 1 ? (
++      {sourceImages.length > 1 ? (
+         <div className="grid gap-3 sm:grid-cols-2">
+-          {meta.viewportShots.map((src, i) => (
++          {sourceImages.map((src, i) => (
+             // eslint-disable-next-line @next/next/no-img-element
+             <img
+               key={i}
+@@ -640,14 +656,14 @@ function Preview({
+             />
+           ))}
+         </div>
+-      ) : (
++      ) : sourceImages.length === 1 ? (
+         // eslint-disable-next-line @next/next/no-img-element
+         <img
+-          src={meta.viewportShot}
++          src={sourceImages[0]}
+           alt={`Screenshot of ${meta.finalUrl}`}
+           className="w-full rounded-lg border border-line shadow-sm"
+         />
+-      )}
++      ) : null}
+     </div>
+   );
+ }
+diff --git a/lib/api.ts b/lib/api.ts
+index 8346d92..4a63486 100644
+--- a/lib/api.ts
++++ b/lib/api.ts
+@@ -17,8 +17,9 @@ export interface AnalyzeMeta {
+   elapsedMs: number;
+   bannerDismissed: boolean;
+   capturedAt: string;
+-  viewportShot: string;
+-  /** Every source image, in submitted order (image mode only, §P6-1). */
++  /** Screenshots of a URL render, as data URLs: the viewport shot, then the
++   *  panorama when one was captured. Absent for image input — the uploads are
++   *  not sent back to the client that sent them (#179). */
+   viewportShots?: string[];
+   aiOutcome: AiOutcome;
+ }

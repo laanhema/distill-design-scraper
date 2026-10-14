@@ -259,8 +259,7 @@ eval/              offline regression harness (corpus captures + expected.yaml +
   "meta": {
     "finalUrl": "…", "title": "…", "elapsedMs": 1234,
     "bannerDismissed": false, "aiApplied": true, "capturedAt": "…",
-    "viewportShot": "data:image/png;base64,…",     // legacy singular alias
-    "viewportShots": ["data:image/png;base64,…"]   // URL: viewport + panorama; images: one per source
+    "viewportShots": ["data:image/png;base64,…"]   // URL only: viewport, then panorama when captured. Absent for images (#179)
   }
 }
 ```

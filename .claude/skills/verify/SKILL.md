@@ -58,7 +58,7 @@ Every scenario runs at 1280×900, except `tab-layout`, which resizes to each `--
 | `analyze-url` | `--target clean-light` (fixture name or any `http(s)` URL) | URL → report, preview, structure tab, AI-lane label |
 | `tabs-downloads` | `--target clean-light` | each tab shows the right markdown; all three downloads match the API payload |
 | `tab-layout` | `--target clean-light`, `--widths 1280,1024,768,390` | at each width, the result header's tab and download buttons keep identical boxes across tab switches, every label stays on one line, and the page has no horizontal overflow |
-| `analyze-images` | `--fixtures clean-light,dark-mode,adversarial-shell`, `--remove <n>` (default: last) | upload, thumbnails, remove, palette-mood report, structure behavior with and without a key |
+| `analyze-images` | `--fixtures clean-light,dark-mode,adversarial-shell`, `--remove <n>` (default: last) | upload, thumbnails, remove, palette-mood report, a response without screenshots, a preview built from the uploads held at submit, structure behavior with and without a key |
 | `error` | `--url http://10.0.0.1/` | a blocked URL gives a 400, the error banner, and no result tabs |
 
 Each check prints `ok` or `FAIL`. The command exits 1 if any check fails. A scenario that throws records `scenario ran to completion: FAIL` and saves `failure.png`. A `--target` outside `127.0.0.1` reaches the public internet and real third-party pages, so results vary between runs.
@@ -69,7 +69,7 @@ For behavior no scenario covers, add a scenario to `drive.ts` with the same `che
 
 Each `drive` writes to `$RUN_DIR/evidence/<scenario>-<HHMMSS>/`, that is `.verify/runs/<run-id>/evidence/…`:
 
-- `NN-<step>.png`: a full-page screenshot of every step, including the action (`url-entered`, `loading`, `images-selected`, `image-removed`) and the resulting state (`result-preview`, `tab-*`, `error`).
+- `NN-<step>.png`: a full-page screenshot of every step, including the action (`url-entered`, `loading`, `images-selected`, `image-removed`) and the resulting state (`result-preview`, `form-edited-after-result`, `tab-*`, `error`).
 - `NN-<step>.aria.yaml`: the ARIA snapshot of `<main>` at that step. Quote it when a claim depends on text or labels.
 - `response.json`: the `/api/analyze` body with base64 screenshots replaced by length placeholders. `report.md` and `structure.md` hold the markdown the API returned.
 - `downloads/`: the files the browser actually saved. `inputs/`: the PNGs that were uploaded.
