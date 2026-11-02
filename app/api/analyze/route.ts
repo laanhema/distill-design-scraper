@@ -15,6 +15,7 @@ import {
 } from "@/lib/security/rateLimiter";
 import { UnsafeUrlError } from "@/lib/security/ssrfGuard";
 import { DegenerateImageError } from "@/lib/extract/imagePalette";
+import { BlockedNavigationError } from "@/lib/ingest";
 import {
   MAX_IMAGES,
   type AnalyzeSuccess,
@@ -254,6 +255,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, error: err.message } satisfies AnalyzeFailure,
         { status: 422 },
+      );
+    }
+    // Blocked navigation (HTTP 401/403/5xx, anti-bot challenge, timeout, or
+    // connection failure): upstream is inaccessible, actionable client message.
+    if (err instanceof BlockedNavigationError) {
+      return NextResponse.json(
+        { ok: false, error: err.message } satisfies AnalyzeFailure,
+        { status: 502 },
       );
     }
     // Surface a clear error, never fabricate results, but keep internals out

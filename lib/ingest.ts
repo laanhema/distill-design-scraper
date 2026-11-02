@@ -1,4 +1,4 @@
-import { chromium, type Browser, type Page } from "playwright";
+import { chromium, type Browser, type Page, type Response } from "playwright";
 import sharp from "sharp";
 import {
   collectStyleDump,
@@ -8,6 +8,30 @@ import {
 import { harvestDomTree } from "@/lib/extract/structure/harvester";
 import type { RawHarvestNode, ResponsiveHarvest } from "@/lib/extract/structureSchema";
 import { assertSafeUrl } from "@/lib/security/ssrfGuard";
+
+/**
+ * Thrown when navigation is blocked by access restrictions, HTTP error codes
+ * (401, 403, 5xx), anti-bot challenge pages, or unreachable/timeout network errors.
+ */
+export class BlockedNavigationError extends Error {}
+
+const BOT_CHALLENGE_TITLE_PATTERNS = [
+  /^just a moment\b/i,
+  /^attention required! \| cloudflare/i,
+  /^security check/i,
+  /^verify you are human/i,
+  /^human verification/i,
+  /^bot verification/i,
+  /^checking your browser/i,
+  /^access denied/i,
+  /^403 forbidden/i,
+  /^ddos-guard/i,
+];
+
+export function isBotChallengeTitle(title: string): boolean {
+  const trimmed = title.trim();
+  return BOT_CHALLENGE_TITLE_PATTERNS.some((pattern) => pattern.test(trimmed));
+}
 
 /**
  * The single seam through which a live page enters the pipeline: every
@@ -239,6 +263,13 @@ async function captureFullPageTiles(
 export async function capturePage(
   page: Page,
 ): Promise<CaptureArtifacts & { bannerDismissed: boolean }> {
+  const initialTitle = await page.title();
+  if (isBotChallengeTitle(initialTitle)) {
+    throw new BlockedNavigationError(
+      `Navigation was blocked by a bot challenge or access restriction (title: "${initialTitle}").`,
+    );
+  }
+
   const primaryViewport = page.viewportSize() ?? DEFAULT_VIEWPORT;
   const bannerDismissed = await dismissConsentBanner(page);
 
@@ -341,18 +372,57 @@ export async function renderUrl(
     });
 
     // `networkidle` is best-effort: chatty/analytics-heavy sites never idle.
+    let response: Response | null = null;
     try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: navTimeout });
+      response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: navTimeout });
     } catch (err) {
       await Promise.allSettled(pendingRedirectValidations);
       if (redirectSsrfError) {
         throw redirectSsrfError;
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      if (err instanceof Error && (err.name === "TimeoutError" || message.includes("Timeout"))) {
+        throw new BlockedNavigationError(
+          `Navigation to "${url}" timed out after ${navTimeout}ms. The site may be down or unreachable.`,
+        );
+      }
+      if (
+        message.includes("net::ERR_") ||
+        message.includes("NS_ERROR_") ||
+        message.includes("Navigation failed")
+      ) {
+        const firstLine = message.split("\n")[0].trim();
+        throw new BlockedNavigationError(
+          `Failed to reach "${url}": ${firstLine.replace(/^page\.goto:\s*/, "")}`,
+        );
       }
       throw err;
     }
     await Promise.allSettled(pendingRedirectValidations);
     if (redirectSsrfError) {
       throw redirectSsrfError;
+    }
+
+    if (response) {
+      const status = response.status();
+      if (status >= 400) {
+        const statusText = response.statusText();
+        const detail = statusText ? `HTTP ${status} ${statusText}` : `HTTP ${status}`;
+        if (status === 401 || status === 403) {
+          throw new BlockedNavigationError(`Access denied to "${url}": ${detail}.`);
+        }
+        if (status >= 500) {
+          throw new BlockedNavigationError(`Server error reaching "${url}": ${detail}.`);
+        }
+        throw new BlockedNavigationError(`Navigation to "${url}" failed with ${detail}.`);
+      }
+    }
+
+    const titleAfterGoto = await page.title();
+    if (isBotChallengeTitle(titleAfterGoto)) {
+      throw new BlockedNavigationError(
+        `Navigation to "${url}" was blocked by a bot challenge or access restriction (title: "${titleAfterGoto}").`,
+      );
     }
     try {
       await page.waitForLoadState("networkidle", { timeout: 8_000 });

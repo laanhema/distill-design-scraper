@@ -330,7 +330,10 @@ export default function Home() {
       )}
 
       {state.status === "error" && (
-        <div className="mt-6 rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger-ink">
+        <div
+          role="alert"
+          className="mt-6 rounded-lg border border-danger-line bg-danger-bg px-4 py-3 text-sm text-danger-ink"
+        >
           <strong className="font-medium">Couldn&apos;t analyze this input.</strong>{" "}
           {state.message}
         </div>
