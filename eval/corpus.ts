@@ -32,6 +32,7 @@ export const CORPUS: CorpusEntry[] = [
   { slug: "dark-mode", bucket: "dark-mode", fixture: "dark-mode.html" },
   { slug: "adversarial-shell", bucket: "hostile", fixture: "adversarial-shell.html" },
   { slug: "saas-landing", bucket: "css-variable", fixture: "saas-landing.html" },
+  { slug: "two-scheme", bucket: "dark-mode", fixture: "two-scheme.html" },
 
   // Live references — capture + author expected.yaml to bring these online.
   { slug: "stripe", bucket: "clean-design-system", url: "https://stripe.com", optional: true },

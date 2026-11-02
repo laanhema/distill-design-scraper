@@ -7,6 +7,8 @@ import { CORPUS } from "./corpus";
 import {
   scorePalette,
   scoreTypography,
+  scoreStates,
+  scoreMotion,
   combinedScore,
   expectedSpecSchema,
   type ExpectedSpec,
@@ -35,6 +37,10 @@ interface SiteResult {
   avgDeltaE: number;
   bodyFamilyOk: boolean | null;
   structureScore: number | null;
+  /** `null` when `expected.yaml` has no spec for that lane. */
+  statesAccuracy: number | null;
+  motionAccuracy: number | null;
+  darkRoleAccuracy: number | null;
   notes: string[];
 }
 
@@ -91,7 +97,16 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
     }
   }
 
-  const combined = combinedScore(pal, typo, structureScore);
+  const states = expected.states ? scoreStates(report.states, expected.states) : null;
+  const motion = expected.motion ? scoreMotion(report.motion, expected.motion) : null;
+  const dark = expected.paletteDark
+    ? scorePalette(report.paletteDark, expected.paletteDark)
+    : null;
+  const extraLanes = [states?.accuracy, motion?.accuracy, dark?.roleAccuracy].filter(
+    (a): a is number => a !== undefined,
+  );
+
+  const combined = combinedScore(pal, typo, structureScore, extraLanes);
 
   const notes: string[] = [];
   for (const m of pal.misses) {
@@ -111,6 +126,14 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
   for (const m of structureMisses) {
     notes.push(`structure: ${m}`);
   }
+  for (const m of dark?.misses ?? []) {
+    notes.push(
+      `paletteDark ${m.role}: expected ${m.expected}, got ${m.got ?? "—"}` +
+        (m.deltaE !== null ? ` (ΔE ${m.deltaE.toFixed(1)})` : ""),
+    );
+  }
+  for (const m of states?.misses ?? []) notes.push(`states ${m}`);
+  for (const m of motion?.misses ?? []) notes.push(`motion ${m}`);
 
   return {
     slug,
@@ -120,6 +143,9 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
     avgDeltaE: pal.avgDeltaE,
     bodyFamilyOk: typo?.bodyFamilyOk ?? null,
     structureScore,
+    statesAccuracy: states?.accuracy ?? null,
+    motionAccuracy: motion?.accuracy ?? null,
+    darkRoleAccuracy: dark?.roleAccuracy ?? null,
     notes,
   };
 }
@@ -160,7 +186,10 @@ async function main() {
       `  ${r.slug.padEnd(14)} combined ${fmtPct(r.combined).padStart(4)}` +
         `  roles ${fmtPct(r.roleAccuracy).padStart(4)}` +
         `  type ${typ.padStart(4)}` +
-        `  ΔE ${r.avgDeltaE.toFixed(1)}`,
+        `  ΔE ${r.avgDeltaE.toFixed(1)}` +
+        (r.darkRoleAccuracy !== null ? `  dark ${fmtPct(r.darkRoleAccuracy)}` : "") +
+        (r.statesAccuracy !== null ? `  states ${fmtPct(r.statesAccuracy)}` : "") +
+        (r.motionAccuracy !== null ? `  motion ${fmtPct(r.motionAccuracy)}` : ""),
     );
     for (const n of r.notes) console.log(`      ↳ ${n}`);
   }
