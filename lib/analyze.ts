@@ -20,7 +20,7 @@ import {
   interpret,
   type RefinementChange,
 } from "@/lib/interpret";
-import type { Report, StructureReport } from "@/lib/schema";
+import type { CaptureAccess, Report, StructureReport } from "@/lib/schema";
 import type { AiOutcome } from "@/lib/api";
 
 /**
@@ -80,6 +80,7 @@ export async function extractFromCapture(
   const report = buildReport({
     reportKind: "design-system",
     source: capture.source,
+    capture: capture.access ? { access: capture.access } : undefined,
     palette,
     paletteDark,
     typography,
@@ -209,6 +210,7 @@ export async function analyzeImages(
       elapsedMs: number;
       bannerDismissed: boolean;
       aiOutcome: AiOutcome;
+      access?: CaptureAccess;
     };
   }
 > {
@@ -344,6 +346,7 @@ export async function analyzeUrl(
     elapsedMs: number;
     bannerDismissed: boolean;
     aiOutcome: AiOutcome;
+    access?: CaptureAccess;
   };
 }> {
   const capturedAt = new Date().toISOString();
@@ -419,6 +422,7 @@ export async function analyzeUrl(
       elapsedMs: render.elapsedMs,
       bannerDismissed: render.bannerDismissed,
       aiOutcome: enriched.outcome,
+      access: capture.access,
     },
   };
 }

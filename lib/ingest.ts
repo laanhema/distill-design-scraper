@@ -8,6 +8,7 @@ import {
 import { harvestDomTree } from "@/lib/extract/structure/harvester";
 import type { RawHarvestNode, ResponsiveHarvest } from "@/lib/extract/structureSchema";
 import { assertSafeUrl } from "@/lib/security/ssrfGuard";
+import type { CaptureAccess, Obstruction } from "@/lib/schema";
 
 /**
  * Thrown when navigation is blocked by access restrictions, HTTP error codes
@@ -58,6 +59,7 @@ export interface CaptureArtifacts {
    *  switch to it as a simplification. Omitted when the page fits in one
    *  viewport, or on capture failure. */
   panoramaShot?: string;
+  access?: CaptureAccess;
 }
 
 export interface RenderResult extends CaptureArtifacts {
@@ -257,6 +259,178 @@ async function captureFullPageTiles(
 }
 
 /**
+ * Measures whether the viewport is obstructed by an overlay, cookie banner,
+ * modal dialog, or scroll lock via a 24×15 grid sample with `elementFromPoint`.
+ * Landmark elements (header, nav, [role=banner], [role=navigation]) and
+ * top-anchored banners shorter than 20% of viewport height count as headers
+ * and are excluded from obstruction coverage.
+ */
+export async function measureObstruction(
+  page: Page,
+  at: "viewport" | "dark" | string = "viewport",
+): Promise<Obstruction | null> {
+  return page.evaluate((atParam) => {
+    // Defensively ensure __name is defined if tsx rewrites inner functions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (globalThis as any).__name = (globalThis as any).__name || ((fn: any) => fn);
+
+    if (!document.documentElement) return null;
+
+    const htmlStyle = window.getComputedStyle(document.documentElement);
+    const bodyStyle = document.body ? window.getComputedStyle(document.body) : null;
+    const scrollLocked =
+      htmlStyle.overflow === "hidden" ||
+      htmlStyle.overflowY === "hidden" ||
+      Boolean(bodyStyle && (bodyStyle.overflow === "hidden" || bodyStyle.overflowY === "hidden"));
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (vw <= 0 || vh <= 0) return null;
+
+    const isLandmark = (el: Element | null): boolean => {
+      if (!el) return false;
+      return Boolean(
+        el.closest('header, nav, [role="banner"], [role="navigation"]') ||
+          el.matches('header, nav, [role="banner"], [role="navigation"]') ||
+          el.querySelector('header, nav, [role="banner"], [role="navigation"]'),
+      );
+    };
+
+    const getOutermostFixedAncestor = (el: Element): Element | null => {
+      let curr: Element | null = el;
+      let outermost: Element | null = null;
+      while (curr && curr !== document.documentElement && curr !== document.body) {
+        const style = window.getComputedStyle(curr);
+        if (style.position === "fixed") {
+          outermost = curr;
+        }
+        curr = curr.parentElement;
+      }
+      return outermost;
+    };
+
+    // Check visible dialogs/modals confirmed via hit test at center
+    const modalCandidates = Array.from(
+      document.querySelectorAll<HTMLElement>('dialog[open], [aria-modal="true"]'),
+    );
+    const confirmedModals: HTMLElement[] = [];
+    for (const modal of modalCandidates) {
+      if (!modal.isConnected) continue;
+      const style = window.getComputedStyle(modal);
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.opacity === "0" ||
+        style.pointerEvents === "none"
+      ) {
+        continue;
+      }
+      const rect = modal.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      if (cx >= 0 && cx < vw && cy >= 0 && cy < vh) {
+        let hit = document.elementFromPoint(cx, cy);
+        while (hit && (hit as HTMLElement).shadowRoot) {
+          const inner = (hit as HTMLElement).shadowRoot?.elementFromPoint(cx, cy);
+          if (!inner || inner === hit) break;
+          hit = inner;
+        }
+        if (hit && (modal === hit || modal.contains(hit))) {
+          confirmedModals.push(modal);
+        }
+      }
+    }
+
+    const getDescriptor = (node: Element): string => {
+      const tag = node.tagName.toLowerCase();
+      if (node.id) return `${tag}#${node.id}`;
+      const className = typeof node.className === "string" ? node.className.trim() : "";
+      if (className) {
+        const firstClass = className.split(/\s+/)[0];
+        if (firstClass) return `${tag}.${firstClass}`;
+      }
+      return tag;
+    };
+
+    const culpritCounts: Record<string, number> = {};
+    let coveredPoints = 0;
+    const totalPoints = 24 * 15; // 360
+
+    for (let r = 0; r < 15; r++) {
+      const y = (r + 0.5) * (vh / 15);
+      for (let c = 0; c < 24; c++) {
+        const x = (c + 0.5) * (vw / 24);
+
+        let el = document.elementFromPoint(x, y);
+        while (el && (el as HTMLElement).shadowRoot) {
+          const inner = (el as HTMLElement).shadowRoot?.elementFromPoint(x, y);
+          if (!inner || inner === el) break;
+          el = inner;
+        }
+        if (!el) continue;
+
+        // Skip landmark elements
+        if (isLandmark(el)) continue;
+
+        // Check if inside a confirmed modal
+        let obstructingElement: Element | null = null;
+        for (const modal of confirmedModals) {
+          if (modal === el || modal.contains(el)) {
+            obstructingElement = modal;
+            break;
+          }
+        }
+
+        // Check fixed layers
+        if (!obstructingElement) {
+          const fixedAncestor = getOutermostFixedAncestor(el);
+          if (fixedAncestor) {
+            if (isLandmark(fixedAncestor)) continue;
+
+            const rect = fixedAncestor.getBoundingClientRect();
+            // Top-anchored banners shorter than 20% of viewport height count as headers
+            const isTopAnchored = rect.top <= 1 && rect.left <= 5 && rect.width >= vw * 0.5;
+            const isShortHeader = rect.height < 0.20 * vh;
+            if (isTopAnchored && isShortHeader) {
+              continue;
+            }
+            obstructingElement = fixedAncestor;
+          }
+        }
+
+        if (obstructingElement) {
+          coveredPoints++;
+          const desc = getDescriptor(obstructingElement);
+          culpritCounts[desc] = (culpritCounts[desc] || 0) + 1;
+        }
+      }
+    }
+
+    let topCulprit: string | undefined;
+    let maxCount = 0;
+    for (const [desc, count] of Object.entries(culpritCounts)) {
+      if (count > maxCount) {
+        maxCount = count;
+        topCulprit = desc;
+      }
+    }
+
+    const coverage = Math.round((coveredPoints / totalPoints) * 1000) / 1000;
+    if (coverage === 0 && !scrollLocked) {
+      return null;
+    }
+
+    return {
+      coverage,
+      scrollLocked,
+      ...(topCulprit ? { culprit: topCulprit } : {}),
+      at: atParam,
+    };
+  }, at);
+}
+
+/**
  * Everything after navigation. Separate from `renderUrl` so the eval harness
  * can drive it against local fixture pages without the SSRF guard.
  */
@@ -278,6 +452,11 @@ export async function capturePage(
   await page.waitForTimeout(500);
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(300);
+
+  const obstruction = await measureObstruction(page, "viewport");
+  const access: CaptureAccess = obstruction
+    ? { state: "obstructed", mitigations: [], obstructions: [obstruction] }
+    : { state: "clear", mitigations: [] };
 
   const viewportShotBuf = await page.screenshot({ fullPage: false });
   // One cache per capture, shared by the light and the dark style dump, so
@@ -302,6 +481,7 @@ export async function capturePage(
   return {
     viewportShot: viewportShotBuf.toString("base64"),
     bannerDismissed,
+    access,
     styleDump,
     rawHarvestNode,
     ...(responsiveHarvests.length > 0 ? { responsiveHarvests } : {}),

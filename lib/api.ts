@@ -1,4 +1,4 @@
-import type { Report, StructureReport } from "@/lib/schema";
+import type { CaptureAccess, Report, StructureReport } from "@/lib/schema";
 import type { RefinementChange } from "@/lib/interpret";
 
 /**
@@ -21,6 +21,7 @@ export interface AnalyzeMeta {
    *  not sent back to the client that sent them. */
   viewportShots?: string[];
   aiOutcome: AiOutcome;
+  access?: CaptureAccess;
 }
 
 export type Meta = AnalyzeMeta;

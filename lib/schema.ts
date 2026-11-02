@@ -11,6 +11,58 @@ export const PROVENANCE = ["measured", "inferred", "ai"] as const;
 export const provenanceSchema = z.enum(PROVENANCE);
 
 /**
+ * Capture accessibility and obstruction states, modeled as a discriminated union
+ * so illegal states (such as blocked-with-report or clear-with-obstructions)
+ * cannot be represented.
+ */
+export const mitigationSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("consent"),
+    cmp: z.string(),
+    action: z.enum(["optOut", "optIn"]),
+  }),
+  z.object({
+    kind: z.literal("filterLists"),
+    lists: z.array(z.string()),
+  }),
+  z.object({
+    kind: z.literal("overlayHidden"),
+    descriptor: z.string(),
+    rule: z.enum(["fullCover", "floatingPanel", "dialog", "escape"]),
+  }),
+  z.object({
+    kind: z.literal("scrollUnlocked"),
+  }),
+]);
+export type Mitigation = z.infer<typeof mitigationSchema>;
+
+export const obstructionSchema = z.object({
+  coverage: z.number().min(0).max(1),
+  scrollLocked: z.boolean(),
+  culprit: z.string().optional(),
+  at: z.string(),
+});
+export type Obstruction = z.infer<typeof obstructionSchema>;
+
+export const captureAccessSchema = z.discriminatedUnion("state", [
+  z.object({
+    state: z.literal("clear"),
+    mitigations: z.array(mitigationSchema).default([]),
+  }),
+  z.object({
+    state: z.literal("obstructed"),
+    mitigations: z.array(mitigationSchema).default([]),
+    obstructions: z.array(obstructionSchema).min(1),
+  }),
+  z.object({
+    state: z.literal("blocked"),
+    reason: z.string(),
+    status: z.number().optional(),
+  }),
+]);
+export type CaptureAccess = z.infer<typeof captureAccessSchema>;
+
+/**
  * The roles the AI lane may permute in a role refinement. The rest of
  * `COLOR_ROLES` are evidence-gated (`on-primary` is derived, the semantic
  * states need measured usage context), so the model never assigns them. The
@@ -261,6 +313,11 @@ export const reportSchema = z.object({
     refs: z.array(z.string()).optional(),
     capturedAt: z.string(),
   }),
+  capture: z
+    .object({
+      access: captureAccessSchema.optional(),
+    })
+    .optional(),
   palette: paletteSchema,
   /** A second palette from a `prefers-color-scheme: dark` render,
    *  only present when the background actually shifted — a single-scheme
