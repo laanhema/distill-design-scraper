@@ -1,0 +1,46 @@
+diff --git a/lib/extract/structure/repetition.ts b/lib/extract/structure/repetition.ts
+index 2853ed7..5431627 100644
+--- a/lib/extract/structure/repetition.ts
++++ b/lib/extract/structure/repetition.ts
+@@ -1,12 +1,19 @@
+ import type { PrunedNode } from "../structureSchema";
++import { findDigestBands } from "./sections";
+ 
+ /**
+  * Stage 5 — Detect Repetition: groups matching sibling node signatures into
+  * repeated component instances `×N` and attaches instanceCount / varianceNote
+- * tags.
++ * tags. The page bands that `findDigestBands` reports never collapse: two
++ * sections that share a tag shape are still two sections.
+  */
+-export function detectRepetition(node: PrunedNode): PrunedNode {
+-  const childrenProcessed = node.children.map((child) => detectRepetition(child));
++export function detectRepetition(root: PrunedNode): PrunedNode {
++  const bandIds = new Set(findDigestBands(root).map((band) => band.id));
++  return collapseRepeats(root, bandIds);
++}
++
++function collapseRepeats(node: PrunedNode, bandIds: ReadonlySet<string>): PrunedNode {
++  const childrenProcessed = node.children.map((child) => collapseRepeats(child, bandIds));
+ 
+   if (childrenProcessed.length < 2) {
+     return {
+@@ -17,6 +24,7 @@ export function detectRepetition(node: PrunedNode): PrunedNode {
+ 
+   const signatureCounts: Record<string, number> = {};
+   for (const child of childrenProcessed) {
++    if (bandIds.has(child.id)) continue;
+     const key = getBaseSignature(child);
+     signatureCounts[key] = (signatureCounts[key] || 0) + 1;
+   }
+@@ -26,6 +34,10 @@ export function detectRepetition(node: PrunedNode): PrunedNode {
+ 
+   for (let i = 0; i < childrenProcessed.length; i++) {
+     const child = childrenProcessed[i];
++    if (bandIds.has(child.id)) {
++      newChildren.push(child);
++      continue;
++    }
+     const key = getBaseSignature(child);
+     const count = signatureCounts[key] || 1;
+ 
