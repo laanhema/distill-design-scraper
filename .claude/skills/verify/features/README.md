@@ -15,7 +15,7 @@ This directory is the maintained source for verifying Distill's user-facing beha
 
 - UI actions go through `$V drive <scenario>`. Every scenario starts from a fresh page load, so no state carries over between scenarios.
 - Handles are button names, the `https://stripe.com` placeholder, `#image-input`, and thumbnail alt text. Don't use coordinates or CSS classes.
-- The in-memory cache is keyed on the URL or image bytes plus `mode`. A repeat UI analysis of the same target within 10 minutes returns the cached response. The UI cannot send `forceRefresh`, so run `$V down` and `$V up` when you need a cold render.
+- The in-memory cache is keyed on the URL plus `mode`, or each image's bytes and file name plus `mode`. A repeat UI analysis of the same target within 10 minutes returns the cached response. The UI cannot send `forceRefresh`, so run `$V down` and `$V up` when you need a cold render.
 - The UI always sends `mode: "both"`. To test `tokens` or `structure` mode alone, use the API recipes.
 
 ## Proof and skip reporting
