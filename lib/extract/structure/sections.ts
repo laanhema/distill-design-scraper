@@ -4,9 +4,10 @@ import { bandPart, structuralPart } from "./annotationSegments";
 
 /**
  * Stage 9 — Section Digest: an ordered, measured per-band summary of the page.
- * A collapsed repeated group like `SectionCard ×7` stays **one** entry. Every
- * field is joined from an already-measured upstream artifact; an absent input
- * yields an omitted field, never a guess.
+ * A band is never collapsed (Stage 5 exempts it); a repeated group inside a
+ * band reads as one `×N` item of `contents`. Every field is joined from an
+ * already-measured upstream artifact; an absent input yields an omitted field,
+ * never a guess.
  */
 
 const HEADING_TAGS = ["h1", "h2", "h3", "h4"];
@@ -150,8 +151,8 @@ function joinResponsiveDeltas(names: string[], responsive: ResponsiveDeltas): st
 /**
  * `SiteHeader`, each direct child of `MainContent`, `SiteFooter` — empty when
  * the page has no identifiable main region (band identity would be a guess).
- * Single source for BOTH Stage 9 and the Stage 7 AI prompt, so the two can
- * never disagree about which nodes are sections.
+ * Single source for Stage 5's repetition exemption, Stage 9 and the Stage 7 AI
+ * prompt, so they can never disagree about which nodes are sections.
  */
 export function findDigestBands(root: PrunedNode): PrunedNode[] {
   const main = findBand(root, "main");
