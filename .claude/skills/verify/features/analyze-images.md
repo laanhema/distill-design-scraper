@@ -33,5 +33,5 @@ Preconditions:
 - The `Remove image N` button has opacity 0 until hovered. Hover the thumbnail first.
 - After a result, a thumbnail's file name is also part of each preview picture's alt text (`Source image 1 of clean-light.png +1 more`). Match a thumbnail with `exact: true`, and find preview pictures by `Screenshot of` or `Source image N of`.
 - With the AI lane off, the no-key image response is cached, because a missing key is a persistent condition. A structure failure while a key is set is not cached.
-- The cache key is the image bytes plus `mode`, not the file name. Re-uploading the same bytes under another name within 10 minutes returns the earlier response, whose `report.source.ref` still names the first file. Use fresh bytes, or restart the instance, when a run depends on the name.
+- The cache key covers the image bytes, the file names and `mode`. Re-uploading the same bytes under another name is analyzed afresh and names the new file; the same bytes and names within 10 minutes return the earlier response.
 - When no image yields a colour (fully transparent or unreadable), the API returns `422` with an actionable message. See [Error handling](./error-handling.md). An unreadable image among readable ones is skipped, and the request returns `200`.

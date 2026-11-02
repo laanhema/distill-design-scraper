@@ -144,8 +144,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const imagesKeyPart = images.map((img) => img.data).join("|");
-  const cacheKey = createCacheKey(`${url || ""}:${imagesKeyPart}:${mode}`);
+  const imageInputs = images.map((img, i) => ({
+    data: stripDataUrlPrefix(img.data),
+    name: img.name || `uploaded-image-${i + 1}`,
+  }));
+
+  // The report names the uploaded files, so an image key covers each name as
+  // well as its bytes; JSON keeps different {data, name} lists from joining
+  // into one string. A URL key is the string it has always been.
+  const cacheKey = createCacheKey(
+    imageInputs.length > 0
+      ? JSON.stringify({ images: imageInputs, mode })
+      : `${url || ""}::${mode}`,
+  );
   if (!body.forceRefresh) {
     const cached = getCache(cacheKey);
     if (cached) {
@@ -169,15 +180,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    if (images.length > 0) {
+    if (imageInputs.length > 0) {
       const { report, markdown, meta, refinements, structureReport, structureUnavailableReason } =
-        await analyzeImages(
-          images.map((img, i) => ({
-            data: stripDataUrlPrefix(img.data),
-            name: img.name || `uploaded-image-${i + 1}`,
-          })),
-          mode,
-        );
+        await analyzeImages(imageInputs, mode);
 
       const responsePayload = {
         ok: true,
