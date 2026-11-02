@@ -86,9 +86,9 @@ function renderAccessNote(access: CaptureAccess): string | undefined {
   if (access.state === "obstructed") {
     const obs = access.obstructions[0];
     const pct = `${Math.round(obs.coverage * 100)}%`;
-    let desc = `${pct} viewport obstruction`;
-    if (obs.culprit) desc += ` (culprit: ${obs.culprit})`;
-    if (obs.scrollLocked) desc += `; scroll locked`;
+    let desc = obs.coverage > 0 ? `${pct} viewport obstruction` : "";
+    if (obs.culprit) desc += `${desc ? " " : ""}(culprit: ${obs.culprit})`;
+    if (obs.scrollLocked) desc += `${desc ? "; " : ""}scroll locked`;
     parts.push(`Captured with ${desc}`);
   } else if (access.state === "blocked") {
     parts.push(
