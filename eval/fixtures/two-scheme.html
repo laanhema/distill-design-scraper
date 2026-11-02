@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Duo — Two-Scheme Design System Fixture</title>
+    <style>
+      /* One page, two schemes: the light tokens below, swapped for the dark
+         set under `prefers-color-scheme: dark`. The capture renders both, so
+         the report carries `palette` (light) and `paletteDark`. */
+      :root {
+        --bg: #fafaf9;
+        --surface: #f0efed;
+        --text: #1c1917;
+        --primary: #0f766e;
+        --border: #d6d3d1;
+        --muted: #78716c;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0c0a09;
+          --surface: #1c1917;
+          --text: #f5f5f4;
+          --primary: #2dd4bf;
+          --border: #44403c;
+          --muted: #a8a29e;
+        }
+      }
+      * { box-sizing: border-box; margin: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: "Source Sans 3", system-ui, sans-serif;
+        font-size: 16px;
+        line-height: 1.6;
+      }
+      header { padding: 20px 48px; border-bottom: 1px solid var(--border); }
+      nav a { color: var(--primary); text-decoration: none; margin-right: 24px; }
+      .hero { padding: 64px 48px 32px; }
+      h1 { font-size: 46px; font-weight: 700; line-height: 1.1; }
+      h2 { font-size: 30px; font-weight: 600; line-height: 1.2; margin-top: 8px; }
+      h3 { font-size: 21px; font-weight: 600; }
+      p { font-size: 16px; margin-top: 16px; max-width: 60ch; }
+      small, .caption { font-size: 13px; color: var(--muted); }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 32px 48px; }
+      .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+      .btn { background: var(--primary); color: var(--bg); border: none; border-radius: 8px; padding: 12px 20px; font-size: 16px; font-weight: 600; }
+      footer { padding: 32px 48px; color: var(--muted); border-top: 1px solid var(--border); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <nav>
+        <a href="#">Product</a><a href="#">Pricing</a><a href="#">Docs</a><a href="#">Blog</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1>One page, two schemes.</h1>
+        <h2>Light by default, dark on request</h2>
+        <p>
+          Duo follows the reader's color-scheme preference. Every token is a CSS
+          variable that a <code>prefers-color-scheme: dark</code> block redefines.
+        </p>
+        <p>
+          <button class="btn">Get started</button>
+          <button class="btn">See the docs</button>
+        </p>
+      </section>
+
+      <section class="grid">
+        <div class="card"><h3>Background</h3><p>Warm off-white, near-black at night.</p><small>Both schemes.</small></div>
+        <div class="card"><h3>Surface</h3><p>Cards sit one step off the page.</p><small>Raised, not loud.</small></div>
+        <div class="card"><h3>Primary</h3><p>Teal for every interactive element.</p><small>Brighter in the dark.</small></div>
+      </section>
+    </main>
+
+    <footer>
+      <small>© 2026 Duo. A synthetic fixture for the Distill eval corpus.</small>
+    </footer>
+  </body>
+</html>

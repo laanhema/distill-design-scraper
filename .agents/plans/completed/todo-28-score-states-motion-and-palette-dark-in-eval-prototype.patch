@@ -1,0 +1,437 @@
+diff --git a/eval/corpus.ts b/eval/corpus.ts
+index 07f3971..2219acc 100644
+--- a/eval/corpus.ts
++++ b/eval/corpus.ts
+@@ -32,6 +32,7 @@ export const CORPUS: CorpusEntry[] = [
+   { slug: "dark-mode", bucket: "dark-mode", fixture: "dark-mode.html" },
+   { slug: "adversarial-shell", bucket: "hostile", fixture: "adversarial-shell.html" },
+   { slug: "saas-landing", bucket: "css-variable", fixture: "saas-landing.html" },
++  { slug: "two-scheme", bucket: "dark-mode", fixture: "two-scheme.html" },
+ 
+   // Live references — capture + author expected.yaml to bring these online.
+   { slug: "stripe", bucket: "clean-design-system", url: "https://stripe.com", optional: true },
+diff --git a/eval/corpus/adversarial-shell/expected.yaml b/eval/corpus/adversarial-shell/expected.yaml
+index 1ece2bb..1f04e3e 100644
+--- a/eval/corpus/adversarial-shell/expected.yaml
++++ b/eval/corpus/adversarial-shell/expected.yaml
+@@ -43,3 +43,9 @@ structure:
+     SectionCard: { count: 4 }
+     TextLink: { count: 5 }
+     Button: { count: 2 }
++# The fixture's one `.btn:hover` rule and one `transition` declaration, as
++# the committed capture holds them (two `.btn` nodes share both).
++states:
++  - { target: primary, state: hover, property: background-color, from: "#6d28d9", to: "#5b21b6" }
++motion:
++  - { target: Button, kind: transition, property: background-color, durationMs: 150, timingFunction: ease }
+diff --git a/eval/corpus/two-scheme/expected.yaml b/eval/corpus/two-scheme/expected.yaml
+new file mode 100644
+index 0000000..54ac93b
+--- /dev/null
++++ b/eval/corpus/two-scheme/expected.yaml
+@@ -0,0 +1,40 @@
++# Hand-authored ground truth for the two-scheme fixture (§10).
++# One page whose CSS variables are redefined under
++# `prefers-color-scheme: dark`, so the capture's dark render shifts the
++# background and the report carries `paletteDark`; `paletteDark` below holds
++# the dark tokens from `eval/fixtures/two-scheme.html`.
++name: two-scheme
++bucket: dark-mode
++palette:
++  background: "#fafaf9"
++  surface: "#f0efed"
++  text: "#1c1917"
++  primary: "#0f766e"
++  border: "#d6d3d1"
++  muted: "#78716c"
++paletteDark:
++  background: "#0c0a09"
++  surface: "#1c1917"
++  text: "#f5f5f4"
++  primary: "#2dd4bf"
++  border: "#44403c"
++  muted: "#a8a29e"
++typography:
++  bodyFamily: "Source Sans 3"
++  scale:
++    h1: 46
++    h2: 30
++    h3: 21
++    body: 16
++    small: 13
++structure:
++  expectedSections:
++    - { name: SiteHeader }
++    - { name: Hero }
++    - { name: CardGrid }
++    - { name: SiteFooter }
++  expectedRegions: [SiteHeader, MainContent, CardGrid, SiteFooter]
++  expectedComponents:
++    SectionCard: { count: 3 }
++    TextLink: { count: 4 }
++    Button: { count: 2 }
+diff --git a/eval/fixtures/two-scheme.html b/eval/fixtures/two-scheme.html
+new file mode 100644
+index 0000000..6cf33cb
+--- /dev/null
++++ b/eval/fixtures/two-scheme.html
+@@ -0,0 +1,82 @@
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8" />
++    <title>Duo — Two-Scheme Design System Fixture</title>
++    <style>
++      /* One page, two schemes: the light tokens below, swapped for the dark
++         set under `prefers-color-scheme: dark`. The capture renders both, so
++         the report carries `palette` (light) and `paletteDark`. */
++      :root {
++        --bg: #fafaf9;
++        --surface: #f0efed;
++        --text: #1c1917;
++        --primary: #0f766e;
++        --border: #d6d3d1;
++        --muted: #78716c;
++      }
++      @media (prefers-color-scheme: dark) {
++        :root {
++          --bg: #0c0a09;
++          --surface: #1c1917;
++          --text: #f5f5f4;
++          --primary: #2dd4bf;
++          --border: #44403c;
++          --muted: #a8a29e;
++        }
++      }
++      * { box-sizing: border-box; margin: 0; }
++      body {
++        background: var(--bg);
++        color: var(--text);
++        font-family: "Source Sans 3", system-ui, sans-serif;
++        font-size: 16px;
++        line-height: 1.6;
++      }
++      header { padding: 20px 48px; border-bottom: 1px solid var(--border); }
++      nav a { color: var(--primary); text-decoration: none; margin-right: 24px; }
++      .hero { padding: 64px 48px 32px; }
++      h1 { font-size: 46px; font-weight: 700; line-height: 1.1; }
++      h2 { font-size: 30px; font-weight: 600; line-height: 1.2; margin-top: 8px; }
++      h3 { font-size: 21px; font-weight: 600; }
++      p { font-size: 16px; margin-top: 16px; max-width: 60ch; }
++      small, .caption { font-size: 13px; color: var(--muted); }
++      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; padding: 32px 48px; }
++      .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
++      .btn { background: var(--primary); color: var(--bg); border: none; border-radius: 8px; padding: 12px 20px; font-size: 16px; font-weight: 600; }
++      footer { padding: 32px 48px; color: var(--muted); border-top: 1px solid var(--border); }
++    </style>
++  </head>
++  <body>
++    <header>
++      <nav>
++        <a href="#">Product</a><a href="#">Pricing</a><a href="#">Docs</a><a href="#">Blog</a>
++      </nav>
++    </header>
++
++    <main>
++      <section class="hero">
++        <h1>One page, two schemes.</h1>
++        <h2>Light by default, dark on request</h2>
++        <p>
++          Duo follows the reader's color-scheme preference. Every token is a CSS
++          variable that a <code>prefers-color-scheme: dark</code> block redefines.
++        </p>
++        <p>
++          <button class="btn">Get started</button>
++          <button class="btn">See the docs</button>
++        </p>
++      </section>
++
++      <section class="grid">
++        <div class="card"><h3>Background</h3><p>Warm off-white, near-black at night.</p><small>Both schemes.</small></div>
++        <div class="card"><h3>Surface</h3><p>Cards sit one step off the page.</p><small>Raised, not loud.</small></div>
++        <div class="card"><h3>Primary</h3><p>Teal for every interactive element.</p><small>Brighter in the dark.</small></div>
++      </section>
++    </main>
++
++    <footer>
++      <small>© 2026 Duo. A synthetic fixture for the Distill eval corpus.</small>
++    </footer>
++  </body>
++</html>
+diff --git a/eval/run.ts b/eval/run.ts
+index e27d913..507be1b 100644
+--- a/eval/run.ts
++++ b/eval/run.ts
+@@ -7,6 +7,8 @@ import { CORPUS } from "./corpus";
+ import {
+   scorePalette,
+   scoreTypography,
++  scoreStates,
++  scoreMotion,
+   combinedScore,
+   expectedSpecSchema,
+   type ExpectedSpec,
+@@ -35,6 +37,10 @@ interface SiteResult {
+   avgDeltaE: number;
+   bodyFamilyOk: boolean | null;
+   structureScore: number | null;
++  /** `null` when `expected.yaml` has no spec for that lane. */
++  statesAccuracy: number | null;
++  motionAccuracy: number | null;
++  darkRoleAccuracy: number | null;
+   notes: string[];
+ }
+ 
+@@ -91,7 +97,16 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
+     }
+   }
+ 
+-  const combined = combinedScore(pal, typo, structureScore);
++  const states = expected.states ? scoreStates(report.states, expected.states) : null;
++  const motion = expected.motion ? scoreMotion(report.motion, expected.motion) : null;
++  const dark = expected.paletteDark
++    ? scorePalette(report.paletteDark, expected.paletteDark)
++    : null;
++  const extraLanes = [states?.accuracy, motion?.accuracy, dark?.roleAccuracy].filter(
++    (a): a is number => a !== undefined,
++  );
++
++  const combined = combinedScore(pal, typo, structureScore, extraLanes);
+ 
+   const notes: string[] = [];
+   for (const m of pal.misses) {
+@@ -111,6 +126,14 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
+   for (const m of structureMisses) {
+     notes.push(`structure: ${m}`);
+   }
++  for (const m of dark?.misses ?? []) {
++    notes.push(
++      `paletteDark ${m.role}: expected ${m.expected}, got ${m.got ?? "—"}` +
++        (m.deltaE !== null ? ` (ΔE ${m.deltaE.toFixed(1)})` : ""),
++    );
++  }
++  for (const m of states?.misses ?? []) notes.push(`states ${m}`);
++  for (const m of motion?.misses ?? []) notes.push(`motion ${m}`);
+ 
+   return {
+     slug,
+@@ -120,6 +143,9 @@ async function scoreSite(slug: string): Promise<SiteResult | null> {
+     avgDeltaE: pal.avgDeltaE,
+     bodyFamilyOk: typo?.bodyFamilyOk ?? null,
+     structureScore,
++    statesAccuracy: states?.accuracy ?? null,
++    motionAccuracy: motion?.accuracy ?? null,
++    darkRoleAccuracy: dark?.roleAccuracy ?? null,
+     notes,
+   };
+ }
+@@ -160,7 +186,10 @@ async function main() {
+       `  ${r.slug.padEnd(14)} combined ${fmtPct(r.combined).padStart(4)}` +
+         `  roles ${fmtPct(r.roleAccuracy).padStart(4)}` +
+         `  type ${typ.padStart(4)}` +
+-        `  ΔE ${r.avgDeltaE.toFixed(1)}`,
++        `  ΔE ${r.avgDeltaE.toFixed(1)}` +
++        (r.darkRoleAccuracy !== null ? `  dark ${fmtPct(r.darkRoleAccuracy)}` : "") +
++        (r.statesAccuracy !== null ? `  states ${fmtPct(r.statesAccuracy)}` : "") +
++        (r.motionAccuracy !== null ? `  motion ${fmtPct(r.motionAccuracy)}` : ""),
+     );
+     for (const n of r.notes) console.log(`      ↳ ${n}`);
+   }
+diff --git a/eval/score.ts b/eval/score.ts
+index 68e1c04..5097df8 100644
+--- a/eval/score.ts
++++ b/eval/score.ts
+@@ -1,6 +1,15 @@
+ import { deltaE, parseColor } from "@/lib/color";
+ import { z } from "zod";
+-import type { Palette, Typography } from "@/lib/schema";
++import {
++  colorRoleSchema,
++  MOTION_KINDS,
++  recipeElementSchema,
++  STATE_KINDS,
++  type Motion,
++  type Palette,
++  type States,
++  type Typography,
++} from "@/lib/schema";
+ import { expectedStructureSpecSchema } from "./scoreStructure";
+ 
+ /**
+@@ -12,6 +21,32 @@ import { expectedStructureSpecSchema } from "./scoreStructure";
+ /** ΔE under which an extracted color counts as matching the expected one. */
+ const PALETTE_DELTA_E_TOLERANCE = 12;
+ 
++/** A state's from/to colors are read verbatim from the CSSOM, and a hover
++ *  shade sits only ΔE ~6 from its base, so the palette tolerance would let a
++ *  wrong value through. This one absorbs rounding only. */
++const STATE_DELTA_E_TOLERANCE = 2;
++
++/** One expected hover/focus change, flattened from a report `StateEntry`. */
++const expectedStateSchema = z.strictObject({
++  target: colorRoleSchema,
++  state: z.enum(STATE_KINDS),
++  property: z.string(),
++  from: z.string(),
++  to: z.string(),
++});
++export type ExpectedState = z.infer<typeof expectedStateSchema>;
++
++const expectedMotionSchema = z.strictObject({
++  target: recipeElementSchema,
++  kind: z.enum(MOTION_KINDS),
++  property: z.string(),
++  durationMs: z.number(),
++  timingFunction: z.string(),
++  delayMs: z.number().optional(),
++  iterationCount: z.string().optional(),
++});
++export type ExpectedMotion = z.infer<typeof expectedMotionSchema>;
++
+ /** The shape of a hand-written `expected.yaml`. Strict at every level: an
+  *  unknown (e.g. misspelt) key would otherwise drop that part of the spec,
+  *  and the scorers count a missing part as a full score. */
+@@ -19,6 +54,8 @@ export const expectedSpecSchema = z.strictObject({
+   name: z.string(),
+   bucket: z.string(),
+   palette: z.record(z.string(), z.string()),
++  /** The `prefers-color-scheme: dark` palette, by role, as `palette`. */
++  paletteDark: z.record(z.string(), z.string()).optional(),
+   typography: z
+     .strictObject({
+       bodyFamily: z.string().optional(),
+@@ -28,6 +65,9 @@ export const expectedSpecSchema = z.strictObject({
+   /** Optional structure spec — when present, the structure lane
+    *  is scored against it and folded into `combinedScore`. */
+   structure: expectedStructureSpecSchema.optional(),
++  /** `min(1)`: an empty list would score a full mark while asserting nothing. */
++  states: z.array(expectedStateSchema).min(1).optional(),
++  motion: z.array(expectedMotionSchema).min(1).optional(),
+ });
+ export type ExpectedSpec = z.infer<typeof expectedSpecSchema>;
+ 
+@@ -41,14 +81,16 @@ export interface PaletteScore {
+   misses: { role: string; expected: string; got: string | null; deltaE: number | null }[];
+ }
+ 
++/** `palette` is `undefined` when the report has none (no `paletteDark`):
++ *  every expected role then misses. */
+ export function scorePalette(
+-  palette: Palette,
++  palette: Palette | undefined,
+   expected: Record<string, string>,
+ ): PaletteScore {
+   // Keyed by plain strings, so a role name read from `expected.yaml` looks
+   // itself up without a cast. A swatch without a role is left out.
+   const byRole = new Map<string, string>();
+-  for (const c of palette.colors) {
++  for (const c of palette?.colors ?? []) {
+     if (c.role !== undefined) byRole.set(c.role, c.hex);
+   }
+   const roles = Object.keys(expected);
+@@ -132,13 +174,104 @@ export function scoreTypography(
+   };
+ }
+ 
++/** Shared result of the list-shaped lanes (`states`, `motion`). */
++export interface LaneScore {
++  matched: number;
++  total: number;
++  accuracy: number;
++  misses: string[];
++}
++
++function laneScore(total: number, misses: string[]): LaneScore {
++  const matched = total - misses.length;
++  return { matched, total, accuracy: total ? matched / total : 1, misses };
++}
++
++const normalizeCss = (v: string) => v.trim().replace(/\s+/g, " ").toLowerCase();
++
++/** Colors by ΔE, any other value (a `box-shadow`) as normalized CSS text. */
++function stateValueMatches(expected: string, got: string): boolean {
++  const a = parseColor(expected);
++  const b = parseColor(got);
++  if (a && b) return deltaE(a, b) <= STATE_DELTA_E_TOLERANCE;
++  return normalizeCss(expected) === normalizeCss(got);
++}
++
++export function scoreStates(
++  states: States | undefined,
++  expected: ExpectedState[],
++): LaneScore {
++  const misses: string[] = [];
++  for (const want of expected) {
++    const label = `${want.target} ${want.state} ${want.property}`;
++    const got = states?.entries
++      .find((e) => e.target === want.target && e.state === want.state)
++      ?.changes.find((c) => c.property === want.property);
++    if (!got) {
++      misses.push(`${label}: expected ${want.from} → ${want.to}, got —`);
++    } else if (!stateValueMatches(want.from, got.from) || !stateValueMatches(want.to, got.to)) {
++      misses.push(`${label}: expected ${want.from} → ${want.to}, got ${got.from} → ${got.to}`);
++    }
++  }
++  return laneScore(expected.length, misses);
++}
++
++export function scoreMotion(
++  motion: Motion | undefined,
++  expected: ExpectedMotion[],
++): LaneScore {
++  const misses: string[] = [];
++  const fmt = (m: { durationMs: number; timingFunction: string; delayMs?: number; iterationCount?: string }) =>
++    `${m.durationMs}ms ${m.timingFunction}` +
++    (m.delayMs ? ` delay ${m.delayMs}ms` : "") +
++    (m.iterationCount ? ` ×${m.iterationCount}` : "");
++  for (const want of expected) {
++    const label = `${want.target} ${want.kind} ${want.property}`;
++    const got = motion?.entries.find(
++      (e) => e.target === want.target && e.kind === want.kind && e.property === want.property,
++    );
++    if (!got) {
++      misses.push(`${label}: expected ${fmt(want)}, got —`);
++      continue;
++    }
++    const ok =
++      got.durationMs === want.durationMs &&
++      normalizeCss(got.timingFunction) === normalizeCss(want.timingFunction) &&
++      (got.delayMs ?? 0) === (want.delayMs ?? 0) &&
++      (want.iterationCount === undefined || got.iterationCount === want.iterationCount);
++    if (!ok) misses.push(`${label}: expected ${fmt(want)}, got ${fmt(got)}`);
++  }
++  return laneScore(expected.length, misses);
++}
++
++/** Each scored `states` / `motion` / `paletteDark` lane takes this share of
++ *  the combined score, and the base weighting below keeps the rest, so a
++ *  spec without those lanes keeps its score. A wiped lane drops the site by
++ *  0.1, well past `REGRESSION_EPS`. */
++const EXTRA_LANE_WEIGHT = 0.1;
++
+ /** Palette 0.5 / typography 0.3 / structure 0.2, so a full structure collapse
+  *  drops combined by 0.2, well past `REGRESSION_EPS`; without a structure
+- *  score, palette 0.6 / typography 0.4. */
++ *  score, palette 0.6 / typography 0.4. `extraLanes` holds the accuracy of
++ *  each scored `states` / `motion` / `paletteDark` lane. */
+ export function combinedScore(
+   palette: PaletteScore,
+   typography: TypographyScore | null,
+   structure?: number | null,
++  extraLanes: readonly number[] = [],
++): number {
++  const base = baseScore(palette, typography, structure);
++  const extraWeight = EXTRA_LANE_WEIGHT * extraLanes.length;
++  return (
++    base * (1 - extraWeight) +
++    extraLanes.reduce((sum, accuracy) => sum + accuracy * EXTRA_LANE_WEIGHT, 0)
++  );
++}
++
++function baseScore(
++  palette: PaletteScore,
++  typography: TypographyScore | null,
++  structure?: number | null,
+ ): number {
+   if (structure !== undefined && structure !== null) {
+     const pal = palette.roleAccuracy;

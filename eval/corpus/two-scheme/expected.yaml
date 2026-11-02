@@ -1,0 +1,40 @@
+# Hand-authored ground truth for the two-scheme fixture (§10).
+# One page whose CSS variables are redefined under
+# `prefers-color-scheme: dark`, so the capture's dark render shifts the
+# background and the report carries `paletteDark`; `paletteDark` below holds
+# the dark tokens from `eval/fixtures/two-scheme.html`.
+name: two-scheme
+bucket: dark-mode
+palette:
+  background: "#fafaf9"
+  surface: "#f0efed"
+  text: "#1c1917"
+  primary: "#0f766e"
+  border: "#d6d3d1"
+  muted: "#78716c"
+paletteDark:
+  background: "#0c0a09"
+  surface: "#1c1917"
+  text: "#f5f5f4"
+  primary: "#2dd4bf"
+  border: "#44403c"
+  muted: "#a8a29e"
+typography:
+  bodyFamily: "Source Sans 3"
+  scale:
+    h1: 46
+    h2: 30
+    h3: 21
+    body: 16
+    small: 13
+structure:
+  expectedSections:
+    - { name: SiteHeader }
+    - { name: Hero }
+    - { name: CardGrid }
+    - { name: SiteFooter }
+  expectedRegions: [SiteHeader, MainContent, CardGrid, SiteFooter]
+  expectedComponents:
+    SectionCard: { count: 3 }
+    TextLink: { count: 4 }
+    Button: { count: 2 }

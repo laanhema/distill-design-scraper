@@ -43,3 +43,9 @@ structure:
     SectionCard: { count: 4 }
     TextLink: { count: 5 }
     Button: { count: 2 }
+# The fixture's one `.btn:hover` rule and one `transition` declaration, as
+# the committed capture holds them (two `.btn` nodes share both).
+states:
+  - { target: primary, state: hover, property: background-color, from: "#6d28d9", to: "#5b21b6" }
+motion:
+  - { target: Button, kind: transition, property: background-color, durationMs: 150, timingFunction: ease }
