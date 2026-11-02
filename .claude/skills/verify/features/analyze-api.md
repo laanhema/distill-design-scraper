@@ -29,4 +29,4 @@ Preconditions:
 - Without `forceRefresh`, repeated identical requests are cache hits and never reach the limiter.
 - A URL response embeds base64 screenshots of several hundred KB. Save the body to a file rather than printing it. An image response has none.
 - A URL response with `structureUnavailableReason` is never cached, and an image response with it is cached only when no key is set. Don't treat a changed second response as a cache bug in those cases.
-- The cache key is the URL or the image `data`, plus `mode`. The image `name` is not part of it, so the same bytes sent under a new name within 10 minutes return the first request's `report.source.ref`.
+- The cache key is the URL plus `mode`, or each image's `data` and `name` plus `mode`. The same bytes sent under a new name are a cache miss whose `report.source.ref` names the new file. A missing name keys the same as its fallback `uploaded-image-N`.
