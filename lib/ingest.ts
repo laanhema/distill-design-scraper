@@ -8,7 +8,8 @@ import {
 import { harvestDomTree } from "@/lib/extract/structure/harvester";
 import type { RawHarvestNode, ResponsiveHarvest } from "@/lib/extract/structureSchema";
 import { assertSafeUrl } from "@/lib/security/ssrfGuard";
-import type { CaptureAccess, Obstruction } from "@/lib/schema";
+import type { CaptureAccess, Mitigation, Obstruction } from "@/lib/schema";
+import { preparePageForMitigation, collectMitigations } from "@/lib/mitigation";
 
 /**
  * Thrown when navigation is blocked by access restrictions, HTTP error codes
@@ -436,6 +437,7 @@ export async function measureObstruction(
  */
 export async function capturePage(
   page: Page,
+  options?: { mitigations?: Mitigation[] },
 ): Promise<CaptureArtifacts & { bannerDismissed: boolean }> {
   const initialTitle = await page.title();
   if (isBotChallengeTitle(initialTitle)) {
@@ -453,10 +455,11 @@ export async function capturePage(
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.waitForTimeout(300);
 
+  const mitigations = options?.mitigations ?? [];
   const obstruction = await measureObstruction(page, "viewport");
   const access: CaptureAccess = obstruction
-    ? { state: "obstructed", mitigations: [], obstructions: [obstruction] }
-    : { state: "clear", mitigations: [] };
+    ? { state: "obstructed", mitigations, obstructions: [obstruction] }
+    : { state: "clear", mitigations };
 
   const viewportShotBuf = await page.screenshot({ fullPage: false });
   // One cache per capture, shared by the light and the dark style dump, so
@@ -514,6 +517,7 @@ export async function renderUrl(
       colorScheme: "light",
     });
     const page = await context.newPage();
+    const { tracker } = await preparePageForMitigation(page);
 
     // Redirect-target guard. Playwright does not await `on()` handlers, so a
     // fast redirect could finish navigating before `assertSafeUrl` resolves:
@@ -608,7 +612,8 @@ export async function renderUrl(
       await page.waitForLoadState("networkidle", { timeout: 8_000 });
     } catch {}
 
-    const { bannerDismissed, ...artifacts } = await capturePage(page);
+    const mitigations = await collectMitigations(page, tracker);
+    const { bannerDismissed, ...artifacts } = await capturePage(page, { mitigations });
 
     const result: RenderResult = {
       finalUrl: page.url(),

@@ -19,6 +19,8 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
+    "@duckduckgo/autoconsent": "^17.2.0",
+    "@ghostery/adblocker-playwright": "^2.20.3",
     "culori": "^4.0.2",
     "js-yaml": "^5.2.1",
     "next": "^15.1.6",
