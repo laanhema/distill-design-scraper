@@ -1,0 +1,458 @@
+diff --git a/lib/analyze.ts b/lib/analyze.ts
+index 7f06fb6..5d8b07a 100644
+--- a/lib/analyze.ts
++++ b/lib/analyze.ts
+@@ -20,7 +20,7 @@ import {
+   interpret,
+   type RefinementChange,
+ } from "@/lib/interpret";
+-import type { Report, StructureReport } from "@/lib/schema";
++import type { CaptureAccess, Report, StructureReport } from "@/lib/schema";
+ import type { AiOutcome } from "@/lib/api";
+ 
+ /**
+@@ -80,6 +80,7 @@ export async function extractFromCapture(
+   const report = buildReport({
+     reportKind: "design-system",
+     source: capture.source,
++    capture: capture.access ? { access: capture.access } : undefined,
+     palette,
+     paletteDark,
+     typography,
+@@ -209,6 +210,7 @@ export async function analyzeImages(
+       elapsedMs: number;
+       bannerDismissed: boolean;
+       aiOutcome: AiOutcome;
++      access?: CaptureAccess;
+     };
+   }
+ > {
+@@ -344,6 +346,7 @@ export async function analyzeUrl(
+     elapsedMs: number;
+     bannerDismissed: boolean;
+     aiOutcome: AiOutcome;
++    access?: CaptureAccess;
+   };
+ }> {
+   const capturedAt = new Date().toISOString();
+@@ -419,6 +422,7 @@ export async function analyzeUrl(
+       elapsedMs: render.elapsedMs,
+       bannerDismissed: render.bannerDismissed,
+       aiOutcome: enriched.outcome,
++      access: capture.access,
+     },
+   };
+ }
+diff --git a/lib/api.ts b/lib/api.ts
+index 3ffdce9..c338d58 100644
+--- a/lib/api.ts
++++ b/lib/api.ts
+@@ -1,4 +1,4 @@
+-import type { Report, StructureReport } from "@/lib/schema";
++import type { CaptureAccess, Report, StructureReport } from "@/lib/schema";
+ import type { RefinementChange } from "@/lib/interpret";
+ 
+ /**
+@@ -21,6 +21,7 @@ export interface AnalyzeMeta {
+    *  not sent back to the client that sent them. */
+   viewportShots?: string[];
+   aiOutcome: AiOutcome;
++  access?: CaptureAccess;
+ }
+ 
+ export type Meta = AnalyzeMeta;
+diff --git a/lib/emit.ts b/lib/emit.ts
+index b988378..201b073 100644
+--- a/lib/emit.ts
++++ b/lib/emit.ts
+@@ -1,6 +1,7 @@
+ import { dump as yamlDump } from "js-yaml";
+ import {
+   reportSchema,
++  type CaptureAccess,
+   type Elevation,
+   type Identity,
+   type ImageMood,
+@@ -23,6 +24,7 @@ import {
+ 
+ export interface BuildReportInput {
+   source: { type: "url" | "image"; ref: string; refs?: string[]; capturedAt: string };
++  capture?: { access?: CaptureAccess };
+   reportKind: Report["reportKind"];
+   palette: Palette;
+   paletteDark?: Palette;
+@@ -39,9 +41,20 @@ export interface BuildReportInput {
+ 
+ /** Throws on schema violation. */
+ export function buildReport(input: BuildReportInput): Report {
++  const access = input.capture?.access;
++  const hasAccessCondition = Boolean(
++    access &&
++      (access.state === "blocked" ||
++        access.state === "obstructed" ||
++        (access.state === "clear" && access.mitigations.length > 0)),
++  );
++
+   const candidate: Report = {
+     reportKind: input.reportKind,
+     source: input.source,
++    ...(hasAccessCondition && input.capture?.access
++      ? { capture: { access: input.capture.access } }
++      : {}),
+     palette: input.palette,
+     ...(input.paletteDark ? { paletteDark: input.paletteDark } : {}),
+     ...(input.typography ? { typography: input.typography } : {}),
+@@ -67,6 +80,47 @@ export function renderMarkdown(report: Report): string {
+   return `---\n${frontmatter}\n---\n\n${renderBody(report)}\n`;
+ }
+ 
++function renderAccessNote(access: CaptureAccess): string | undefined {
++  const parts: string[] = [];
++
++  if (access.state === "obstructed") {
++    const obs = access.obstructions[0];
++    const pct = `${Math.round(obs.coverage * 100)}%`;
++    let desc = `${pct} viewport obstruction`;
++    if (obs.culprit) desc += ` (culprit: ${obs.culprit})`;
++    if (obs.scrollLocked) desc += `; scroll locked`;
++    parts.push(`Captured with ${desc}`);
++  } else if (access.state === "blocked") {
++    parts.push(
++      `Navigation blocked: ${access.reason}${access.status ? ` (HTTP ${access.status})` : ""}`,
++    );
++  }
++
++  const mitigations = access.state !== "blocked" ? access.mitigations : [];
++  if (mitigations.length > 0) {
++    const mitSummaries = mitigations.map((m) => {
++      switch (m.kind) {
++        case "consent":
++          return `opting out of the ${m.cmp} consent banner`;
++        case "overlayHidden":
++          return `hiding overlay (${m.descriptor})`;
++        case "scrollUnlocked":
++          return "unlocking scroll";
++        case "filterLists":
++          return "applying filter lists";
++      }
++    });
++    if (parts.length > 0) {
++      parts.push(`after ${mitSummaries.join("; ")}`);
++    } else {
++      parts.push(`Captured after ${mitSummaries.join("; ")}`);
++    }
++  }
++
++  if (parts.length === 0) return undefined;
++  return `_${parts.join(" ")}._`;
++}
++
+ function renderBody(report: Report): string {
+   const parts: string[] = [];
+   const title =
+@@ -75,6 +129,11 @@ function renderBody(report: Report): string {
+       : "Palette & Mood";
+   parts.push(`# ${title}`);
+ 
++  if (report.capture?.access) {
++    const accessNote = renderAccessNote(report.capture.access);
++    if (accessNote) parts.push(accessNote);
++  }
++
+   parts.push(renderPalette(report.palette));
+   if (report.paletteDark) parts.push(renderPalette(report.paletteDark, "Palette (dark scheme)"));
+   if (report.states) parts.push(renderStates(report.states));
+diff --git a/lib/ingest.ts b/lib/ingest.ts
+index 54649b0..2d37d32 100644
+--- a/lib/ingest.ts
++++ b/lib/ingest.ts
+@@ -8,6 +8,7 @@ import {
+ import { harvestDomTree } from "@/lib/extract/structure/harvester";
+ import type { RawHarvestNode, ResponsiveHarvest } from "@/lib/extract/structureSchema";
+ import { assertSafeUrl } from "@/lib/security/ssrfGuard";
++import type { CaptureAccess, Obstruction } from "@/lib/schema";
+ 
+ /**
+  * Thrown when navigation is blocked by access restrictions, HTTP error codes
+@@ -58,6 +59,7 @@ export interface CaptureArtifacts {
+    *  switch to it as a simplification. Omitted when the page fits in one
+    *  viewport, or on capture failure. */
+   panoramaShot?: string;
++  access?: CaptureAccess;
+ }
+ 
+ export interface RenderResult extends CaptureArtifacts {
+@@ -256,6 +258,178 @@ async function captureFullPageTiles(
+   }
+ }
+ 
++/**
++ * Measures whether the viewport is obstructed by an overlay, cookie banner,
++ * modal dialog, or scroll lock via a 24×15 grid sample with `elementFromPoint`.
++ * Landmark elements (header, nav, [role=banner], [role=navigation]) and
++ * top-anchored banners shorter than 20% of viewport height count as headers
++ * and are excluded from obstruction coverage.
++ */
++export async function measureObstruction(
++  page: Page,
++  at: "viewport" | "dark" | string = "viewport",
++): Promise<Obstruction | null> {
++  return page.evaluate((atParam) => {
++    // Defensively ensure __name is defined if tsx rewrites inner functions
++    // eslint-disable-next-line @typescript-eslint/no-explicit-any
++    (globalThis as any).__name = (globalThis as any).__name || ((fn: any) => fn);
++
++    if (!document.documentElement) return null;
++
++    const htmlStyle = window.getComputedStyle(document.documentElement);
++    const bodyStyle = document.body ? window.getComputedStyle(document.body) : null;
++    const scrollLocked =
++      htmlStyle.overflow === "hidden" ||
++      htmlStyle.overflowY === "hidden" ||
++      Boolean(bodyStyle && (bodyStyle.overflow === "hidden" || bodyStyle.overflowY === "hidden"));
++
++    const vw = window.innerWidth;
++    const vh = window.innerHeight;
++    if (vw <= 0 || vh <= 0) return null;
++
++    const isLandmark = (el: Element | null): boolean => {
++      if (!el) return false;
++      return Boolean(
++        el.closest('header, nav, [role="banner"], [role="navigation"]') ||
++          el.matches('header, nav, [role="banner"], [role="navigation"]') ||
++          el.querySelector('header, nav, [role="banner"], [role="navigation"]'),
++      );
++    };
++
++    const getOutermostFixedAncestor = (el: Element): Element | null => {
++      let curr: Element | null = el;
++      let outermost: Element | null = null;
++      while (curr && curr !== document.documentElement && curr !== document.body) {
++        const style = window.getComputedStyle(curr);
++        if (style.position === "fixed") {
++          outermost = curr;
++        }
++        curr = curr.parentElement;
++      }
++      return outermost;
++    };
++
++    // Check visible dialogs/modals confirmed via hit test at center
++    const modalCandidates = Array.from(
++      document.querySelectorAll<HTMLElement>('dialog[open], [aria-modal="true"]'),
++    );
++    const confirmedModals: HTMLElement[] = [];
++    for (const modal of modalCandidates) {
++      if (!modal.isConnected) continue;
++      const style = window.getComputedStyle(modal);
++      if (
++        style.display === "none" ||
++        style.visibility === "hidden" ||
++        style.opacity === "0" ||
++        style.pointerEvents === "none"
++      ) {
++        continue;
++      }
++      const rect = modal.getBoundingClientRect();
++      if (rect.width <= 0 || rect.height <= 0) continue;
++      const cx = rect.left + rect.width / 2;
++      const cy = rect.top + rect.height / 2;
++      if (cx >= 0 && cx < vw && cy >= 0 && cy < vh) {
++        let hit = document.elementFromPoint(cx, cy);
++        while (hit && (hit as HTMLElement).shadowRoot) {
++          const inner = (hit as HTMLElement).shadowRoot?.elementFromPoint(cx, cy);
++          if (!inner || inner === hit) break;
++          hit = inner;
++        }
++        if (hit && (modal === hit || modal.contains(hit))) {
++          confirmedModals.push(modal);
++        }
++      }
++    }
++
++    const getDescriptor = (node: Element): string => {
++      const tag = node.tagName.toLowerCase();
++      if (node.id) return `${tag}#${node.id}`;
++      const className = typeof node.className === "string" ? node.className.trim() : "";
++      if (className) {
++        const firstClass = className.split(/\s+/)[0];
++        if (firstClass) return `${tag}.${firstClass}`;
++      }
++      return tag;
++    };
++
++    const culpritCounts: Record<string, number> = {};
++    let coveredPoints = 0;
++    const totalPoints = 24 * 15; // 360
++
++    for (let r = 0; r < 15; r++) {
++      const y = (r + 0.5) * (vh / 15);
++      for (let c = 0; c < 24; c++) {
++        const x = (c + 0.5) * (vw / 24);
++
++        let el = document.elementFromPoint(x, y);
++        while (el && (el as HTMLElement).shadowRoot) {
++          const inner = (el as HTMLElement).shadowRoot?.elementFromPoint(x, y);
++          if (!inner || inner === el) break;
++          el = inner;
++        }
++        if (!el) continue;
++
++        // Skip landmark elements
++        if (isLandmark(el)) continue;
++
++        // Check if inside a confirmed modal
++        let obstructingElement: Element | null = null;
++        for (const modal of confirmedModals) {
++          if (modal === el || modal.contains(el)) {
++            obstructingElement = modal;
++            break;
++          }
++        }
++
++        // Check fixed layers
++        if (!obstructingElement) {
++          const fixedAncestor = getOutermostFixedAncestor(el);
++          if (fixedAncestor) {
++            if (isLandmark(fixedAncestor)) continue;
++
++            const rect = fixedAncestor.getBoundingClientRect();
++            // Top-anchored banners shorter than 20% of viewport height count as headers
++            const isTopAnchored = rect.top <= 1 && rect.left <= 5 && rect.width >= vw * 0.5;
++            const isShortHeader = rect.height < 0.20 * vh;
++            if (isTopAnchored && isShortHeader) {
++              continue;
++            }
++            obstructingElement = fixedAncestor;
++          }
++        }
++
++        if (obstructingElement) {
++          coveredPoints++;
++          const desc = getDescriptor(obstructingElement);
++          culpritCounts[desc] = (culpritCounts[desc] || 0) + 1;
++        }
++      }
++    }
++
++    let topCulprit: string | undefined;
++    let maxCount = 0;
++    for (const [desc, count] of Object.entries(culpritCounts)) {
++      if (count > maxCount) {
++        maxCount = count;
++        topCulprit = desc;
++      }
++    }
++
++    const coverage = Math.round((coveredPoints / totalPoints) * 1000) / 1000;
++    if (coverage === 0 && !scrollLocked) {
++      return null;
++    }
++
++    return {
++      coverage,
++      scrollLocked,
++      ...(topCulprit ? { culprit: topCulprit } : {}),
++      at: atParam,
++    };
++  }, at);
++}
++
+ /**
+  * Everything after navigation. Separate from `renderUrl` so the eval harness
+  * can drive it against local fixture pages without the SSRF guard.
+@@ -279,6 +453,11 @@ export async function capturePage(
+   await page.evaluate(() => window.scrollTo(0, 0));
+   await page.waitForTimeout(300);
+ 
++  const obstruction = await measureObstruction(page, "viewport");
++  const access: CaptureAccess = obstruction
++    ? { state: "obstructed", mitigations: [], obstructions: [obstruction] }
++    : { state: "clear", mitigations: [] };
++
+   const viewportShotBuf = await page.screenshot({ fullPage: false });
+   // One cache per capture, shared by the light and the dark style dump, so
+   // each cross-origin stylesheet is downloaded once per analysis.
+@@ -302,6 +481,7 @@ export async function capturePage(
+   return {
+     viewportShot: viewportShotBuf.toString("base64"),
+     bannerDismissed,
++    access,
+     styleDump,
+     rawHarvestNode,
+     ...(responsiveHarvests.length > 0 ? { responsiveHarvests } : {}),
+diff --git a/lib/schema.ts b/lib/schema.ts
+index a1a5c9f..d2d89c6 100644
+--- a/lib/schema.ts
++++ b/lib/schema.ts
+@@ -10,6 +10,58 @@ import { z } from "zod";
+ export const PROVENANCE = ["measured", "inferred", "ai"] as const;
+ export const provenanceSchema = z.enum(PROVENANCE);
+ 
++/**
++ * Capture accessibility and obstruction states, modeled as a discriminated union
++ * so illegal states (such as blocked-with-report or clear-with-obstructions)
++ * cannot be represented.
++ */
++export const mitigationSchema = z.discriminatedUnion("kind", [
++  z.object({
++    kind: z.literal("consent"),
++    cmp: z.string(),
++    action: z.enum(["optOut", "optIn"]),
++  }),
++  z.object({
++    kind: z.literal("filterLists"),
++    lists: z.array(z.string()),
++  }),
++  z.object({
++    kind: z.literal("overlayHidden"),
++    descriptor: z.string(),
++    rule: z.enum(["fullCover", "floatingPanel", "dialog", "escape"]),
++  }),
++  z.object({
++    kind: z.literal("scrollUnlocked"),
++  }),
++]);
++export type Mitigation = z.infer<typeof mitigationSchema>;
++
++export const obstructionSchema = z.object({
++  coverage: z.number().min(0).max(1),
++  scrollLocked: z.boolean(),
++  culprit: z.string().optional(),
++  at: z.string(),
++});
++export type Obstruction = z.infer<typeof obstructionSchema>;
++
++export const captureAccessSchema = z.discriminatedUnion("state", [
++  z.object({
++    state: z.literal("clear"),
++    mitigations: z.array(mitigationSchema).default([]),
++  }),
++  z.object({
++    state: z.literal("obstructed"),
++    mitigations: z.array(mitigationSchema).default([]),
++    obstructions: z.array(obstructionSchema).min(1),
++  }),
++  z.object({
++    state: z.literal("blocked"),
++    reason: z.string(),
++    status: z.number().optional(),
++  }),
++]);
++export type CaptureAccess = z.infer<typeof captureAccessSchema>;
++
+ /**
+  * The roles the AI lane may permute in a role refinement. The rest of
+  * `COLOR_ROLES` are evidence-gated (`on-primary` is derived, the semantic
+@@ -261,6 +313,11 @@ export const reportSchema = z.object({
+     refs: z.array(z.string()).optional(),
+     capturedAt: z.string(),
+   }),
++  capture: z
++    .object({
++      access: captureAccessSchema.optional(),
++    })
++    .optional(),
+   palette: paletteSchema,
+   /** A second palette from a `prefers-color-scheme: dark` render,
+    *  only present when the background actually shifted — a single-scheme

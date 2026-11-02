@@ -1,6 +1,7 @@
 import { dump as yamlDump } from "js-yaml";
 import {
   reportSchema,
+  type CaptureAccess,
   type Elevation,
   type Identity,
   type ImageMood,
@@ -23,6 +24,7 @@ import {
 
 export interface BuildReportInput {
   source: { type: "url" | "image"; ref: string; refs?: string[]; capturedAt: string };
+  capture?: { access?: CaptureAccess };
   reportKind: Report["reportKind"];
   palette: Palette;
   paletteDark?: Palette;
@@ -39,9 +41,20 @@ export interface BuildReportInput {
 
 /** Throws on schema violation. */
 export function buildReport(input: BuildReportInput): Report {
+  const access = input.capture?.access;
+  const hasAccessCondition = Boolean(
+    access &&
+      (access.state === "blocked" ||
+        access.state === "obstructed" ||
+        (access.state === "clear" && access.mitigations.length > 0)),
+  );
+
   const candidate: Report = {
     reportKind: input.reportKind,
     source: input.source,
+    ...(hasAccessCondition && input.capture?.access
+      ? { capture: { access: input.capture.access } }
+      : {}),
     palette: input.palette,
     ...(input.paletteDark ? { paletteDark: input.paletteDark } : {}),
     ...(input.typography ? { typography: input.typography } : {}),
@@ -67,6 +80,47 @@ export function renderMarkdown(report: Report): string {
   return `---\n${frontmatter}\n---\n\n${renderBody(report)}\n`;
 }
 
+function renderAccessNote(access: CaptureAccess): string | undefined {
+  const parts: string[] = [];
+
+  if (access.state === "obstructed") {
+    const obs = access.obstructions[0];
+    const pct = `${Math.round(obs.coverage * 100)}%`;
+    let desc = `${pct} viewport obstruction`;
+    if (obs.culprit) desc += ` (culprit: ${obs.culprit})`;
+    if (obs.scrollLocked) desc += `; scroll locked`;
+    parts.push(`Captured with ${desc}`);
+  } else if (access.state === "blocked") {
+    parts.push(
+      `Navigation blocked: ${access.reason}${access.status ? ` (HTTP ${access.status})` : ""}`,
+    );
+  }
+
+  const mitigations = access.state !== "blocked" ? access.mitigations : [];
+  if (mitigations.length > 0) {
+    const mitSummaries = mitigations.map((m) => {
+      switch (m.kind) {
+        case "consent":
+          return `opting out of the ${m.cmp} consent banner`;
+        case "overlayHidden":
+          return `hiding overlay (${m.descriptor})`;
+        case "scrollUnlocked":
+          return "unlocking scroll";
+        case "filterLists":
+          return "applying filter lists";
+      }
+    });
+    if (parts.length > 0) {
+      parts.push(`after ${mitSummaries.join("; ")}`);
+    } else {
+      parts.push(`Captured after ${mitSummaries.join("; ")}`);
+    }
+  }
+
+  if (parts.length === 0) return undefined;
+  return `_${parts.join(" ")}._`;
+}
+
 function renderBody(report: Report): string {
   const parts: string[] = [];
   const title =
@@ -74,6 +128,11 @@ function renderBody(report: Report): string {
       ? "Design System"
       : "Palette & Mood";
   parts.push(`# ${title}`);
+
+  if (report.capture?.access) {
+    const accessNote = renderAccessNote(report.capture.access);
+    if (accessNote) parts.push(accessNote);
+  }
 
   parts.push(renderPalette(report.palette));
   if (report.paletteDark) parts.push(renderPalette(report.paletteDark, "Palette (dark scheme)"));
