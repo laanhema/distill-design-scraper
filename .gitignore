@@ -41,3 +41,6 @@ TODO.md
 
 # verification skill runs (evidence + logs)
 .verify/
+
+# Lavish review pages (local HTML artifacts)
+/.lavish/
