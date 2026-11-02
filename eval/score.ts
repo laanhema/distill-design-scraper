@@ -227,19 +227,24 @@ export function scoreMotion(
     (m.iterationCount ? ` ×${m.iterationCount}` : "");
   for (const want of expected) {
     const label = `${want.target} ${want.kind} ${want.property}`;
-    const got = motion?.entries.find(
+    // `extractMotion` keeps one entry per distinct duration / timing / delay,
+    // so several entries can share a target, kind and property: any of them
+    // may satisfy the spec entry (recall-only).
+    const candidates = (motion?.entries ?? []).filter(
       (e) => e.target === want.target && e.kind === want.kind && e.property === want.property,
     );
-    if (!got) {
+    if (candidates.length === 0) {
       misses.push(`${label}: expected ${fmt(want)}, got —`);
       continue;
     }
-    const ok =
-      got.durationMs === want.durationMs &&
-      normalizeCss(got.timingFunction) === normalizeCss(want.timingFunction) &&
-      (got.delayMs ?? 0) === (want.delayMs ?? 0) &&
-      (want.iterationCount === undefined || got.iterationCount === want.iterationCount);
-    if (!ok) misses.push(`${label}: expected ${fmt(want)}, got ${fmt(got)}`);
+    const ok = candidates.some(
+      (got) =>
+        got.durationMs === want.durationMs &&
+        normalizeCss(got.timingFunction) === normalizeCss(want.timingFunction) &&
+        (got.delayMs ?? 0) === (want.delayMs ?? 0) &&
+        (want.iterationCount === undefined || got.iterationCount === want.iterationCount),
+    );
+    if (!ok) misses.push(`${label}: expected ${fmt(want)}, got ${candidates.map(fmt).join(" | ")}`);
   }
   return laneScore(expected.length, misses);
 }
@@ -247,7 +252,9 @@ export function scoreMotion(
 /** Each scored `states` / `motion` / `paletteDark` lane takes this share of
  *  the combined score, and the base weighting below keeps the rest, so a
  *  spec without those lanes keeps its score. A wiped lane drops the site by
- *  0.1, well past `REGRESSION_EPS`. */
+ *  0.1, well past `REGRESSION_EPS`. One wrong entry in a lane of *n* entries
+ *  drops it by only 0.1/*n*, which fails the gate only while *n* < 10
+ *  (0.1/*n* > `REGRESSION_EPS`); a longer list lets one wrong value through. */
 const EXTRA_LANE_WEIGHT = 0.1;
 
 /** Palette 0.5 / typography 0.3 / structure 0.2, so a full structure collapse
